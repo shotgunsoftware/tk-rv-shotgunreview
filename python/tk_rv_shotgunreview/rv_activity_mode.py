@@ -43,6 +43,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self._tab_widget = None
         self._shot_info = None
         self._task_manager = None
+        self._mini_cut = False
 
         self.init(
             "RvActivityMode",
@@ -64,6 +65,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     #####################################################################################
     # Properties
+
+    @property
+    def mini_cut(self):
+        return self._mini_cut
+
+    @mini_cut.setter
+    def mini_cut(self, state):
+        self._mini_cut = bool(state)
 
     @property
     def note_dock(self):
@@ -212,9 +221,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     def load_data(self, entity):
         # our session property is called tracking
         # tracking_str = rv.commands.getStringProperty('sourceGroup000001_source.tracking.info ')
-        self._version_activity_stream.load_data(entity)
+        self.version_activity_stream.load_data(entity)
         shot_filters = [ ['id','is', entity['id']] ]
-        self._shot_info_model.load_data(entity_type="Version", filters=shot_filters)
+        self.shot_info_model.load_data(entity_type="Version", filters=shot_filters)
 
     #####################################################################################
     # UI Initialization
@@ -223,32 +232,30 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self._note_dock = note_dock
         self._tray_dock = tray_dock
 
-        # Setup Tab widget with notes and versions, then setup the tray. 
+        # setup Tab widget with notes and versions, then setup tray 
         self._tab_widget = QtGui.QTabWidget()
+
         self.tab_widget.setFocusPolicy(QtCore.Qt.NoFocus)
         self.tab_widget.setObjectName("tab_widget")
         
-        activity_stream = tank.platform.import_framework(
-            "tk-framework-qtwidgets",
-            "activity_stream",
-        )
+        activity_stream = tank.platform.import_framework("tk-framework-qtwidgets", "activity_stream")
 
-        self._activity_tab_frame = QtGui.QWidget(self.note_dock)
+        self.activity_tab_frame = QtGui.QWidget(self.note_dock)
         
-        self._notes_container_frame = QtGui.QFrame(self._activity_tab_frame)
+        self.notes_container_frame = QtGui.QFrame(self.activity_tab_frame)
         self.cf_verticalLayout = QtGui.QVBoxLayout()
         self.cf_verticalLayout.setObjectName("cf_verticalLayout")
-        self._notes_container_frame.setLayout(self.cf_verticalLayout)
+        self.notes_container_frame.setLayout(self.cf_verticalLayout)
 
         self._shot_info = QtGui.QListView()
         self.cf_verticalLayout.addWidget(self.shot_info)
-        # self._version_activity_stream.ui.verticalLayout.addWidget(self.shot_info)
+        # self.version_activity_stream.ui.verticalLayout.addWidget(self.shot_info)
         
-        self._shot_info_model = shotgun_model.SimpleShotgunModel(self._activity_tab_frame)
-        self.shot_info.setModel(self._shot_info_model)
+        self.shot_info_model = shotgun_model.SimpleShotgunModel(self.activity_tab_frame)
+        self.shot_info.setModel(self.shot_info_model)
 
-        self._shot_info_delegate = RvShotInfoDelegate(self.shot_info)
-        self.shot_info.setItemDelegate(self._shot_info_delegate)
+        self.shot_info_delegate = RvShotInfoDelegate(self.shot_info)
+        self.shot_info.setItemDelegate(self.shot_info_delegate)
 
         self.shot_info.setVerticalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
         self.shot_info.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
@@ -257,141 +264,231 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.shot_info.setUniformItemSizes(True)
         self.shot_info.setObjectName("shot_info")
 
+        from .shot_info_widget import ShotInfoWidget
         self.shot_info.setMinimumSize(ShotInfoWidget.calculate_size())
         si_size = ShotInfoWidget.calculate_size()
         self.shot_info.setMaximumSize(QtCore.QSize(si_size.width() + 10, si_size.height() + 10))
         
         shot_filters = [ ['id','is', 1161] ]
-        self._shot_info_model.load_data(entity_type="Shot", filters=shot_filters, fields=["code", "link"])
+        self.shot_info_model.load_data(entity_type="Shot", filters=shot_filters, fields=["code", "link"])
 
-        self._version_activity_stream = activity_stream.ActivityStreamWidget(self._notes_container_frame)
-        self.cf_verticalLayout.addWidget(self._version_activity_stream)
 
-        self.tab_widget.setStyleSheet(
-            "QWidget { "
-                "font-family: Proxima Nova; "
-                "font-size: 16px; "
-                "background: rgb(36,38,41); "
-                "color: rgb(126,127,129); "
-                "border-color: rgb(36,38,41);} "
-            "QTabWidget::tab-bar { "
-                "alignment: center; "
-                "border: 2px solid rgb(236,38,41); } "
-            "QTabBar::tab { "
-                "border: 2px solid rgb(36,38,41); "
-                "alignment: center; "
-                "background: rgb(36,38,41); "
-                "margin: 4px; "
-                "color: rgb(126,127,129); } "
-            "QTabBar::tab:selected { "
-                "color: rgb(40,136,175)} "
-            "QTabWidget::pane { "
-                "border-top: 2px solid rgb(66,67,69); }"
-        )
 
-        task_manager = tank.platform.import_framework(
-            "tk-framework-shotgunutils",
-            "task_manager",
-        )
+        self.version_activity_stream = activity_stream.ActivityStreamWidget(self.notes_container_frame)
+        self.cf_verticalLayout.addWidget(self.version_activity_stream)
 
-        self._task_manager = task_manager.BackgroundTaskManager(
-            parent=self._version_activity_stream,
-            start_processing=True,
-            max_threads=2,
-        )
+        self.tab_widget.setStyleSheet("QWidget { font-family: Proxima Nova; font-size: 16px; background: rgb(36,38,41); color: rgb(126,127,129); border-color: rgb(36,38,41);}\
+            QTabWidget::tab-bar { alignment: center; border: 2px solid rgb(236,38,41); } \
+            QTabBar::tab { border: 2px solid rgb(36,38,41); alignment: center; background: rgb(36,38,41); margin: 4px; color: rgb(126,127,129); }\
+            QTabBar::tab:selected { color: rgb(40,136,175)} \
+            QTabWidget::pane { border-top: 2px solid rgb(66,67,69); }")
+
+
+        task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
+        self._task_manager = task_manager.BackgroundTaskManager(parent=self.version_activity_stream,
+                                                                start_processing=True,
+                                                                max_threads=2)
         
-        shotgun_globals = tank.platform.import_framework(
-            "tk-framework-shotgunutils",
-            "shotgun_globals",
-        )
-
-        shotgun_globals.register_bg_task_manager(self._task_manager)        
-        self._version_activity_stream.set_bg_task_manager(self._task_manager)
-
-        self._entity_version_tab = QtGui.QWidget()
-        self._entity_version_tab.setObjectName("entity_version_tab")
+        shotgun_globals = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_globals")
+        shotgun_globals.register_bg_task_manager(self._task_manager)
         
-        self._vertical_layout = QtGui.QVBoxLayout(self._entity_version_tab)
-        self._vertical_layout.setContentsMargins(0, 0, 0, 0)
-        self._vertical_layout.setObjectName("vertical_layout")
+        self.version_activity_stream.set_bg_task_manager(self._task_manager)
         
-        self._entity_version_view = QtGui.QListView(self._entity_version_tab)
-        self._entity_version_view.setVerticalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
-        self._entity_version_view.setHorizontalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
-        self._entity_version_view.setUniformItemSizes(True)
-        self._entity_version_view.setObjectName("entity_version_view")
 
-        self._version_delegate = RvVersionListDelegate(self._entity_version_view)
-        self._version_model = shotgun_model.SimpleShotgunModel(self._entity_version_tab)
-
-        # Tell the view to pull data from the model.
-        self._entity_version_view.setModel(self._version_model)
-        self._entity_version_view.setItemDelegate(self._version_delegate)
+        self.entity_version_tab = QtGui.QWidget()
+        self.entity_version_tab.setObjectName("entity_version_tab")
         
-        self._vertical_layout.addWidget(self._entity_version_view)
-
-        self._version_activity_tab = QtGui.QWidget()
-        self._version_activity_tab.setObjectName("version_activity_tab")
+        self.verticalLayout_3 = QtGui.QVBoxLayout(self.entity_version_tab)
+        self.verticalLayout_3.setContentsMargins(0, 0, 0, 0)
+        self.verticalLayout_3.setObjectName("verticalLayout_3")
         
-        self._version_activity_stream.setObjectName("version_activity_stream")
-        
-        self._tools_tab = QtGui.QWidget()
-        self._tools_tab.setObjectName("tools_tab")
+        self.entity_version_view = QtGui.QListView(self.entity_version_tab)
+        self.entity_version_view.setVerticalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
+        self.entity_version_view.setHorizontalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
+        self.entity_version_view.setUniformItemSizes(True)
+        self.entity_version_view.setObjectName("entity_version_view")
 
-        self.tab_widget.addTab(self._notes_container_frame, "NOTES")                
-        self.tab_widget.addTab(self._entity_version_tab, "VERSIONS")
-        self.tab_widget.addTab(self._tools_tab, "TOOLS")
+        self.version_delegate  = RvVersionListDelegate(self.entity_version_view)
+        self.version_model = shotgun_model.SimpleShotgunModel(self.entity_version_tab)
+
+        # Tell the view to pull data from the model
+        self.entity_version_view.setModel(self.version_model)
+        self.entity_version_view.setItemDelegate(self.version_delegate)
+
+        # load all assets from Shotgun 
+        # REMOVE THIS LATER 
+        # version_filters = [ 
+        #                     ['project','is', {'type':'Project','id':65}],
+        #                     ['entity','is',{'type':'Shot','id': 861}] 
+        #                 ]
+        # self.version_model.load_data(entity_type="Version", filters=version_filters)
+        
+        self.verticalLayout_3.addWidget(self.entity_version_view)
+
+        self.version_activity_tab = QtGui.QWidget()
+        self.version_activity_tab.setObjectName("version_activity_tab")
+        
+        self.version_activity_stream.setObjectName("version_activity_stream")
+        
+        self.tools_tab = QtGui.QWidget()
+        self.tools_tab.setObjectName("tools_tab")
+
+        self.tab_widget.addTab(self.notes_container_frame, "NOTES")                
+        self.tab_widget.addTab(self.entity_version_tab, "VERSIONS")
+        self.tab_widget.addTab(self.tools_tab, "TOOLS")
 
         self.note_dock.setWidget(self.tab_widget)
 
-        # Setup the lower tray.
-        self._tray_list = QtGui.QListView(self.tray_dock)
-        self._tray_model = TrayModel(self._tray_list)
-        self._tray_list.setModel(self._tray_model)
+        # setup lower tray
+        self.tray_dock.setMinimumSize(QtCore.QSize(1300,160))
+        
+        self.tray_frame = QtGui.QFrame(self.tray_dock)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        # sizePolicy.setHorizontalPolicy(QtGui.QSizePolicy.Expanding)
+        #sizePolicy.setHorizontalStretch(0)
+        #sizePolicy.setVerticalStretch(0)
+        self.tray_frame.setSizePolicy(sizePolicy)
+        self.tray_frame.setMinimumSize(QtCore.QSize(1200,130))
 
-        self._tray_delegate = RvTrayDelegate(self._tray_list)
-        self._tray_list.setItemDelegate(self._tray_delegate)
+        self.tray_frame_vlayout = QtGui.QVBoxLayout(self.tray_frame)
+        self.tray_frame_vlayout.setStretchFactor(self.tray_frame, 1)
 
-        self._tray_list.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self._tray_list.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self._tray_list.setHorizontalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
-        self._tray_list.setFlow(QtGui.QListView.LeftToRight)
-        self._tray_list.setUniformItemSizes(True)
-        self._tray_list.setMinimumSize(QtCore.QSize(900,150))
-        self._tray_list.setObjectName("tray_list")
 
-        tray_filters = [['sg_cut','is', {'type':'CustomEntity10', 'id': 8}]]
-        tray_fields= [
-            "sg_cut_in",
-            "sg_cut_out",
-            "sg_cut_order",
-            "sg_version.Version.sg_path_to_frames",
-            "sg_version.Version.id",
-            "sg_version.Version.sg_first_frame",
-            "sg_version.Version.sg_last_frame",
-        ]
+        # tray button bar
+        self.tray_button_bar = QtGui.QFrame(self.tray_dock)
+        self.tray_button_bar.setMinimumSize(QtCore.QSize(1000,25))
+        # self.tray_button_bar.setStyleSheet('QFrame { border: 1px solid #ff0000; padding: 1px; } QPushButton { margin: 0px; }')
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalPolicy(QtGui.QSizePolicy.Expanding)
+        sizePolicy.setHorizontalStretch(1)
+        sizePolicy.setVerticalStretch(0)
+        self.tray_button_bar.setSizePolicy(sizePolicy)
 
-        self._tray_model.load_data(
-            entity_type="CustomEntity11",
-            filters=tray_filters,
-            fields=tray_fields,
-        )
+        self.tray_button_bar_hlayout = QtGui.QHBoxLayout(self.tray_button_bar)
+        self.tray_button_bar_hlayout.setContentsMargins(0, 0, 0, 0)
+        
+        self.tray_button_one = QtGui.QPushButton()
+        self.tray_button_one.setStyleSheet('QPushButton { border: 1px solid #00ff00; margin: 0px;}')
+        self.tray_button_bar_hlayout.addWidget(self.tray_button_one)
 
-        self._tray_list.clicked.connect(self.tray_clicked)    
-        self._tray_model.data_refreshed.connect(self.on_data_refreshed)
-        self._tray_model.cache_loaded.connect(self.on_cache_loaded)
+        self.tray_button_two = QtGui.QPushButton()
+        self.tray_button_two.setStyleSheet('QPushButton { border: 1px solid #00fff0; }')
+        self.tray_button_bar_hlayout.addWidget(self.tray_button_two)
+
+        self.tray_button_bar_hlayout.addStretch(1)
+
+        self.tray_button_entire_cut = QtGui.QPushButton()
+        self.tray_button_entire_cut.setText('Entire Cut')
+        #self.tray_button_three.setStyleSheet('QPushButton { border: 1px solid #000ff0; }')
+        self.tray_button_bar_hlayout.addWidget(self.tray_button_entire_cut)
+        self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
+
+        self.tray_button_mini_cut = QtGui.QPushButton()
+        self.tray_button_mini_cut.setText('Mini Cut')
+        #self.tray_button_four.setStyleSheet('QPushButton { border: 1px solid #f00ff0; }')
+        self.tray_button_bar_hlayout.addWidget(self.tray_button_mini_cut)
+        self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
+
+        self.tray_button_bar_hlayout.addStretch(1)
+
+        self.tray_button_five = QtGui.QPushButton()
+        self.tray_button_five.setStyleSheet('QPushButton { border: 1px solid #f0f000; }')
+        self.tray_button_bar_hlayout.addWidget(self.tray_button_five)
+
+        self.tray_frame_vlayout.addWidget(self.tray_button_bar)
+        self.tray_frame_vlayout.setStretchFactor(self.tray_button_bar, 1)
+        self.tray_list = QtGui.QListView()
+        self.tray_list.setSizePolicy(sizePolicy)
+        self.tray_frame_vlayout.addWidget(self.tray_list)
+        self.tray_frame_vlayout.setStretchFactor(self.tray_list, 1)
+        
+        from .tray_model import TrayModel
+        self.tray_model = TrayModel(self.tray_list)
+        from .tray_sort_filter import TraySortFilter
+        self.tray_proxyModel =  TraySortFilter(self.tray_list)
+        self.tray_proxyModel.setSourceModel(self.tray_model)
+        self.tray_proxyModel.setDynamicSortFilter(True)
+
+        self.tray_list.setModel(self.tray_proxyModel)
+
+        self.tray_delegate = RvTrayDelegate(self.tray_list)
+        self.tray_list.setItemDelegate(self.tray_delegate)
+
+        self.tray_list.setSelectionBehavior(QtGui.QAbstractItemView.SelectItems)
+        self.tray_list.setSelectionMode(QtGui.QAbstractItemView.MultiSelection)
+        self.tray_list.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.tray_list.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.tray_list.setHorizontalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
+        self.tray_list.setFlow(QtGui.QListView.LeftToRight)
+        self.tray_list.setUniformItemSizes(True)
+        #self.tray_list.setMinimumSize(QtCore.QSize(1000,80))
+        self.tray_list.setObjectName("tray_list")
+
+        tray_filters = [ ['sg_cut','is', {'type':'CustomEntity10', 'id': 8}] ]
+        tray_fields= ["sg_cut_in", "sg_cut_out", "sg_cut_order", 
+                "sg_version.Version.sg_path_to_frames", "sg_version.Version.id",
+                "sg_version.Version.sg_first_frame", "sg_version.Version.sg_last_frame"]
+
+        orders = [{'field_name':'sg_cut_order','direction':'asc'}]
+        self.tray_model.load_data(entity_type="CustomEntity11", filters=tray_filters, fields=tray_fields, order=orders)
+        
+        self.tray_model.data_refreshed.connect(self.on_data_refreshed)
+        self.tray_model.cache_loaded.connect(self.on_cache_loaded)
+
+        self.tray_list.clicked.connect(self.tray_clicked)
+        self.tray_list.activated.connect(self.tray_activated)
+        self.tray_list.doubleClicked.connect(self.tray_double_clicked)
+
+        # st = "QListWidget::item { border: 2px solid #00ff00;} \n\
+        # QListWidget::item:selected { background-color: red;} \
+        # QListView::item:hover { background: #f000f0;}"
+        # self.tray_dock.setStyleSheet(st)
 
     #####################################################################################
     # Qt Slots
+
+    def on_entire_cut(self):
+        print "ON ENTIRE CUT"
+        self.mini_cut = False
+
+        e_ids = self.tray_model.entity_ids
+        e_type = self.tray_model.get_entity_type()
+        
+        rv.commands.setIntProperty('%s.edl.source' % self.cut_seq_name, self.rv_source_nums, True)
+        rv.commands.setIntProperty('%s.edl.frame' % self.cut_seq_name, self.rv_frames, True)
+        rv.commands.setIntProperty('%s.edl.in' % self.cut_seq_name, self.rv_ins, True)
+        rv.commands.setIntProperty('%s.edl.out' % self.cut_seq_name, self.rv_outs, True)
+        
+        # rv.commands.setIntProperty("%s.mode.autoEDL" % self.cut_seq_name, [0])
+        # rv.commands.setIntProperty("%s.mode.useCutInfo" % self.cut_seq_name, [0])
+
+        sources = rv.commands.nodesOfType("RVSourceGroup")
+        rv.commands.setNodeInputs(self.cut_seq, sources)
+        rv.commands.setViewNode(self.cut_seq)
+
+    def on_mini_cut(self):
+        print "ON MINI CUT"
+        print "current selection: %r" % self.tray_list.currentIndex()
+        self.mini_cut = True
+        # get current selection
+        cur_index = self.tray_list.currentIndex()
+        # get cut info from somewhere... model? sg_data
+        # get prev and next from current... selRange
+        # get shots on either side
+        # tear down graph, build new one
 
     def on_cache_loaded(self, stuff):
         pass
 
     def on_data_refreshed(self, was_refreshed):
-        ids = self._tray_model.entity_ids
-        our_type =  self._tray_model.get_entity_type()
+        print "DATA_REFRESHED: %r" % was_refreshed
 
-        #print "ITEM: %r" % self._tray_model.index_from_entity(our_type, ids[0])
+        self.tray_proxyModel.sort(0, QtCore.Qt.AscendingOrder)
+
+        ids = self.tray_model.entity_ids
+        our_type =  self.tray_model.get_entity_type()
+
+        #print "ITEM: %r" % self.tray_model.index_from_entity(our_type, ids[0])
 
         #       sourceNode = rve.nodesInGroupOfType (sources[i], "RVFileSource")[0]
         #       (realMedia,frame) = rvc.sequenceOfFile (shot.file)
@@ -405,51 +502,48 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # deb ("calling addSources, media = %s" % media)
         # rvc.addSources(media)
 
-        nums = []
-        frames = []
-        ins = []
-        outs = []
+        self.rv_source_nums = []
+        self.rv_frames = []
+        self.rv_ins = []
+        self.rv_outs = []
         n = 0
         t = 1
         
         for i in ids:
-            item = self._tray_model.index_from_entity(our_type, i)
+            item = self.tray_model.index_from_entity(our_type, i)
             sg_item = shotgun_model.get_sg_data(item)
+            print "ODR: %r" % sg_item
             f = sg_item['sg_version.Version.sg_path_to_frames']
-
-            try:
-                rv.commands.addSource(f)
-            except Exception:
-                pass
-
-            nums.append(n)
+            rv.commands.addSource(f)
+            self.rv_source_nums.append(n)
             n = n + 1
-            ins.append( sg_item['sg_cut_in'] )
-            outs.append( sg_item['sg_cut_out'] )
-            frames.append(t)
+            self.rv_ins.append( sg_item['sg_cut_in'] )
+            self.rv_outs.append( sg_item['sg_cut_out'] )
+            self.rv_frames.append(t)
             t = sg_item['sg_cut_out'] - sg_item['sg_cut_in'] + 1 + t
         
-        nums.append(0)
-        ins.append(0)
-        outs.append(0)
-        frames.append(t)
+        self.rv_source_nums.append(0)
+        self.rv_ins.append(0)
+        self.rv_outs.append(0)
+        self.rv_frames.append(t)
 
         self.cut_seq = rv.commands.newNode("RVSequenceGroup")
         
         # need to get the name into the query...
         rv.extra_commands.setUIName(self.cut_seq, "CUTZ cut")
-        names = rv.extra_commands.nodesInGroupOfType(self.cut_seq, 'RVSequence')
-        
-        k = "%s.mode.autoEDL" % names[0]
+        self.cut_seq_name = rv.extra_commands.nodesInGroupOfType(self.cut_seq, 'RVSequence')[0]
+
+        k = "%s.mode.autoEDL" % str(self.cut_seq_name)
+        print "ADDING %s" % k
         if not rv.commands.propertyExists(k):
             rv.commands.newProperty(k, rv.commands.IntType, 1)
 
-        rv.commands.setIntProperty('%s.edl.source' % names[0], nums, True)
-        rv.commands.setIntProperty('%s.edl.frame' % names[0], frames, True)
-        rv.commands.setIntProperty('%s.edl.in' % names[0], ins, True)
-        rv.commands.setIntProperty('%s.edl.out' % names[0], outs, True)
-        rv.commands.setIntProperty("%s.mode.autoEDL" % names[0], [0])
-        rv.commands.setIntProperty("%s.mode.useCutInfo" % names[0], [0])
+        rv.commands.setIntProperty('%s.edl.source' % self.cut_seq_name, self.rv_source_nums, True)
+        rv.commands.setIntProperty('%s.edl.frame' % self.cut_seq_name, self.rv_frames, True)
+        rv.commands.setIntProperty('%s.edl.in' % self.cut_seq_name, self.rv_ins, True)
+        rv.commands.setIntProperty('%s.edl.out' % self.cut_seq_name, self.rv_outs, True)
+        rv.commands.setIntProperty("%s.mode.autoEDL" % self.cut_seq_name, [0])
+        rv.commands.setIntProperty("%s.mode.useCutInfo" % self.cut_seq_name, [0])
 
         sources = rv.commands.nodesOfType("RVSourceGroup")
         rv.commands.setNodeInputs(self.cut_seq, sources)
@@ -458,24 +552,69 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     def on_item_changed(curr, prev):
         pass
 
+    def tray_double_clicked(self, index):
+        print "DOUBLE CLICK %r" % index
+        sg_item = shotgun_model.get_sg_data(index)
+        print sg_item
+
+    def tray_activated(self, index):
+        print "Tray Activated! %r" % index
+
     def tray_clicked(self, index):
+        print "MODE_TRAY_CLICKED %r" % index.row()
+        if self.mini_cut:
+            e_ids = self.tray_model.entity_ids
+            e_type = self.tray_model.get_entity_type()
+
+            mini_sources = []
+            mini_frames = []
+            mini_ins = []
+            mini_outs = []
+            t = 1
+            for x in range(index.row()-2, index.row()+3):
+                m_item = self.tray_model.item_from_entity(e_type, e_ids[x])
+                sg = shotgun_model.get_sg_data(m_item)
+                print "%d %r" % (x, sg['sg_version.Version.sg_path_to_frames'])
+                mini_sources.append(x)
+                mini_ins.append( sg['sg_cut_in'] )
+                mini_outs.append( sg['sg_cut_out'] )
+                mini_frames.append(t)
+                t = sg['sg_cut_out'] - sg['sg_cut_in'] + 1 + t
+            mini_sources.append(0)
+            mini_ins.append(0)
+            mini_outs.append(0)
+            mini_frames.append(t)
+            
+            #rv.commands.setIntProperty('%s.edl.source' % self.cut_seq_name, mini_sources, True)
+            rv.commands.setIntProperty('%s.edl.frame' % self.cut_seq_name, mini_frames, True)
+            rv.commands.setIntProperty('%s.edl.in' % self.cut_seq_name, mini_ins, True)
+            rv.commands.setIntProperty('%s.edl.out' % self.cut_seq_name, mini_outs, True)
+            
+            rv.commands.setIntProperty("%s.mode.autoEDL" % self.cut_seq_name, [0])
+            rv.commands.setIntProperty("%s.mode.useCutInfo" % self.cut_seq_name, [0])
+
+            sources = rv.commands.nodesOfType("RVSourceGroup")
+            # print "SOURCES: %r" % sources
+            rv.commands.setNodeInputs(self.cut_seq, sources[index.row()-2:index.row()+3])
+            rv.commands.setViewNode(self.cut_seq)
+
         sg_item = shotgun_model.get_sg_data(index)  
+
         entity = {}
         entity["type"] = "Version"
         entity["id"] = sg_item['sg_version.Version.id']
-        
-        # s = tracking_info['shot']
+
+        # s = self._tracking_info['shot']
         # (s_id, s_name, s_type) = s.split('|')
         # (n, shot_id) = s_id.split('_')
 
         self.load_data(entity)
-        
-        # shot_filters = [ ['id','is', int(shot_id)] ]
-        # self._shot_info_model.load_data(entity_type="Shot", filters=shot_filters)
 
+        # self.tray_list.selectionModel().clear()
+        
         # version_filters = [ ['project','is', {'type':'Project','id':71}],
         #     ['entity','is',{'type':'Shot','id': int(shot_id)}] ]
-        # self._version_model.load_data(entity_type="Version", filters=version_filters)
+        # self.version_model.load_data(entity_type="Version", filters=version_filters)
 
     #####################################################################################
     # General Utilities

@@ -23,6 +23,8 @@ class TrayWidget(QtGui.QWidget):
     This class is typically used in conjunction with a QT View and the 
     ShotgunDelegate class. 
     """
+
+    clicked = QtCore.Signal(int)
     
     def __init__(self, parent):
         """
@@ -38,43 +40,49 @@ class TrayWidget(QtGui.QWidget):
         self.ui.setupUi(self)
         
         # set up action menu
-        self._menu = QtGui.QMenu()   
-        self._actions = []             
-        self.ui.button.setMenu(self._menu)
-        self.ui.button.setVisible(False)
+        # self._menu = QtGui.QMenu()   
+        # self._actions = []             
+        # self.ui.button.setMenu(self._menu)
+        # self.ui.button.setVisible(False)
 
         
     def set_actions(self, actions):
         """
         Adds a list of QActions to add to the actions menu for this widget.
         """
-        if len(actions) == 0:
-            self.ui.button.setVisible(False)
-        else:
-            self.ui.button.setVisible(True)
-            self._actions = actions
-            for a in self._actions:
-                self._menu.addAction(a)
+        pass
+        # if len(actions) == 0:
+        #     self.ui.button.setVisible(False)
+        # else:
+        #     self.ui.button.setVisible(True)
+        #     self._actions = actions
+        #     for a in self._actions:
+        #         self._menu.addAction(a)
                                     
     def set_selected(self, selected):
         """
         Adjust the style sheet to indicate selection or not
         """
-        p = QtGui.QPalette()
-        highlight_col = p.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight)
+        # p = QtGui.QPalette()
+        # highlight_col = p.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight)
         
-        transp_highlight_str = "rgba(%s, %s, %s, 25%%)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
-        highlight_str = "rgb(%s, %s, %s)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
+        # transp_highlight_str = "rgba(%s, %s, %s, 25%%)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
+        # highlight_str = "rgb(%s, %s, %s)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
         
-        if selected:
-            self.ui.box.setStyleSheet("""#box {border-width: 2px; 
-                                                 border-color: %s; 
-                                                 border-style: solid; 
-                                                 background-color: %s}
-                                      """ % (highlight_str, transp_highlight_str))
+        # if selected:
+        #     self.ui.box.setStyleSheet("""#box {border-width: 2px; 
+        #                                          border-color: %s; 
+        #                                          border-style: solid; 
+        #                                          background-color: %s}
+        #                               """ % (highlight_str, transp_highlight_str))
 
+        # else:
+        #     self.ui.box.setStyleSheet("")
+
+        if selected:
+            self.ui.thumbnail.setStyleSheet("QLabel { border: 2px solid #ff0000; selection-color: rgb(100,200,50); }")
         else:
-            self.ui.box.setStyleSheet("")
+            self.ui.thumbnail.setStyleSheet("QLabel { border: 2px solid #ffcc00; selection-color: rgb(100,200,50); }")
     
     def set_thumbnail(self, pixmap):
         """
@@ -87,14 +95,18 @@ class TrayWidget(QtGui.QWidget):
         """
         Populate the lines of text in the widget
         """
-        self.setToolTip("%s\n%s" % (header, body))        
+        pass
+        # self.setToolTip("%s\n%s" % (header, body))        
         # self.ui.header_label.setText(header)
         # self.ui.body_label.setText(body)
+
+    def SizeHint(self):
+        return QtCore.QSize(112, 64)
 
     @staticmethod
     def calculate_size():
         """
         Calculates and returns a suitable size for this widget.
         """        
-        return QtCore.QSize(175, 90)
+        return QtCore.QSize(112, 64)
 
