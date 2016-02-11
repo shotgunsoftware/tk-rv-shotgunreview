@@ -65,7 +65,8 @@ class RVShotgunReviewApp(Application):
 
         tk_rv_shotgunreview = self.import_module("tk_rv_shotgunreview")
         self._rv_activity_stream = tk_rv_shotgunreview.RvActivityMode()
-        self._rv_activity_stream.init_ui(notes_dock, tray_dock)
+        # load up a known id for now...
+        self._rv_activity_stream.init_ui(notes_dock, tray_dock, 8)
 
         rv.commands.activateMode("RvActivityMode")
         
