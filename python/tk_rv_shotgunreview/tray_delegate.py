@@ -42,12 +42,21 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                 #                 index,
                 #                 QtGui.QItemSelectionModel.SelectCurrent)
                 # self.tray_view.update(index)
-                (_, item, model) = self._source_for_index(index)
-                item.repaint()
+                # (_, item, model) = self._source_for_index(index)
+                # item.repaint()
 
         def _handle_double_clicked(self, action=None):
                 print "DOUBLE CLICK on ITEM %r" % action
+                cur_index = self.tray_view.selectionModel().currentIndex()
+                (_, item, model) = self._source_for_index(cur_index)
                 
+                d = item.data(self._RV_DATA_ROLE)
+                if d:
+                        d['rv_dbl_clicked'] = True
+                else:
+                        d = {'rv_dbl_clicked': True}
+                item.setData(d, self._RV_DATA_ROLE)
+
                 #self.tray_view.update(action)
                 # (_, item, model) = self._source_for_index(action)
                 # model.layoutAboutToBeChanged.emit()
@@ -102,22 +111,37 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                 widget.ui.thumbnail.setScaledContents(False)
 
                 in_mini_cut = False
-                cur_index = self.tray_view.selectionModel().currentIndex()
- 
-                if rv_item and rv_item['rv_cut_selected'] == model_index.row():
+                if rv_item:
+                    if rv_item.has_key('rv_cut_selected'):
+                        if rv_item['rv_cut_selected']:
+                            in_mini_cut = False
+                            cur_index = self.tray_view.selectionModel().currentIndex()
+                            cr = self.tray_view.selectionModel().selection().indexes()
+                            if cr:
+                                cri = cr[0].row()
+                                if (model_index.row() < (cri + 3)) and (model_index.row() > (cri - 3)):
+                                    in_mini_cut = True
+
+                    # print "CRi %r" % cri
+
+                if self.tray_view.selectionModel().isSelected(model_index):
                         selected = True
+
+
+                # if rv_item:
+                #         if rv_item.has_key('rv_cut_selected'):
+                #                 if rv_item['rv_cut_selected'] == model_index.row():
+                #                         selected = True
+                #                 else:
+                #                         (_, item, model) = self._source_for_index(model_index)
+                #                         item.setData(None, self._RV_DATA_ROLE)
+                #                         selected = False
 
                 #Qif self.tray_view.mini_cut.mini_on:
-                if (model_index.row() < (cur_index.row() + 3)) and (model_index.row() > (cur_index.row() - 3)):
-                        in_mini_cut = True
 
-                if rv_item and rv_item['rv_cut_selected'] != model_index.row():
-                        (_, item, model) = self._source_for_index(model_index)
-                        item.setData(None, self._RV_DATA_ROLE)
-                        selected = False
-
-                if cur_index.row() == model_index.row():
-                        selected = True
+                #if cur_index.row() == model_index.row():
+                #        selected = True
+                
                 widget.set_selected(selected, in_mini_cut)
 
         def _on_before_selection(self, widget, model_index, style_options):
@@ -146,9 +170,16 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                 :type selected:     :class:`~PySide.QtGui.QItemSelection`
                 :param deselected:  A list of the indexes in the model that were deselected
                 :type deselected:  :class:`~PySide.QtGui.QItemSelection`
-                """               
+                """  
+                            
                 indexes = selected.indexes()
+                 
+                for i in indexes:
+                    (_, item, model) = self._source_for_index(i)
                 
+                    d = { 'rv_cut_selected': item.row() }
+                    item.setData(d, self._RV_DATA_ROLE)
+               
                 # for s in indexes:
                 #         print "sel: %r" % s.row()
                 #         sg_item = shotgun_model.get_sg_data(s)
@@ -157,5 +188,6 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         # works but not useful?
         def _on_current_changed(self, current_index, previous_index):
                 pass
-                # print "NOW %d WAS %d" % (current_index.row(), previous_index.row())
+                #print "CURRENT CHANGED"
+                #print "NOW %d WAS %d" % (current_index.row(), previous_index.row())
 

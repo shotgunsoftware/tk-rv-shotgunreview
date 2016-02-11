@@ -8,6 +8,8 @@ ShotgunModel = shotgun_model.ShotgunModel
 
 class TraySortFilter(QtGui.QSortFilterProxyModel):
 
+        playhead_moved = QtCore.Signal(dict)
+        
         def lessThan(self, left, right):
 
                 sg_left = shotgun_model.get_sg_data(left)

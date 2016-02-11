@@ -24,6 +24,8 @@ def groupMemberOfType(node, memberType):
 class RvActivityMode(rv.rvtypes.MinorMode):
         _RV_DATA_ROLE = QtCore.Qt.UserRole + 99
 
+        # playhead_moved = QtCore.Signal(dict)
+
         # def sourceSetup (self, event):
         #         print "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&& sourceSetup"
         #         print event.contents()
@@ -120,30 +122,37 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 event.reject()
 
         def frameChanged(self, event):
-                # print "################### frameChanged %r" % event
-                # print event.contents()
                 event.reject()
-                # try:
-                #         tl = rv.commands.getStringProperty(self.propName)
+                try:
+                    tl = rv.commands.getIntProperty('%s.edl.frame' % self.cut_seq_name)
+                    n = 0
+                    for x in tl:
+                        if rv.commands.frame() < x:
+                            # print "SELECT %d PLEASE %d" % (x,n-1)
+                            # self.tray_model.setSelection()
+                            # self.playhead_moved.emit()
+                            break 
+                        n = n + 1              
+                    
+                    #index = self.tray_model.index(n-1, 0, QModelIndex())
 
-                #         # self._tracking_info= {}
-                        
-                #         # for i in range(0,len(tl)-1, 2):
-                #         #         self._tracking_info[tl[i]] = tl[i+1]
-                #         # print self._tracking_info
+                    #Use the QModelIndex as the first argument to a select for you selectionModel, which can either be the default selection model or another instantiation that can be passed to other views...and then use the same selection model as the second argument but with the Select method...
+                    #self.mySelectionModel.select(index, self.mySelectionModel.Select );
 
-                #         # make an entity
-                #         entity = {}
-                #         entity["type"] = "Version"
-                #         entity["id"] = int(self._tracking_info['id'])
-                        
-                #         self.load_data(entity)
-                        
-                #         #self.version_activity_stream.ui.shot_info_widget.load_data_rv(self._tracking_info)
 
-                # except Exception as e:
-                #         pass
-                        # print "OH NO %r" % e
+                    cur_index = self.tray_list.selectionModel().currentIndex()
+                    #self.tray_view.selectionModel().isSelected(model_index):
+                    
+                    sel_index = self.tray_model.index(n-1, 0)
+                    #print "SEL_INDEX %r" % sel_index
+                    self.tray_list.selectionModel().select(sel_index, self.tray_list.selectionModel().ClearAndSelect)
+                    #self.tray_list.setCurrentIndex(sel_index)
+                    #widget.playback_requested.connect(lambda sg_data: self.playback_requested.emit(sg_data))
+                    # rv_data = { 'rv_playhead_at_shot': n-1 }
+                    # self.playhead_moved.emit(rv_data)
+                    # self.tray_proxyModel.playhead_moved.connect( lambda rv_data: self.playhead_moved.emit(rv_data) )
+                except Exception as e:
+                    print "OH NO %r" % e
 
         def sourcePath(self, event):
                 
@@ -249,6 +258,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 self.tab_widget = None
                 self.mini_cut = False
 
+                self.version_id = -1 
+
                 self._tracking_info= {}
 
                 self.init("RvActivityMode", None,
@@ -261,7 +272,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                                 # ("graph-node-inputs-changed", self.inputsChanged, ""),
                                 ("incoming-source-path", self.sourcePath, ""),
                                 ("source-group-complete", self.sourceGroupComplete, ""),
-                                ("graph-state-change", self.graphStateChange, "")
+                                ("graph-state-change", self.graphStateChange, ""),
+                                ("view-node-changed", self.viewChange, "")
                         ],
                         None,
                         None);
@@ -272,14 +284,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         def load_data(self, entity):
                 # our session property is called tracking
                 #tracking_str = rv.commands.getStringProperty('sourceGroup000001_source.tracking.info ')
-                #print tracking_str
-                # print "ACTIVITY NODE @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@"
                 self.version_activity_stream.load_data(entity)
-                shot_filters = [ ['id','is', entity['id']] ]
-                self.shot_info_model.load_data(entity_type="Version", filters=shot_filters)
+                version_filters = [ ['id','is', entity['id']] ]
+                self.version_id = entity['id']
+                # ok it turned out to be a version and not the parent shot. 
+                self.shot_info_model.load_data(entity_type="Version", filters=version_filters)
  
         # parent is note_dock here...
-        def init_ui(self, note_dock, tray_dock):
+        def init_ui(self, note_dock, tray_dock, version_id):
                 self.note_dock = note_dock
                 self.tray_dock = tray_dock
  
@@ -471,13 +483,15 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 self.tray_proxyModel.setSourceModel(self.tray_model)
                 self.tray_proxyModel.setDynamicSortFilter(True)
 
+                self.tray_proxyModel.playhead_moved.connect( lambda rv_data: self.playhead_moved.emit(rv_data) )
+                
                 self.tray_list.setModel(self.tray_proxyModel)
 
                 self.tray_delegate = RvTrayDelegate(self.tray_list)
                 self.tray_list.setItemDelegate(self.tray_delegate)
 
-                self.tray_list.setSelectionBehavior(QtGui.QAbstractItemView.SelectItems)
-                self.tray_list.setSelectionMode(QtGui.QAbstractItemView.MultiSelection)
+                #self.tray_list.setSelectionBehavior(QtGui.QAbstractItemView.SelectItems)
+                #self.tray_list.setSelectionMode(QtGui.QAbstractItemView.MultiSelection)
                 self.tray_list.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
                 self.tray_list.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
                 self.tray_list.setHorizontalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
@@ -488,7 +502,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 
                 self.tray_list.setObjectName("tray_list")
 
-                tray_filters = [ ['sg_cut','is', {'type':'CustomEntity10', 'id': 8}] ]
+                tray_filters = [ ['sg_cut','is', {'type':'CustomEntity10', 'id': version_id}] ]
                 tray_fields= ["sg_cut_in", "sg_cut_out", "sg_cut_order", 
                         "sg_version.Version.sg_path_to_frames", "sg_version.Version.id",
                         "sg_version.Version.sg_first_frame", "sg_version.Version.sg_last_frame"]

@@ -67,6 +67,8 @@ class TrayWidget(QtGui.QWidget):
 
         # print "TRAY WIDGET SET SELECETEDDDDDDDDD %r" % selected
         # p = QtGui.QPalette()
+        
+
         # highlight_col = p.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight)
         
         # transp_highlight_str = "rgba(%s, %s, %s, 95%%)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
@@ -92,9 +94,9 @@ class TrayWidget(QtGui.QWidget):
                 self.ui.thumbnail.setStyleSheet("QLabel { border: none; }")
                 #self.ui.thumbnail.setAttribute(QtCore.Qt.WA_TranslucentBackground)
         
-        # self.ui.thumbnail.style().unpolish(self.ui.thumbnail)
-        # self.ui.thumbnail.style().polish(self.ui.thumbnail)
-        # self.ui.thumbnail.update()
+        #self.ui.thumbnail.style().unpolish(self.ui.thumbnail)
+        #self.ui.thumbnail.style().polish(self.ui.thumbnail)
+        #self.ui.thumbnail.update()
          
 
     def set_thumbnail(self, pixmap):
