@@ -8,7 +8,7 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-from .ui_list_widget import Ui_ListWidget
+from .ui.list_widget import Ui_ListWidget
 
 import tank
 
