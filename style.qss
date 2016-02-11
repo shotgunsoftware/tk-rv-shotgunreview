@@ -1,0 +1,193 @@
+/*
+Copyright (c) 2015 Shotgun Software Inc.
+ 
+CONFIDENTIAL AND PROPRIETARY
+ 
+This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit 
+Source Code License included in this distribution package. See LICENSE.
+By accessing, using, copying or modifying this work you indicate your 
+agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
+not expressly granted therein are reserved by Shotgun Software Inc.
+*/
+
+
+/* Get rid of borders for main Listing Views */
+QListView, QTableView, QScrollArea {
+    border: none;
+}
+
+
+/****************************************************************/
+/* Main tab section                                             */
+
+QTabWidget::tab-bar {
+    alignment: center;
+    border: 2px solid rgb(236,38,41);
+}
+
+QTabWidget::pane {
+    border-top: 2px solid rgb(66,67,69);
+    padding-top: 8px;
+}
+
+/* Style the tab using the tab sub-control. 
+   Note that it reads QTabBar _not_ QTabWidget */
+QTabBar::tab {
+    border: 2px solid rgb(36,38,41);
+    alignment: center;
+    background: rgb(36,38,41);
+    margin: 4px;
+    color: rgb(126,127,129);
+}
+
+QTabBar::tab:hover {
+    color: {{SG_HIGHLIGHT_COLOR}};
+}
+
+QTabBar::tab:selected {
+    color: {{SG_HIGHLIGHT_COLOR}};
+}
+
+/****************************************************************/
+/* Info tab showing all shotgun fields 							*/
+
+
+FieldNameLabel {
+    
+    padding: 8px;
+    /* there seems to be an odd bug where border-bottom isn't evaluated
+       unless there is a border top, so add a transparent line... */
+    border-top: 1px dotted rgba(0,0,0,0%);
+    color: rgba(200, 200, 200, 40%);
+    border-bottom: 1px dotted rgba(200, 200, 200, 18%);
+}
+
+FieldValueLabel {
+    padding: 8px;
+    /* there seems to be an odd bug where border-bottom isn't evaluated
+       unless there is a border top, so add a transparent line... */
+    border-top: 1px dotted rgba(0,0,0,0%);
+    border-bottom: 1px dotted rgba(200, 200, 200, 18%);
+}
+
+
+/****************************************************************/
+/* Navigation: Home, previous, next 							*/
+
+/* Navigate to previous page button styling */
+QToolButton#navigation_prev {
+    border: none;
+    background-color: none;
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-image: url(:/tk_multi_infopanel/left_arrow.png);
+}
+
+QToolButton:disabled#navigation_prev {
+    background-image: url(:/tk_multi_infopanel/left_arrow_disabled.png);
+}
+
+QToolButton:hover#navigation_prev {
+    background-image: url(:/tk_multi_infopanel/left_arrow_hover.png);
+}
+
+QToolButton:Pressed#navigation_prev {
+    background-image: url(:/tk_multi_infopanel/left_arrow_pressed.png);
+}
+
+
+/* Navigate to next page button styling */
+QToolButton#navigation_next {
+    border: none;
+    background-color: none;
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-image: url(:/tk_multi_infopanel/right_arrow.png);
+}
+
+QToolButton:disabled#navigation_next {
+    background-image: url(:/tk_multi_infopanel/right_arrow_disabled.png);
+}
+
+QToolButton:hover#navigation_next {
+    background-image: url(:/tk_multi_infopanel/right_arrow_hover.png);
+}
+
+QToolButton:Pressed#navigation_next {
+    background-image: url(:/tk_multi_infopanel/right_arrow_pressed.png);
+}
+
+/* Search button styling */
+QToolButton#search {
+    border: none;
+    background-color: none;
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-image: url(:/tk_multi_infopanel/search.png);
+}
+
+QToolButton:disabled#search {
+    background-image: url(:/tk_multi_infopanel/search_disabled.png);
+}
+
+QToolButton:hover#search {
+    background-image: url(:/tk_multi_infopanel/search_hover.png);
+}
+
+QToolButton:Pressed#search  {
+    background-image: url(:/tk_multi_infopanel/search_pressed.png);
+}
+
+/* Home button styling */
+QToolButton#navigation_home{
+    border: none;
+    background-color: none;
+    background-repeat: no-repeat;
+    background-position: center center;
+    background-image: url(:/tk_multi_infopanel/home.png);
+}
+
+QToolButton:hover#navigation_home{
+    background-image: url(:/tk_multi_infopanel/home_hover.png);
+}
+
+QToolButton:Pressed#navigation_home{
+    background-image: url(:/tk_multi_infopanel/home_pressed.png);
+}
+
+/* cancel search button */
+
+QPushButton#cancel_search {
+    border: none;
+}
+
+/****************************************************************/
+/* Top details area  				 							*/
+
+
+#details_text_header {
+    padding-left: 2px;
+    font-size: 16px;
+}
+
+#details_text_middle {
+    padding-left: 0px;
+    padding-left: 8px;
+}
+
+QWidget#top_group {
+    background-color: rgba(255, 255, 255, 10%);
+    border-radius: 3px;
+}
+
+QFrame#line {
+    border-top: 1px dotted #888;
+}
+
+QPushButton#current_user {
+    border: none;
+}
+
+#list_item_top_right {
+    color: rgba(200, 200, 200, 40%);
+}

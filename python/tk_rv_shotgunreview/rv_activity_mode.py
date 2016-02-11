@@ -11,9 +11,8 @@ import tank
 shotgun_view = tank.platform.import_framework("tk-framework-qtwidgets", "views")
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
 
-from .version_list_delegate import RvVersionListDelegate
-from .shot_info_delegate import RvShotInfoDelegate
 from .tray_delegate import RvTrayDelegate
+from .details_panel_widget import DetailsPanelWidget
 
 def groupMemberOfType(node, memberType):
     for n in rv.commands.nodesInGroup(node):
@@ -251,12 +250,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                         pass
                         # print "OH NO %r" % e
 
-        def __init__(self):
+        def __init__(self, app):
                 rv.rvtypes.MinorMode.__init__(self)
                 self.note_dock = None
                 self.tray_dock = None
                 self.tab_widget = None
                 self.mini_cut = False
+                self._app = app
 
                 self.version_id = -1 
 
@@ -282,125 +282,18 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 
 
         def load_data(self, entity):
-                # our session property is called tracking
-                #tracking_str = rv.commands.getStringProperty('sourceGroup000001_source.tracking.info ')
-                self.version_activity_stream.load_data(entity)
-                version_filters = [ ['id','is', entity['id']] ]
                 self.version_id = entity['id']
-                # ok it turned out to be a version and not the parent shot. 
-                self.shot_info_model.load_data(entity_type="Version", filters=version_filters)
+                self.details_panel.load_data(entity)
  
         # parent is note_dock here...
         def init_ui(self, note_dock, tray_dock, version_id):
                 self.note_dock = note_dock
                 self.tray_dock = tray_dock
- 
-                # setup Tab widget with notes and versions, then setup tray 
-                self.tab_widget = QtGui.QTabWidget()
 
-                self.tab_widget.setFocusPolicy(QtCore.Qt.NoFocus)
-                self.tab_widget.setObjectName("tab_widget")
-                
-                activity_stream = tank.platform.import_framework("tk-framework-qtwidgets", "activity_stream")
-
-                self.activity_tab_frame = QtGui.QWidget(self.note_dock)
-                
-                self.notes_container_frame = QtGui.QFrame(self.activity_tab_frame)
-                self.cf_verticalLayout = QtGui.QVBoxLayout()
-                self.cf_verticalLayout.setObjectName("cf_verticalLayout")
-                self.notes_container_frame.setLayout(self.cf_verticalLayout)
-
-                self.shot_info = QtGui.QListView()
-                self.cf_verticalLayout.addWidget(self.shot_info)
-                # self.version_activity_stream.ui.verticalLayout.addWidget(self.shot_info)
-                
-                self.shot_info_model = shotgun_model.SimpleShotgunModel(self.activity_tab_frame)
-                self.shot_info.setModel(self.shot_info_model)
-
-                self.shot_info_delegate = RvShotInfoDelegate(self.shot_info)
-                self.shot_info.setItemDelegate(self.shot_info_delegate)
-
-                self.shot_info.setVerticalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
-                self.shot_info.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-                self.shot_info.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-                self.shot_info.setHorizontalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
-                self.shot_info.setUniformItemSizes(True)
-                self.shot_info.setObjectName("shot_info")
-
-                from .shot_info_widget import ShotInfoWidget
-                self.shot_info.setMinimumSize(ShotInfoWidget.calculate_size())
-                si_size = ShotInfoWidget.calculate_size()
-                self.shot_info.setMaximumSize(QtCore.QSize(si_size.width() + 10, si_size.height() + 10))
-                
-                shot_filters = [ ['id','is', 1161] ]
-                self.shot_info_model.load_data(entity_type="Shot", filters=shot_filters, fields=["code", "link"])
-
-
-
-                self.version_activity_stream = activity_stream.ActivityStreamWidget(self.notes_container_frame)
-                self.cf_verticalLayout.addWidget(self.version_activity_stream)
-
-                self.tab_widget.setStyleSheet("QWidget { font-family: Proxima Nova; font-size: 16px; background: rgb(36,38,41); color: rgb(126,127,129); border-color: rgb(36,38,41);}\
-                    QTabWidget::tab-bar { alignment: center; border: 2px solid rgb(236,38,41); } \
-                    QTabBar::tab { border: 2px solid rgb(36,38,41); alignment: center; background: rgb(36,38,41); margin: 4px; color: rgb(126,127,129); }\
-                    QTabBar::tab:selected { color: rgb(40,136,175)} \
-                    QTabWidget::pane { border-top: 2px solid rgb(66,67,69); }")
-
-
-                task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
-                self._task_manager = task_manager.BackgroundTaskManager(parent=self.version_activity_stream,
-                                                                        start_processing=True,
-                                                                        max_threads=2)
-                
-                shotgun_globals = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_globals")
-                shotgun_globals.register_bg_task_manager(self._task_manager)
-                
-                self.version_activity_stream.set_bg_task_manager(self._task_manager)
-                
-
-                self.entity_version_tab = QtGui.QWidget()
-                self.entity_version_tab.setObjectName("entity_version_tab")
-                
-                self.verticalLayout_3 = QtGui.QVBoxLayout(self.entity_version_tab)
-                self.verticalLayout_3.setContentsMargins(0, 0, 0, 0)
-                self.verticalLayout_3.setObjectName("verticalLayout_3")
-                
-                self.entity_version_view = QtGui.QListView(self.entity_version_tab)
-                self.entity_version_view.setVerticalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
-                self.entity_version_view.setHorizontalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
-                self.entity_version_view.setUniformItemSizes(True)
-                self.entity_version_view.setObjectName("entity_version_view")
-
-                self.version_delegate  = RvVersionListDelegate(self.entity_version_view)
-                self.version_model = shotgun_model.SimpleShotgunModel(self.entity_version_tab)
-
-                # Tell the view to pull data from the model
-                self.entity_version_view.setModel(self.version_model)
-                self.entity_version_view.setItemDelegate(self.version_delegate)
-
-                # load all assets from Shotgun 
-                # REMOVE THIS LATER 
-                # version_filters = [ 
-                #                     ['project','is', {'type':'Project','id':65}],
-                #                     ['entity','is',{'type':'Shot','id': 861}] 
-                #                 ]
-                # self.version_model.load_data(entity_type="Version", filters=version_filters)
-                
-                self.verticalLayout_3.addWidget(self.entity_version_view)
-
-                self.version_activity_tab = QtGui.QWidget()
-                self.version_activity_tab.setObjectName("version_activity_tab")
-                
-                self.version_activity_stream.setObjectName("version_activity_stream")
-                
-                self.tools_tab = QtGui.QWidget()
-                self.tools_tab.setObjectName("tools_tab")
-
-                self.tab_widget.addTab(self.notes_container_frame, "NOTES")                
-                self.tab_widget.addTab(self.entity_version_tab, "VERSIONS")
-                self.tab_widget.addTab(self.tools_tab, "TOOLS")
-
-                self.note_dock.setWidget(self.tab_widget)
+                # Setup the details panel.
+                self.details_panel = DetailsPanelWidget()
+                self.note_dock.setWidget(self.details_panel)
+                self._app.engine._apply_external_styleshet(self._app, self.details_panel)
 
                 # setup lower tray
                 #################################################################################
