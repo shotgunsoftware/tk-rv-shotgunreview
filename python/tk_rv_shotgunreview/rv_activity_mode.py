@@ -260,6 +260,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
                 self.version_id = -1 
 
+                self.version_id = -1 
+
                 self._tracking_info= {}
 
                 self.init("RvActivityMode", None,
