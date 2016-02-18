@@ -8,17 +8,10 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-import types
-import os
-import math
-
-import rv
-import rv.qtutils
-
 import tank
-from tank.platform.qt import QtGui, QtCore
+from tank.platform.qt import QtCore
 
-from .shot_info_widget import ShotInfoWidget
+from .list_item_widget import ListItemWidget
 
 shotgun_view = tank.platform.import_framework(
     "tk-framework-qtwidgets",
@@ -30,34 +23,29 @@ shotgun_model = tank.platform.import_framework(
     "shotgun_model",
 )
 
-class RvShotInfoDelegate(shotgun_view.WidgetDelegate):
+class ListItemDelegate(shotgun_view.WidgetDelegate):
+    def __init__(self, *args, **kwargs):
+        shotgun_view.WidgetDelegate.__init__(self, *args, **kwargs)
+
     def _create_widget(self, parent):
         """
         Returns the widget to be used when creating items
         """
-        return ShotInfoWidget(parent)
+        return ListItemWidget(parent)
+
+    def _create_editor_widget(self, model_index, style_options, parent):
+        widget = ListItemWidget(parent)
+        sg_item = shotgun_model.get_sg_data(model_index)
+        widget.set_entity(sg_item)
+        return widget
 
     def _on_before_paint(self, widget, model_index, style_options):
         """
         Called when a cell is being painted.
-        """   
+        """
         # get the shotgun query data for this model item     
-        sg_item = shotgun_model.get_sg_data(model_index)   
-
-        # extract the standard icon associated with the item
-        icon = model_index.data(QtCore.Qt.DecorationRole)
-        if icon:
-            thumb = icon.pixmap(100)
-            widget.set_thumbnail(thumb)
-
-        # fill the content of the widget with the data of the loaded Shotgun
-        code_str = sg_item.get("code")
-        type_str = sg_item.get("type")
-        id_str = sg_item.get("id")
-
-        header_str = "%s" % (code_str)
-        body_str = "%s %s" % (type_str, id_str)
-        widget.set_text(header_str, body_str)
+        sg_item = shotgun_model.get_sg_data(model_index)
+        widget.set_entity(sg_item)
 
     def _on_before_selection(self, widget, model_index, style_options):
         """
@@ -71,6 +59,6 @@ class RvShotInfoDelegate(shotgun_view.WidgetDelegate):
         """
         Base the size on the icon size property of the view
         """
-        return ShotInfoWidget.calculate_size()
+        return ListItemWidget.calculate_size()
 
 

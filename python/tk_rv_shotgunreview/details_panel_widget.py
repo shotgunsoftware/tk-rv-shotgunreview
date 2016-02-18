@@ -10,8 +10,10 @@
 
 from .ui.details_panel_widget import Ui_DetailsPanelWidget
 from .version_list_delegate import RvVersionListDelegate
-from .shot_info_delegate import RvShotInfoDelegate
-from .shot_info_widget import ShotInfoWidget
+# from .shot_info_delegate import RvShotInfoDelegate
+# from .shot_info_widget import ShotInfoWidget
+from .list_item_widget import ListItemWidget
+from .list_item_delegate import ListItemDelegate
 
 import tank
 
@@ -33,12 +35,22 @@ class DetailsPanelWidget(QtGui.QWidget):
         Constructor
         """
         QtGui.QWidget.__init__(self, parent)
+
+        self._pinned = False
+        self._requested_entity = None
         
         # set up the UI
         self.ui = Ui_DetailsPanelWidget() 
         self.ui.setupUi(self)
 
-        self.version_delegate  = RvVersionListDelegate(self.ui.entity_version_view)
+        self.version_delegate = RvVersionListDelegate(self.ui.entity_version_view)
+
+        self._fields = [
+            "code",
+            "entity",
+            "image",
+        ]
+
         self.version_model = shotgun_model.SimpleShotgunModel(self.ui.entity_version_tab)
 
         # Tell the view to pull data from the model
@@ -56,19 +68,35 @@ class DetailsPanelWidget(QtGui.QWidget):
         shotgun_globals.register_bg_task_manager(self._task_manager)
         self.ui.note_stream_widget.set_bg_task_manager(self._task_manager)
         self.ui.note_stream_widget.allow_screenshots = False
+        self.ui.note_stream_widget.show_sg_stream_button = False
 
         self.shot_info_model = shotgun_model.SimpleShotgunModel(self.ui.note_stream_widget)
-        self.ui.entity_details_view.setModel(self.shot_info_model)
 
-        self.shot_info_delegate = RvShotInfoDelegate(self.ui.entity_details_view)
-        self.ui.entity_details_view.setItemDelegate(self.shot_info_delegate)
+        si_size = ListItemWidget.calculate_size()
+        self.ui.shot_info_widget.setMaximumSize(QtCore.QSize(si_size.width(), si_size.height()))
 
-        self.ui.entity_details_view.setMinimumSize(ShotInfoWidget.calculate_size())
-        si_size = ShotInfoWidget.calculate_size()
-        self.ui.entity_details_view.setMaximumSize(QtCore.QSize(si_size.width() + 10, si_size.height() + 10))
+        # Signal handling.
+        self.ui.pin_button.toggled.connect(self._set_pinned)
+        self.ui.shotgun_nav_button.clicked.connect(self.ui.note_stream_widget._load_shotgun_activity_stream)
 
     def load_data(self, entity):
-        self.ui.note_stream_widget.load_data(entity)
-        shot_filters = [['id','is', entity['id']]]
-        self.shot_info_model.load_data(entity_type="Version", filters=shot_filters)
+        # If we're pinned, then we don't allow loading new entities.
+        if not self._pinned:
+            self.ui.note_stream_widget.load_data(entity)
+            shot_filters = [['id','is', entity['id']]]
+            self.shot_info_model.load_data(entity_type="Version", filters=shot_filters, fields=self._fields)
+            sg_data = self.shot_info_model.item_from_entity("Version", entity["id"]).get_sg_data()
+            self.ui.shot_info_widget.set_entity(sg_data)
+        else:
+            self._requested_entity = entity
+
+    def _set_pinned(self, checked):
+        self._pinned = checked
+        if checked:
+            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_hover.png"))
+        else:
+            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_up.png"))
+            if self._requested_entity:
+                self.load_data(self._requested_entity)
+                self._requested_entity = None
 

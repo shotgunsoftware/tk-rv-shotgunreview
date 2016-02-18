@@ -28,4 +28,7 @@ ShotgunPlaybackLabel = playback_label.ShotgunPlaybackLabel
 global_search_widget = sgtk.platform.import_framework("tk-framework-qtwidgets", "global_search_widget")
 GlobalSearchWidget = global_search_widget.GlobalSearchWidget
 
+shotgun_fields = sgtk.platform.import_framework("tk-framework-qtwidgets", "shotgun_fields")
+ShotgunFieldManager = shotgun_fields.ShotgunFieldManager
+
 

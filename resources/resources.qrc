@@ -1,0 +1,8 @@
+<RCC>
+  <qresource prefix="tk-rv-shotgunreview">
+    <file>navigate_out_hover.png</file>
+    <file>tack_hover.png</file>
+    <file>navigate_out.png</file>
+    <file>tack_up.png</file>
+  </qresource>
+</RCC>
