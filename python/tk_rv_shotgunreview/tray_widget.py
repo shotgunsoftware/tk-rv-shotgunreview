@@ -22,6 +22,8 @@ class TrayWidget(QtGui.QWidget):
     
     This class is typically used in conjunction with a QT View and the 
     ShotgunDelegate class. 
+
+    This has been hacked up at the moment to be just a thumbnail scroller.
     """
     clicked = QtCore.Signal(int)
 
@@ -30,27 +32,18 @@ class TrayWidget(QtGui.QWidget):
         Constructor
         """
         QtGui.QWidget.__init__(self, parent)
-
-        # make sure this widget isn't shown
-        self.setVisible(False)
+        # make sure this widget isn't shown  WHY????
+        self.setVisible(True)
         
         # set up the UI
         self.ui = Ui_TrayWidget() 
         self.ui.setupUi(self)
-
-
-        # set up action menu
-        # self._menu = QtGui.QMenu()   
-        # self._actions = []             
-        # self.ui.button.setMenu(self._menu)
-        # self.ui.button.setVisible(True)
-
         
     def set_actions(self, actions):
         """
         Adds a list of QActions to add to the actions menu for this widget.
         """
-        print "TRAY WIDGET set_actions"
+        # print "TRAY WIDGET set_actions"
         pass
         # if len(actions) == 0:
         #     self.ui.button.setVisible(False)
@@ -62,38 +55,18 @@ class TrayWidget(QtGui.QWidget):
                                     
     def set_selected(self, selected, in_mini_cut=False):
         """
-        Adjust the style sheet to indicate selection or not
-        """
-
-        # print "TRAY WIDGET SET SELECETEDDDDDDDDD %r" % selected
-        # p = QtGui.QPalette()
-        
-
-        # highlight_col = p.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight)
-        
-        # transp_highlight_str = "rgba(%s, %s, %s, 95%%)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
-        # highlight_str = "rgb(%s, %s, %s)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
-        
-        # if selected:
-        #     self.ui.box.setStyleSheet("""#box {border-width: 2px; 
-        #                                          border-color: %s; 
-        #                                          border-style: solid; 
-        #                                          background-color: %s}
-        #                               """ % (highlight_str, transp_highlight_str))
-
-        # else:
-        #     self.ui.box.setStyleSheet("")
-        # self.ui.thumbnail.setAttribute(QtCore.Qt.WA_TranslucentBackground)
-        
+        Adjust the style sheet to indicate selection or not,
+        added mini - cut support however selection is not always
+        the center point due to tracking timeline?
+        """        
         if selected:
             self.ui.thumbnail.setStyleSheet("QLabel { border: 4px solid rgb(40,136,175); }")
         else:
             if in_mini_cut:
-                self.ui.thumbnail.setStyleSheet("QLabel { border: 2px solid #e0e0e0; }")
+                self.ui.thumbnail.setStyleSheet("QLabel { border: 2px solid #444444; }")
             else:
-                self.ui.thumbnail.setStyleSheet("QLabel { border: none; }")
+                self.ui.thumbnail.setStyleSheet("QLabel { border: 1px solid #000000; }")
                 #self.ui.thumbnail.setAttribute(QtCore.Qt.WA_TranslucentBackground)
-        
         #self.ui.thumbnail.style().unpolish(self.ui.thumbnail)
         #self.ui.thumbnail.style().polish(self.ui.thumbnail)
         #self.ui.thumbnail.update()
@@ -112,8 +85,6 @@ class TrayWidget(QtGui.QWidget):
         """
         pass
         # self.setToolTip("%s\n%s" % (header, body))        
-        # self.ui.header_label.setText(header)
-        # self.ui.body_label.setText(body)
 
     def sizeHint(self):
         return QtCore.QSize(114, 64)

@@ -14,6 +14,8 @@ shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "sho
 from .tray_delegate import RvTrayDelegate
 from .details_panel_widget import DetailsPanelWidget
 
+# isnt it obvious, really?
+# there is something about this i dont get?
 def groupMemberOfType(node, memberType):
     for n in rv.commands.nodesInGroup(node):
         if rv.commands.nodeType(n) == memberType:
@@ -132,26 +134,44 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     # self.playhead_moved.emit()
                     break 
                 n = n + 1              
-            
-            #index = self.tray_model.index(n-1, 0, QModelIndex())
+                        
 
-            #Use the QModelIndex as the first argument to a select for you selectionModel, which can either be the default selection model or another instantiation that can be passed to other views...and then use the same selection model as the second argument but with the Select method...
-            #self.mySelectionModel.select(index, self.mySelectionModel.Select );
-
-
-            cur_index = self.tray_list.selectionModel().currentIndex()
-            #self.tray_view.selectionModel().isSelected(model_index):
-            
+            # this then is all TRAY code.
+            # we extract the version id FROM the tray here and thusly FROM Toolkit FROM the DB.
+            #####################################################################################
             sel_index = self.tray_model.index(n-1, 0)
-            #print "SEL_INDEX %r" % sel_index
+            
             self.tray_list.selectionModel().select(sel_index, self.tray_list.selectionModel().ClearAndSelect)
-            #self.tray_list.setCurrentIndex(sel_index)
-            #widget.playback_requested.connect(lambda sg_data: self.playback_requested.emit(sg_data))
-            # rv_data = { 'rv_playhead_at_shot': n-1 }
-            # self.playhead_moved.emit(rv_data)
-            # self.tray_proxyModel.playhead_moved.connect( lambda rv_data: self.playhead_moved.emit(rv_data) )
+            #self.tray_list.selectionModel().selectionChanged.emit(sel_index, sel_index)
+            #self.tray_list.setCurrentIndex(self.tray_model.createIndex(n-1, 0))
+
+            #sel_range = QtGui.QItemSelection( sel_index, sel_index)
+            #self.tray_list.selectionModel().select(sel_range, self.tray_list.selectionModel().ClearAndSelect)
+            
+
+            ids = self.tray_model.entity_ids
+            our_type =  self.tray_model.get_entity_type()
+            item = self.tray_model.index_from_entity(our_type, ids[n-1])
+            sg_item = shotgun_model.get_sg_data(item)
+       
+            # does updating the other dock make this one refresh now?
+            if sg_item['sg_version.Version.id'] != self.version_id:
+                 # make an entity
+                entity = {}
+                entity["type"] = "Version"
+                entity["id"] = sg_item['sg_version.Version.id']
+                self.load_data(entity)
+                self.version_id = sg_item['sg_version.Version.id']
+                self.tray_list.scrollTo(item, QtGui.QAbstractItemView.EnsureVisible)
+           
+            #return
+            # this made it work. ug.
+            #rv.qtutils.sessionWindow().setFocus()
+            #self.tray_list.setFocus()
+
+            
         except Exception as e:
-            print "OH NO %r" % e
+            print "ERROR: RV frameChanged EXCEPTION %r" % e
 
     def sourcePath(self, event):
         
@@ -159,12 +179,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # print event.contents()
         event.reject()
 
+    # why does cut_tracking from in contents?
     def graphStateChange(self, event):
- 
         # print "################### graphStateChange %r" % event
         # print event.contents()
         event.reject()
-        if "tracking.info" in event.contents():
+        if "cut_tracking.info" in event.contents():
                 try:
                     tl = rv.commands.getStringProperty(event.contents())
                     if "infoStatus" not in event.contents():
@@ -200,13 +220,19 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     pass
                 #print "TRACKING ERROR: %r" % e
 
+    # this ASSUMES cut_tracking ALREADY EXISTS
     def sourceGroupComplete(self, event):
         #print "################### sourceGroupComplete %r" % event
         #print event.contents()
+        # this event shows up with some built in goodness in contents.
+        # below are some nice things i stole from Jon about how to 
+        # dig info out of whats there
         event.reject()
         args         = event.contents().split(";;")
         group        = args[0]
         fileSource   = groupMemberOfType(group, "RVFileSource")
+
+        # i guess im not using the rest of these yet
         imageSource  = groupMemberOfType(group, "RVImageSource")
         source       = fileSource if imageSource == None else imageSource
         typeName     = rv.commands.nodeType(source)
@@ -215,7 +241,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         ext          = fileName.split('.')[-1].upper()
         mInfo        = rv.commands.sourceMediaInfo(source, None)
         # print "group: %s fileSource: %s fileName: %s" % (group, fileSource, fileName)
-        propName = "%s.%s" % (fileSource, "tracking.info")
+
+        # ok, lazy boy just added a 'cut_' to the SR convention...
+        propName = "%s.%s" % (fileSource, "cut_tracking.info")
         
         self.propName = propName
         self.group = group
@@ -241,9 +269,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             # self.shot_info_model.load_data(entity_type="Shot", filters=shot_filters)
 
             #self.version_activity_stream.ui.shot_info_widget.load_data_rv(self._tracking_info)
-            version_filters = [ ['project','is', {'type':'Project','id':71}],
-                ['entity','is',{'type':'Shot','id': int(shot_id)}] ]
-            self.version_model.load_data(entity_type="Version", filters=version_filters)
+            #version_filters = [ ['project','is', {'type':'Project','id':71}],
+            #    ['entity','is',{'type':'Shot','id': int(shot_id)}] ]
+            #self.version_model.load_data(entity_type="Version", filters=version_filters)
 
         except Exception as e:
                 # print "No tracking info found on source-group-complete"
@@ -252,13 +280,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def __init__(self, app):
         rv.rvtypes.MinorMode.__init__(self)
+        
         self.note_dock = None
         self.tray_dock = None
         self.tab_widget = None
         self.mini_cut = False
-        self._app = app
+        self.detail_version_id = None
 
-        self.version_id = -1 
+        self._app = app
 
         self.version_id = -1 
 
@@ -269,19 +298,28 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 ("after-session-read", self.afterSessionRead, ""),
                 ("before-session-read", self.beforeSessionRead, ""),
                 # ("source-group-complete", self.sourceSetup, ""),
-                ("after-graph-view-change", self.viewChange, ""),
+                # ("after-graph-view-change", self.viewChange, ""),
                 ("frame-changed", self.frameChanged, ""),
                 # ("graph-node-inputs-changed", self.inputsChanged, ""),
-                ("incoming-source-path", self.sourcePath, ""),
+                # ("incoming-source-path", self.sourcePath, ""),
                 ("source-group-complete", self.sourceGroupComplete, ""),
                 ("graph-state-change", self.graphStateChange, ""),
-                ("view-node-changed", self.viewChange, "")
+                #("view-node-changed", self.viewChange, "")
                 ],
                 None,
                 None);
 
         rv.extra_commands.toggleFullScreen()
         
+    def activate(self):
+        rv.rvtypes.MinorMode.activate(self)
+
+    def deactivate(self):
+        rv.rvtypes.MinorMode.deactivate(self)
+
+
+######## qt stuff down here. 
+
 
     def load_data(self, entity):
         self.version_id = entity['id']
@@ -306,12 +344,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         from .tray_main_frame import TrayMainFrame
         self.tray_main_frame = TrayMainFrame(self.tray_dock)
         
+        # just map these back for the moment...
         self.tray_model = self.tray_main_frame.tray_model
         self.tray_proxyModel = self.tray_main_frame.tray_proxyModel
         self.tray_delegate = self.tray_main_frame.tray_delegate
         self.tray_list = self.tray_main_frame.tray_list
         self.tray_button_entire_cut = self.tray_main_frame.tray_button_entire_cut
         self.tray_button_mini_cut = self.tray_main_frame.tray_button_mini_cut
+        self.tray_button_browse_cut = self.tray_main_frame.tray_button_browse_cut
         
         self.tray_model.data_refreshed.connect(self.on_data_refreshed)
         self.tray_model.cache_loaded.connect(self.on_cache_loaded)
@@ -321,6 +361,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
+        
+        self.tray_button_browse_cut.clicked.connect(self.on_browse_cut)
+
+        # self.tray_model.itemChanged.connect(self.on_item_changed)
+        
+
         tray_filters = [ ['sg_cut','is', {'type':'CustomEntity10', 'id': 8}] ]
         tray_fields= ["sg_cut_in", "sg_cut_out", "sg_cut_order", 
                 "sg_version.Version.sg_path_to_frames", "sg_version.Version.id",
@@ -330,6 +376,17 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_model.load_data(entity_type="CustomEntity11", filters=tray_filters, fields=tray_fields, order=orders)
 
 
+    def on_browse_cut(self):
+        print "ON BROWSE CUT"
+        tray_filters = [ ['sg_cut','is', {'type':'CustomEntity10', 'id': 23}] ]
+        tray_fields= ["sg_cut_in", "sg_cut_out", "sg_cut_order", 
+                "sg_version.Version.sg_path_to_frames", "sg_version.Version.id",
+                "sg_version.Version.sg_first_frame", "sg_version.Version.sg_last_frame"]
+
+        orders = [{'field_name':'sg_cut_order','direction':'asc'}]
+        self.tray_model.load_data(entity_type="CustomEntity11", filters=tray_filters, fields=tray_fields, order=orders)
+
+        self.on_entire_cut()
 
  
     def on_entire_cut(self):
@@ -351,6 +408,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.commands.setNodeInputs(self.cut_seq, sources)
         rv.commands.setViewNode(self.cut_seq)
 
+        self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
+        self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
+        
+
     def on_mini_cut(self):
         print "ON MINI CUT"
         print "current selection: %r" % self.tray_list.currentIndex()
@@ -363,9 +424,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # get prev and next from current... selRange
         # get shots on either side
         # tear down graph, build new one
+        self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
+        self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
 
-    def on_cache_loaded(self, stuff):
-        print "CACHE LOADED %r" % stuff
+    def on_cache_loaded(self):
+        print "CACHE LOADED"
 
     def on_data_refreshed(self, was_refreshed):
         print "DATA_REFRESHED: %r" % was_refreshed
@@ -424,6 +487,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.commands.setNodeInputs(self.cut_seq, sources)
         rv.commands.setViewNode(self.cut_seq)
         
+        self.tray_list.setCurrentIndex(self.tray_model.createIndex(n-1, 0))
+            
         # this works but maybe i dont need it after all...
     def on_item_changed(curr, prev):
         pass
@@ -514,9 +579,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.commands.setFrame(1)
         rv.commands.play()
 
+        # self.tray_list.selectionModel().selectionChanged.emit(index, None)
         # self.ui.thumbnail.style().unpolish(self.ui.thumbnail)
         # self.ui.thumbnail.style().polish(self.ui.thumbnail)
         # self.ui.thumbnail.update()
+        # self.tray_proxyModel.sort(0, QtCore.Qt.AscendingOrder)
 
         #self.tray_list.model().invalidate()
         #self.tray_list.repaint()
@@ -579,7 +646,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.load_data(entity)
         # self.tray_list.update()
 
-
+        #self.tray_list.selectionModel().selectionChanged.emit(index, None)
+        rv.qtutils.sessionWindow().setFocus()
         #self.tray_list.selectionModel().clear()
 
         # self.tray_list.model().invalidate()
@@ -588,11 +656,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         #     ['entity','is',{'type':'Shot','id': int(shot_id)}] ]
         # self.version_model.load_data(entity_type="Version", filters=version_filters)
 
-    def activate(self):
-        rv.rvtypes.MinorMode.activate(self)
+    def on_item_changed(self, item):
+        print "ON ITEM CHANGED %d" % item.row()
+        if item.row() == 0:
+            self.tray_list.setCurrentIndex(item)
+            self.tray_list.setFocus()
 
-    def deactivate(self):
-        rv.rvtypes.MinorMode.deactivate(self)
 
 
 

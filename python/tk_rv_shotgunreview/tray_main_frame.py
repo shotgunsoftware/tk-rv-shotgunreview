@@ -40,7 +40,7 @@ class TrayMainFrame(QtGui.QWidget):
 
         # tray button bar
         self.tray_button_bar = QtGui.QFrame(self.tray_dock)
-        self.tray_button_bar.setStyleSheet('QFrame { border: 1px solid #ff0000; padding: 1px; } QPushButton { margin: 0px; }')
+        #self.tray_button_bar.setStyleSheet('QFrame { border: 1px solid #ff0000; padding: 1px; } QPushButton { margin: 0px; }')
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Ignored, QtGui.QSizePolicy.Ignored)
         sizePolicy.setHorizontalStretch(1)
         sizePolicy.setVerticalStretch(0)
@@ -50,19 +50,21 @@ class TrayMainFrame(QtGui.QWidget):
         self.tray_button_bar_hlayout = QtGui.QHBoxLayout(self.tray_button_bar)
         self.tray_button_bar_hlayout.setContentsMargins(0, 0, 0, 0)
         
-        self.tray_button_one = QtGui.QPushButton()
-        self.tray_button_one.setStyleSheet('QPushButton { border: 1px solid #00ff00; margin: 0px;}')
-        self.tray_button_bar_hlayout.addWidget(self.tray_button_one)
+        self.tray_button_modify_cut = QtGui.QPushButton()
+        #self.tray_button_modify_cut.setStyleSheet('QPushButton { border: 1px solid #00ff00; margin: 0px;}')
+        self.tray_button_modify_cut.setText("Modify Cut")
+        self.tray_button_bar_hlayout.addWidget(self.tray_button_modify_cut)
 
-        self.tray_button_two = QtGui.QPushButton()
-        self.tray_button_two.setStyleSheet('QPushButton { border: 1px solid #00fff0; }')
-        self.tray_button_bar_hlayout.addWidget(self.tray_button_two)
+        self.tray_button_browse_cut = QtGui.QPushButton()
+        #self.tray_button_browse_cut.setStyleSheet('QPushButton { border: 1px solid #00fff0; }')
+        self.tray_button_browse_cut.setText('Cut Name')
+        self.tray_button_bar_hlayout.addWidget(self.tray_button_browse_cut)
 
         self.tray_button_bar_hlayout.addStretch(1)
 
         self.tray_button_entire_cut = QtGui.QPushButton()
         self.tray_button_entire_cut.setText('Entire Cut')
-        #self.tray_button_three.setStyleSheet('QPushButton { border: 1px solid #000ff0; }')
+        self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
         self.tray_button_bar_hlayout.addWidget(self.tray_button_entire_cut)
         
 
@@ -71,16 +73,22 @@ class TrayMainFrame(QtGui.QWidget):
         #self.tray_button_four.setStyleSheet('QPushButton { border: 1px solid #f00ff0; }')
         self.tray_button_bar_hlayout.addWidget(self.tray_button_mini_cut)
 
-        # move this above
-        # self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
-        # move this above?
-        # self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
+        self.tray_button_heads_and_tails = QtGui.QPushButton()
+        self.tray_button_heads_and_tails.setText('-2 2+')
+        #self.tray_button_heads_and_tails.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
+        self.tray_button_bar_hlayout.addWidget(self.tray_button_heads_and_tails)
 
         self.tray_button_bar_hlayout.addStretch(1)
 
-        self.tray_button_five = QtGui.QPushButton()
-        self.tray_button_five.setStyleSheet('QPushButton { border: 1px solid #f0f000; }')
-        self.tray_button_bar_hlayout.addWidget(self.tray_button_five)
+        self.tray_button_latest_pipeline = QtGui.QPushButton()
+        self.tray_button_latest_pipeline.setText('Latest in Pipeline')
+        #self.tray_button_latest_pipeline.setStyleSheet('QPushButton { border: 1px solid #f0f000; }')
+        self.tray_button_bar_hlayout.addWidget(self.tray_button_latest_pipeline)
+
+        self.tray_button_approved = QtGui.QPushButton()
+        self.tray_button_approved.setText('Approved')
+        #self.tray_button_approved.setStyleSheet('QPushButton { border: 1px solid #f0f000; }')
+        self.tray_button_bar_hlayout.addWidget(self.tray_button_approved)
 
         self.tray_frame_vlayout.addWidget(self.tray_button_bar)
         self.tray_frame_vlayout.setStretchFactor(self.tray_button_bar, 1)
@@ -118,15 +126,7 @@ class TrayMainFrame(QtGui.QWidget):
         self.tray_list.setMinimumSize(QtCore.QSize(1000,80))
         
         self.tray_list.setObjectName("tray_list")
-
-        
-        # move above
-        #self.tray_model.data_refreshed.connect(self.on_data_refreshed)
-        #self.tray_model.cache_loaded.connect(self.on_cache_loaded)
-        #self.tray_list.clicked.connect(self.tray_clicked)
-        #self.tray_list.activated.connect(self.tray_activated)
-        #self.tray_list.doubleClicked.connect(self.tray_double_clicked)
-
+       
         st = "QListView { border: none;}"
         self.setStyleSheet(st)
 
