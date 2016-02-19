@@ -101,26 +101,22 @@ class ListItemWidget(QtGui.QWidget):
         Adjust the style sheet to indicate selection or not
         """
         p = QtGui.QPalette()
-        highlight_col = p.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight)
+        # highlight_col = p.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight)
         
-        transp_highlight_str = "rgba(%s, %s, %s, 25%%)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
-        highlight_str = "rgb(%s, %s, %s)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
+        # transp_highlight_str = "rgba(%s, %s, %s, 25%%)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
+        # highlight_str = "rgb(%s, %s, %s)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
         
-        if selected:
-            self.ui.box.setStyleSheet("""#box {border-width: 2px; 
-                                                 border-color: %s; 
-                                                 border-style: solid; 
-                                                 background-color: %s}
-                                      """ % (highlight_str, transp_highlight_str))
+        # if selected:
+        #     self.ui.box.setStyleSheet("""#box {border-width: 2px; 
+        #                                          border-color: %s; 
+        #                                          border-style: solid; 
+        #                                          background-color: %s}
+        #                               """ % (highlight_str, transp_highlight_str))
 
-        else:
-            self.ui.box.setStyleSheet("")
+        # else:
+        #     self.ui.box.setStyleSheet("")
     
     # def set_thumbnail(self, pixmap):
-    #     """
-    #     Set a thumbnail given the current pixmap.
-    #     The pixmap must be 100x100 or it will appear squeezed
-    #     """
     #     self.ui.thumbnail.setPixmap(pixmap)
             
     # def set_text(self, header, body):
@@ -137,5 +133,5 @@ class ListItemWidget(QtGui.QWidget):
         """
         Calculates and returns a suitable size for this widget.
         """        
-        return QtCore.QSize(400, 200)
+        return QtCore.QSize(300, 50)
 

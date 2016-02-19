@@ -9,11 +9,12 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 from .ui.details_panel_widget import Ui_DetailsPanelWidget
-from .version_list_delegate import RvVersionListDelegate
+# from .version_list_delegate import RvVersionListDelegate
 # from .shot_info_delegate import RvShotInfoDelegate
 # from .shot_info_widget import ShotInfoWidget
 from .list_item_widget import ListItemWidget
 from .list_item_delegate import ListItemDelegate
+# from .model_version_listing import SgVersionModel
 
 import tank
 
@@ -43,7 +44,9 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui = Ui_DetailsPanelWidget() 
         self.ui.setupUi(self)
 
-        self.version_delegate = RvVersionListDelegate(self.ui.entity_version_view)
+        self.version_delegate = ListItemDelegate(
+            self.ui.entity_version_view,
+        )
 
         self._fields = [
             "code",
@@ -52,24 +55,33 @@ class DetailsPanelWidget(QtGui.QWidget):
         ]
 
         self.version_model = shotgun_model.SimpleShotgunModel(self.ui.entity_version_tab)
+        # self.version_model = SgVersionModel(self.ui.entity_version_tab)
 
         # Tell the view to pull data from the model
         self.ui.entity_version_view.setModel(self.version_model)
         self.ui.entity_version_view.setItemDelegate(self.version_delegate)
 
-        task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
+        task_manager = tank.platform.import_framework(
+            "tk-framework-shotgunutils",
+            "task_manager",
+        )
+
         self._task_manager = task_manager.BackgroundTaskManager(
             parent=self.ui.note_stream_widget,
             start_processing=True,
             max_threads=2,
         )
         
-        shotgun_globals = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_globals")
+        shotgun_globals = tank.platform.import_framework(
+            "tk-framework-shotgunutils",
+            "shotgun_globals",
+        )
+
         shotgun_globals.register_bg_task_manager(self._task_manager)
+
         self.ui.note_stream_widget.set_bg_task_manager(self._task_manager)
         self.ui.note_stream_widget.allow_screenshots = False
         self.ui.note_stream_widget.show_sg_stream_button = False
-
         self.shot_info_model = shotgun_model.SimpleShotgunModel(self.ui.note_stream_widget)
 
         si_size = ListItemWidget.calculate_size()
@@ -83,10 +95,23 @@ class DetailsPanelWidget(QtGui.QWidget):
         # If we're pinned, then we don't allow loading new entities.
         if not self._pinned:
             self.ui.note_stream_widget.load_data(entity)
-            shot_filters = [['id','is', entity['id']]]
-            self.shot_info_model.load_data(entity_type="Version", filters=shot_filters, fields=self._fields)
+
+            shot_filters = [["id", "is", entity["id"]]]
+            self.shot_info_model.load_data(
+                entity_type="Version",
+                filters=shot_filters,
+                fields=self._fields,
+            )
+
             sg_data = self.shot_info_model.item_from_entity("Version", entity["id"]).get_sg_data()
             self.ui.shot_info_widget.set_entity(sg_data)
+
+            version_filters = [["entity", "is", sg_data["entity"]]]
+            self.version_model.load_data(
+                "Version",
+                filters=version_filters,
+                fields=self._fields,
+            )
         else:
             self._requested_entity = entity
 

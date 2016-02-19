@@ -56,6 +56,9 @@
          <property name="topMargin">
           <number>0</number>
          </property>
+         <property name="bottomMargin">
+          <number>10</number>
+         </property>
          <item>
           <spacer name="horizontalSpacer">
            <property name="orientation">
@@ -225,6 +228,9 @@
          </property>
          <property name="horizontalScrollMode">
           <enum>QAbstractItemView::ScrollPerPixel</enum>
+         </property>
+         <property name="layoutMode">
+          <enum>QListView::SinglePass</enum>
          </property>
          <property name="uniformItemSizes">
           <bool>true</bool>

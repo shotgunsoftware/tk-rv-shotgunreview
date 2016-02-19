@@ -26,12 +26,22 @@ shotgun_model = tank.platform.import_framework(
 class ListItemDelegate(shotgun_view.WidgetDelegate):
     def __init__(self, *args, **kwargs):
         shotgun_view.WidgetDelegate.__init__(self, *args, **kwargs)
+        self._widget_cache = dict()
 
     def _create_widget(self, parent):
         """
         Returns the widget to be used when creating items
         """
         return ListItemWidget(parent)
+
+    def _get_painter_widget(self, model_index, parent):
+        if model_index in self._widget_cache:
+            return self._widget_cache[model_index]
+
+        widget = self._create_widget(parent)
+        self._widget_cache[model_index] = widget
+
+        return widget
 
     def _create_editor_widget(self, model_index, style_options, parent):
         widget = ListItemWidget(parent)
