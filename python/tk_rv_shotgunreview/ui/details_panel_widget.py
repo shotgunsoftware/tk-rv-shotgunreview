@@ -108,8 +108,6 @@ class Ui_DetailsPanelWidget(object):
         self.entity_version_view = QtGui.QListView(self.entity_version_tab)
         self.entity_version_view.setVerticalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
         self.entity_version_view.setHorizontalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
-        self.entity_version_view.setLayoutMode(QtGui.QListView.SinglePass)
-        self.entity_version_view.setUniformItemSizes(True)
         self.entity_version_view.setObjectName("entity_version_view")
         self.verticalLayout_2.addWidget(self.entity_version_view)
         self.entity_tab_widget.addTab(self.entity_version_tab, "")

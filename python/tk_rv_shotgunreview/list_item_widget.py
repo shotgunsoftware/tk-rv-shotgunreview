@@ -17,39 +17,73 @@ from .qtwidgets import ShotgunFieldManager
 
 class ListItemWidget(QtGui.QWidget):
     """
-    Simple list *item* widget which hosts a square thumbnail, header text
-    and body text. It has a fixed size. Multiple of these items are typically
-    put together inside a QListView to form a list.
-    
-    This class is typically used in conjunction with a QT View and the 
-    ShotgunDelegate class. 
+    Simple list *item* widget which hosts a thumbnail, plus any requested
+    entity fields in a layout to the right of the thumbnail.
     """
-
-    def __init__(self, parent):
+    def __init__(self, parent, fields=None, show_labels=True, show_border=False):
         """
-        Constructor
+        Constructs a new ListItemWidget.
+
+        :param parant:      The widget's parent.
+        :param fields:      A list of Shotgun field names to display.
+        :param show_labels: Whether to show labels for fields being displayed.
         """
         QtGui.QWidget.__init__(self, parent)
+
         self.ui = Ui_ListItemWidget() 
         self.ui.setupUi(self)
 
+        self._fields = fields or ["code", "entity"]
+        self._show_labels = show_labels
+        self._entity = None
+        self._show_border = show_border
+
         self._field_manager = ShotgunFieldManager()
         self._field_manager.initialize()
+        self.set_selected(False)
 
-        self._entity = None
+    def _get_show_labels(self):
+        """
+        Whether to show labels for the fields being displayed.
+        """
+        return self._show_labels
+
+    def _set_show_labels(self, state):
+        """
+        Sets whether to show labels for the fields being displayed.
+
+        :param state:   True or False
+        """
+        self._show_labels = bool(state)
+
+    show_labels = property(_get_show_labels, _set_show_labels)
 
     def set_entity(self, entity):
+        """
+        Sets the widget's entity and builds or refreshes the thumbnail
+        and any fields being displayed.
+
+        :param entity:  The Shotgun entity data dict, as returned from
+                        the Shotgun Python API.
+        """
+        # Don't bother if it's the same entity we already have.
         if self._entity and self._entity == entity:
             return
 
+        # If we've already been populated previously, then we will
+        # set the values of the existing field widgets. Otherwise
+        # this is a first-time setup and we need to create and place
+        # the field widgets into the layout.
         if self._entity:
             self._entity = entity
             self.ui.thumbnail.set_value(entity.get("image"))
-            self.ui.code.set_value(entity.get("code"))
-            self.ui.link.set_value(entity.get("entity"))
+
+            for field in self._fields:
+                field_widget = getattr(self.ui, field)
+                if field_widget:
+                    field_widget.set_value(entity.get(field))
         else:
             self._entity = entity
-
             self.ui.thumbnail = self._field_manager.create_display_widget(
                 entity.get("type"),
                 "image",
@@ -57,81 +91,101 @@ class ListItemWidget(QtGui.QWidget):
             )
 
             self.ui.thumbnail.setMinimumWidth(100)
-
-            self.ui.code = self._field_manager.create_display_widget(
-                entity.get("type"),
-                "code",
-                self._entity,
-            )
-
-            self.ui.link = self._field_manager.create_display_widget(
-                entity.get("type"),
-                "entity",
-                self._entity,
-            )
-
-            self.ui.code_layout = QtGui.QHBoxLayout()
-            self.ui.code_layout.addWidget(self.ui.code)
-            self.ui.code_layout.addItem(
-                QtGui.QSpacerItem(
-                    20,
-                    40,
-                    QtGui.QSizePolicy.Minimum,
-                    QtGui.QSizePolicy.Expanding,
-                ),
-            )
-
-            self.ui.link_layout = QtGui.QHBoxLayout()
-            self.ui.link_layout.addWidget(self.ui.link)
-            self.ui.link_layout.addItem(
-                QtGui.QSpacerItem(
-                    20,
-                    40,
-                    QtGui.QSizePolicy.Minimum,
-                    QtGui.QSizePolicy.Expanding,
-                ),
-            )
-
             self.ui.left_layout.addWidget(self.ui.thumbnail)
-            self.ui.right_layout.insertLayout(1, self.ui.link_layout)
-            self.ui.right_layout.insertLayout(2, self.ui.code_layout)
+
+            field_layout = QtGui.QHBoxLayout()
+            field_grid_layout = QtGui.QGridLayout()
+            field_grid_layout.setHorizontalSpacing(5)
+
+            self.ui.field_layout = field_layout
+            self.ui.field_grid_layout = field_grid_layout
+
+            field_layout.addLayout(field_grid_layout)
+            field_layout.addItem(
+                QtGui.QSpacerItem(
+                    20,
+                    40,
+                    QtGui.QSizePolicy.Minimum,
+                    QtGui.QSizePolicy.Expanding,
+                ),
+            )
+
+            # This is index 1 because index 0 of the layout we're
+            # inserting into is a spacer that we want to keep there.
+            self.ui.right_layout.insertLayout(1, field_layout)
+
+            for i, field in enumerate(self._fields):
+                field_widget = self._field_manager.create_display_widget(
+                    entity.get("type"),
+                    field,
+                    self._entity,
+                )
+
+                # If we've been asked to show labels for the fields, then
+                # build those and get them into the layout.
+                if self._show_labels:
+                    field_label = self._field_manager.create_label(
+                        entity.get("type"),
+                        field,
+                    )
+
+                    field_grid_layout.addWidget(field_label, i, 0)
+                    setattr(self.ui, "%s_label" % field, field_label)
+
+                field_grid_layout.addWidget(field_widget, i, 1)
+                setattr(self.ui, field, field_widget)
                    
     def set_selected(self, selected):
         """
-        Adjust the style sheet to indicate selection or not
+        Adjust the style sheet to indicate selection or not.
         """
         p = QtGui.QPalette()
-        # highlight_col = p.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight)
+        highlight_col = p.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight)
+        highlight_str = "rgb(%s, %s, %s)" % (
+            highlight_col.red(),
+            highlight_col.green(),
+            highlight_col.blue(),
+        )
         
-        # transp_highlight_str = "rgba(%s, %s, %s, 25%%)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
-        # highlight_str = "rgb(%s, %s, %s)" % (highlight_col.red(), highlight_col.green(), highlight_col.blue())
-        
-        # if selected:
-        #     self.ui.box.setStyleSheet("""#box {border-width: 2px; 
-        #                                          border-color: %s; 
-        #                                          border-style: solid; 
-        #                                          background-color: %s}
-        #                               """ % (highlight_str, transp_highlight_str))
-
-        # else:
-        #     self.ui.box.setStyleSheet("")
-    
-    # def set_thumbnail(self, pixmap):
-    #     self.ui.thumbnail.setPixmap(pixmap)
-            
-    # def set_text(self, header, body):
-    #     """
-    #     Populate the lines of text in the widget
-    #     """
-    #     pass
-    #     # self.setToolTip("%s\n%s" % (header, body))        
-    #     # self.ui.header_label.setText(header)
-    #     # self.ui.body_label.setText(body)
+        if selected:
+            self.ui.box.setStyleSheet(
+                """
+                #box {
+                    border-top-width: 1px;
+                    border-bottom-width: 1px;
+                    border-right-width: 2px;
+                    border-left-width: 2px;
+                    border-color: %s;
+                    border-style: solid;
+                }
+                """ % (highlight_str)
+            )
+        elif self._show_border:
+            self.ui.box.setStyleSheet(
+                """
+                #box {
+                    border-top-width: 1px;
+                    border-bottom-width: 1px;
+                    border-right-width: 2px;
+                    border-left-width: 2px;
+                    border-color: rgb(66,67,69);
+                    border-style: solid;
+                }
+                """
+            )
+        else:
+            self.ui.box.setStyleSheet("")
 
     @staticmethod
-    def calculate_size():
+    def calculate_size(field_count=2):
         """
         Calculates and returns a suitable size for this widget.
-        """        
-        return QtCore.QSize(300, 50)
+
+        :param field_count: The integer number of fields to account for
+                            when determining the vertical size of the
+                            widget. The default assumption is the display
+                            of two fields.
+        """
+        height = (75 + (10 * (field_count - 2)))
+        return QtCore.QSize(300, height)
 

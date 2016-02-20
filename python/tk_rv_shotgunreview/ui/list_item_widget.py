@@ -42,9 +42,9 @@ class Ui_ListItemWidget(object):
         spacerItem1 = QtGui.QSpacerItem(0, 40, QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Expanding)
         self.right_layout.addItem(spacerItem1)
         self.horizontalLayout_2.addLayout(self.right_layout)
-        self.horizontalLayout_3.addWidget(self.box)
         spacerItem2 = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)
-        self.horizontalLayout_3.addItem(spacerItem2)
+        self.horizontalLayout_2.addItem(spacerItem2)
+        self.horizontalLayout_3.addWidget(self.box)
 
         self.retranslateUi(ListItemWidget)
         QtCore.QMetaObject.connectSlotsByName(ListItemWidget)
