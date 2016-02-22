@@ -20,7 +20,6 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
     _RV_DATA_ROLE = QtCore.Qt.UserRole + 99
 
     def __init__(self, view):
-        print "INITV %r" % view        
         self.tray_view = view
         shotgun_view.WidgetDelegate.__init__(self, view)
         # note! Need to have a model connected to the view in order
@@ -106,9 +105,10 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         #rv_item = model_index.data(self._RV_DATA_ROLE)
 
         icon = model_index.data(QtCore.Qt.DecorationRole)
-        thumb = icon.pixmap(widget.sizeHint())
-        widget.set_thumbnail(thumb)
-        widget.ui.thumbnail.setScaledContents(False)
+        if icon:
+            thumb = icon.pixmap(widget.sizeHint())
+            widget.set_thumbnail(thumb)
+            widget.ui.thumbnail.setScaledContents(False)
 
         in_mini_cut = False
 

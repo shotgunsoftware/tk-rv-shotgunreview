@@ -11,13 +11,13 @@
 from tank.platform.qt import QtCore, QtGui
 from .tray_delegate import RvTrayDelegate
 
-class TrayMainFrame(QtGui.QWidget):
+class TrayMainFrame(QtGui.QFrame):
 
     def __init__(self, parent):
         """
         Constructor
         """
-        QtGui.QWidget.__init__(self, parent)
+        QtGui.QFrame.__init__(self, parent)
 
         # make sure this widget isn't shown
         self.setVisible(True)
@@ -33,8 +33,8 @@ class TrayMainFrame(QtGui.QWidget):
     def init_ui(self):
         self.setMinimumSize(QtCore.QSize(1255,140))
 
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
-        self.setSizePolicy(sizePolicy)
+        #sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        #self.setSizePolicy(sizePolicy)
 
         self.tray_frame_vlayout = QtGui.QVBoxLayout(self)
 
@@ -50,10 +50,9 @@ class TrayMainFrame(QtGui.QWidget):
         self.tray_button_bar_hlayout = QtGui.QHBoxLayout(self.tray_button_bar)
         self.tray_button_bar_hlayout.setContentsMargins(0, 0, 0, 0)
         
-        self.tray_button_modify_cut = QtGui.QPushButton()
-        #self.tray_button_modify_cut.setStyleSheet('QPushButton { border: 1px solid #00ff00; margin: 0px;}')
-        self.tray_button_modify_cut.setText("Modify Cut")
-        self.tray_button_bar_hlayout.addWidget(self.tray_button_modify_cut)
+        # self.tray_button_modify_cut = QtGui.QPushButton()
+        # self.tray_button_modify_cut.setText("Modify Cut")
+        # self.tray_button_bar_hlayout.addWidget(self.tray_button_modify_cut)
 
         self.tray_button_browse_cut = QtGui.QPushButton()
         #self.tray_button_browse_cut.setStyleSheet('QPushButton { border: 1px solid #00fff0; }')
@@ -97,7 +96,16 @@ class TrayMainFrame(QtGui.QWidget):
         # QListView ##########################
         #####################################################################
         self.tray_list = QtGui.QListView()
+        
         #self.tray_list.setSizePolicy(sizePolicy)
+        # self.tray_list_hlayout = QtGui.QHBoxLayout()
+        # self.tray_list_hlayout.setContentsMargins(0, 0, 0, 0)
+        # self.tray_list_hlayout.addWidget(self.tray_list)
+        # self.tray_list_hlayout.setStretchFactor(self.tray_list, 1)
+        # self.tray_list_hlayout.addStretch(1)
+
+        
+        
         self.tray_frame_vlayout.addWidget(self.tray_list)
         self.tray_frame_vlayout.setStretchFactor(self.tray_list, 1)
         
@@ -118,12 +126,12 @@ class TrayMainFrame(QtGui.QWidget):
         #self.tray_list.setSelectionBehavior(QtGui.QAbstractItemView.SelectItems)
         #self.tray_list.setSelectionMode(QtGui.QAbstractItemView.MultiSelection)
         self.tray_list.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.tray_list.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.tray_list.setHorizontalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
+        #self.tray_list.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        #self.tray_list.setHorizontalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
         self.tray_list.setFlow(QtGui.QListView.LeftToRight)
         self.tray_list.setUniformItemSizes(True)
         
-        self.tray_list.setMinimumSize(QtCore.QSize(1000,80))
+        #self.tray_list.setMinimumSize(QtCore.QSize(1000,80))
         
         self.tray_list.setObjectName("tray_list")
        

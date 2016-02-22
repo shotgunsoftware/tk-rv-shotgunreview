@@ -52,6 +52,8 @@ class RVShotgunReviewApp(Application):
                 "font-family: Proxima Nova; "
                 "background: rgb(36,38,41); "
                 "color: rgb(126,127,129);} "
+            "QDockWidget { "
+                "padding: 8px; }"
             "QDockWidget::title { "
                 "background: rgb(36,38,41); "
                 "color: rgb(126,127,129); "
@@ -73,7 +75,7 @@ class RVShotgunReviewApp(Application):
         parent_widget.addDockWidget(QtCore.Qt.BottomDockWidgetArea, tray_dock)
 
         # TODO: debug info and triggers a load_data for activity stream REMOVE LATER
-        self._env_info()
+        # self._env_info()
 
     def _env_info(self):
         self.engine.log_info("TANK_CONTEXT: %s" % os.environ.get("TANK_CONTEXT"))
