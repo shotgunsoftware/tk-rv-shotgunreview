@@ -24,19 +24,54 @@ shotgun_model = tank.platform.import_framework(
 )
 
 class ListItemDelegate(shotgun_view.WidgetDelegate):
-    def __init__(self, *args, **kwargs):
-        shotgun_view.WidgetDelegate.__init__(self, *args, **kwargs)
+    def __init__(self, parent, fields=None, show_labels=True, show_borders=True, **kwargs):
+        """
+        Constructs a new ListItemDelegate.
+
+        :param parent:          The delegate's parent widget.
+        :param fields:          A list of Shotgun entity fields to be displayed.
+        :param show_labels:     Whether to show labels for the fields being displayed.
+        :param show_borders:    Whether to draw borders around each item.
+        """
+        shotgun_view.WidgetDelegate.__init__(self, parent, **kwargs)
+        
+        self._widget_cache = dict()
+        self._fields = fields
+        self._show_labels = show_labels
+        self._show_borders = show_borders
 
     def _create_widget(self, parent):
         """
-        Returns the widget to be used when creating items
+        Returns the widget to be used when creating items.
         """
-        return ListItemWidget(parent)
+        return ListItemWidget(
+            parent=parent,
+            fields=self._fields,
+            show_labels=self._show_labels,
+            show_border=self._show_borders,
+        )
+
+    def _get_painter_widget(self, model_index, parent):
+        """
+        Constructs a widget to act as the basis for the paint event. If
+        a widget has already been instantiated for this model index, that
+        widget will be reused, otherwise a new widget will be instantiated
+        and cached.
+        """
+        if model_index in self._widget_cache:
+            return self._widget_cache[model_index]
+
+        widget = self._create_widget(parent)
+        self._widget_cache[model_index] = widget
+
+        return widget
 
     def _create_editor_widget(self, model_index, style_options, parent):
-        widget = ListItemWidget(parent)
-        sg_item = shotgun_model.get_sg_data(model_index)
-        widget.set_entity(sg_item)
+        """
+        Called when a cell is being edited.
+        """
+        widget = self._create_widget(parent)
+        self._on_before_paint(widget, model_index, style_options)
         return widget
 
     def _on_before_paint(self, widget, model_index, style_options):
@@ -57,8 +92,14 @@ class ListItemDelegate(shotgun_view.WidgetDelegate):
 
     def sizeHint(self, style_options, model_index):
         """
-        Base the size on the icon size property of the view
+        Base the size on the number of entity fields to be displayed. This
+        number will affect the height component of the size hint.
         """
-        return ListItemWidget.calculate_size()
+        if self._fields:
+            field_count = len(self._fields)
+        else:
+            field_count = 2
+
+        return ListItemWidget.calculate_size(field_count)
 
 

@@ -7,14 +7,20 @@
     <x>0</x>
     <y>0</y>
     <width>355</width>
-    <height>105</height>
+    <height>75</height>
    </rect>
   </property>
   <property name="sizePolicy">
-   <sizepolicy hsizetype="Maximum" vsizetype="Preferred">
+   <sizepolicy hsizetype="Maximum" vsizetype="Maximum">
     <horstretch>0</horstretch>
     <verstretch>0</verstretch>
    </sizepolicy>
+  </property>
+  <property name="maximumSize">
+   <size>
+    <width>16777215</width>
+    <height>75</height>
+   </size>
   </property>
   <property name="windowTitle">
    <string>Form</string>
@@ -26,19 +32,6 @@
    <property name="margin">
     <number>0</number>
    </property>
-   <item>
-    <spacer name="horizontalSpacer">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>40</width>
-       <height>20</height>
-      </size>
-     </property>
-    </spacer>
-   </item>
    <item>
     <widget class="QFrame" name="box">
      <property name="frameShape">
@@ -69,7 +62,7 @@
          <number>0</number>
         </property>
         <item>
-         <spacer name="verticalSpacer_2">
+         <spacer name="upper_spacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
           </property>
@@ -82,7 +75,7 @@
          </spacer>
         </item>
         <item>
-         <spacer name="verticalSpacer">
+         <spacer name="lower_spacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
           </property>
@@ -96,21 +89,21 @@
         </item>
        </layout>
       </item>
+      <item>
+       <spacer name="horizontalSpacer">
+        <property name="orientation">
+         <enum>Qt::Horizontal</enum>
+        </property>
+        <property name="sizeHint" stdset="0">
+         <size>
+          <width>40</width>
+          <height>20</height>
+         </size>
+        </property>
+       </spacer>
+      </item>
      </layout>
     </widget>
-   </item>
-   <item>
-    <spacer name="horizontalSpacer_2">
-     <property name="orientation">
-      <enum>Qt::Horizontal</enum>
-     </property>
-     <property name="sizeHint" stdset="0">
-      <size>
-       <width>40</width>
-       <height>20</height>
-      </size>
-     </property>
-    </spacer>
    </item>
   </layout>
  </widget>
