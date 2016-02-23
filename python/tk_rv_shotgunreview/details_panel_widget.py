@@ -39,6 +39,8 @@ class DetailsPanelWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         """
         Constructor
+
+        :param parent:  The panel's parent widget.
         """
         QtGui.QWidget.__init__(self, parent)
 
@@ -94,6 +96,14 @@ class DetailsPanelWidget(QtGui.QWidget):
         )
 
     def load_data(self, entity):
+        """
+        Loads the given Shotgun entity into the details panel,
+        triggering the notes and versions streams to be updated
+        relative to the given entity.
+
+        :param entity:  The Shotgun entity to load. This is a dict in
+                        the form returned by the Shotgun Python API.
+        """
         # If we're pinned, then we don't allow loading new entities.
         if not self._pinned:
             self.ui.note_stream_widget.load_data(entity)
@@ -122,7 +132,17 @@ class DetailsPanelWidget(QtGui.QWidget):
             self._requested_entity = entity
 
     def _set_pinned(self, checked):
+        """
+        Sets the "pinned" state of the details panel. When the panel is
+        pinned it will not accept updates. It will, however, record the
+        most recent entity passed to load_data that was not accepted. If
+        the panel is unpinned at a later time, the most recent rejected
+        entity update will be executed at that time.
+
+        :param checked: True or False
+        """
         self._pinned = checked
+
         if checked:
             self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_hover.png"))
         else:

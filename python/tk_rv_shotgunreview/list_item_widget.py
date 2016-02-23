@@ -19,6 +19,10 @@ class ListItemWidget(QtGui.QWidget):
     """
     Simple list *item* widget which hosts a thumbnail, plus any requested
     entity fields in a layout to the right of the thumbnail.
+
+    :ivar show_labels:      Whether to show entity field labels when the
+                            widget is drawn.
+    :vartype show_labels:   bool
     """
     def __init__(self, parent, fields=None, show_labels=True, show_border=False):
         """
@@ -34,29 +38,14 @@ class ListItemWidget(QtGui.QWidget):
         self.ui.setupUi(self)
 
         self._fields = fields or ["code", "entity"]
-        self._show_labels = show_labels
         self._entity = None
         self._show_border = show_border
+
+        self.show_labels = show_labels
 
         self._field_manager = ShotgunFieldManager()
         self._field_manager.initialize()
         self.set_selected(False)
-
-    def _get_show_labels(self):
-        """
-        Whether to show labels for the fields being displayed.
-        """
-        return self._show_labels
-
-    def _set_show_labels(self, state):
-        """
-        Sets whether to show labels for the fields being displayed.
-
-        :param state:   True or False
-        """
-        self._show_labels = bool(state)
-
-    show_labels = property(_get_show_labels, _set_show_labels)
 
     def set_entity(self, entity):
         """
@@ -79,26 +68,26 @@ class ListItemWidget(QtGui.QWidget):
             self.ui.thumbnail.set_value(entity.get("image"))
 
             for field in self._fields:
-                field_widget = getattr(self.ui, field)
+                field_widget = getattr(self, field)
                 if field_widget:
                     field_widget.set_value(entity.get(field))
         else:
             self._entity = entity
-            self.ui.thumbnail = self._field_manager.create_display_widget(
+            self.thumbnail = self._field_manager.create_display_widget(
                 entity.get("type"),
                 "image",
                 self._entity,
             )
 
-            self.ui.thumbnail.setMinimumWidth(100)
-            self.ui.left_layout.addWidget(self.ui.thumbnail)
+            self.thumbnail.setMinimumWidth(100)
+            self.ui.left_layout.addWidget(self.thumbnail)
 
             field_layout = QtGui.QHBoxLayout()
             field_grid_layout = QtGui.QGridLayout()
             field_grid_layout.setHorizontalSpacing(5)
 
-            self.ui.field_layout = field_layout
-            self.ui.field_grid_layout = field_grid_layout
+            self.field_layout = field_layout
+            self.field_grid_layout = field_grid_layout
 
             field_layout.addLayout(field_grid_layout)
             field_layout.addItem(
@@ -123,21 +112,23 @@ class ListItemWidget(QtGui.QWidget):
 
                 # If we've been asked to show labels for the fields, then
                 # build those and get them into the layout.
-                if self._show_labels:
+                if self.show_labels:
                     field_label = self._field_manager.create_label(
                         entity.get("type"),
                         field,
                     )
 
                     field_grid_layout.addWidget(field_label, i, 0)
-                    setattr(self.ui, "%s_label" % field, field_label)
+                    setattr(self, "%s_label" % field, field_label)
 
                 field_grid_layout.addWidget(field_widget, i, 1)
-                setattr(self.ui, field, field_widget)
+                setattr(self, field, field_widget)
                    
     def set_selected(self, selected):
         """
         Adjust the style sheet to indicate selection or not.
+
+        :param selected:    Whether the widget is selected or not.
         """
         p = QtGui.QPalette()
         highlight_col = p.color(QtGui.QPalette.Active, QtGui.QPalette.Highlight)
