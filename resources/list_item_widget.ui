@@ -62,7 +62,7 @@
          <number>0</number>
         </property>
         <item>
-         <spacer name="verticalSpacer_2">
+         <spacer name="upper_spacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
           </property>
@@ -75,7 +75,7 @@
          </spacer>
         </item>
         <item>
-         <spacer name="verticalSpacer">
+         <spacer name="lower_spacer">
           <property name="orientation">
            <enum>Qt::Vertical</enum>
           </property>
@@ -90,7 +90,7 @@
        </layout>
       </item>
       <item>
-       <spacer name="horizontalSpacer_2">
+       <spacer name="horizontalSpacer">
         <property name="orientation">
          <enum>Qt::Horizontal</enum>
         </property>

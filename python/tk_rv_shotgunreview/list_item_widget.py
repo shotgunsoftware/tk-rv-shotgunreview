@@ -99,9 +99,20 @@ class ListItemWidget(QtGui.QWidget):
                 ),
             )
 
-            # This is index 1 because index 0 of the layout we're
-            # inserting into is a spacer that we want to keep there.
-            self.ui.right_layout.insertLayout(1, field_layout)
+            # We want to put it below the upper spacer in the layout. The
+            # reason for the findChild here is that Designer does not appear
+            # to create an attribute to store spacer items in the way that
+            # it does for widgets. As a result, we have to look it up by
+            # name and type.
+            upper_spacer = self.ui.right_layout.findChild(
+                QtGui.QSpacerItem,
+                "upper_spacer",
+            )
+
+            self.ui.right_layout.insertLayout(
+                self.ui.right_layout.indexOf(upper_spacer) + 1,
+                field_layout,
+            )
 
             for i, field in enumerate(self._fields):
                 field_widget = self._field_manager.create_display_widget(
