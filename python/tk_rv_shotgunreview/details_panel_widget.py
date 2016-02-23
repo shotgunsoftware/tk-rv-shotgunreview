@@ -14,6 +14,7 @@ from tank.platform.qt import QtCore, QtGui
 from .ui.details_panel_widget import Ui_DetailsPanelWidget
 from .list_item_widget import ListItemWidget
 from .list_item_delegate import ListItemDelegate
+from .qtwidgets import ShotgunFieldManager
 
 shotgun_view = tank.platform.import_framework(
     "tk-framework-qtwidgets",
@@ -50,11 +51,35 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui = Ui_DetailsPanelWidget() 
         self.ui.setupUi(self)
 
+        # We start off with various buttons hidden. When an
+        # entity is loaded for the first time we will turn them on.
+        self.ui.more_info_button.hide()
+        self.ui.pin_button.hide()
+        self.ui.shotgun_nav_button.hide()
+
+        # We need to connect to some field manager signals, so
+        # we will instantiate one and keep it around. It'll be
+        # passed to any ListItemWidgets that are built later.
+        self._task_manager = task_manager.BackgroundTaskManager(
+            parent=self.ui.note_stream_widget,
+            start_processing=True,
+            max_threads=2,
+        )
+        shotgun_globals.register_bg_task_manager(self._task_manager)
+
+        self._shotgun_field_manager = ShotgunFieldManager(
+            bg_task_manager=self._task_manager,
+        )
+        self._shotgun_field_manager.initialize()
+
         self.version_delegate = ListItemDelegate(
             parent=self.ui.entity_version_view,
             fields=["user","sg_status_list"],
+            shotgun_field_manager=self._shotgun_field_manager,
         )
 
+        # These are the minimum required fields that we need
+        # in order to draw all of our widgets with default settings.
         self._fields = [
             "code",
             "entity",
@@ -66,15 +91,6 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.version_model = shotgun_model.SimpleShotgunModel(self.ui.entity_version_tab)
         self.ui.entity_version_view.setModel(self.version_model)
         self.ui.entity_version_view.setItemDelegate(self.version_delegate)
-
-        self._task_manager = task_manager.BackgroundTaskManager(
-            parent=self.ui.note_stream_widget,
-            start_processing=True,
-            max_threads=2,
-        )
-
-        shotgun_globals.register_bg_task_manager(self._task_manager)
-
         self.ui.note_stream_widget.set_bg_task_manager(self._task_manager)
         self.ui.note_stream_widget.allow_screenshots = False
         self.ui.note_stream_widget.show_sg_stream_button = False
@@ -88,9 +104,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         # For the basic info widget in the Notes stream we won't show
         # labels for the fields we're including.
         self.ui.shot_info_widget.show_labels = False
+        self.ui.shot_info_widget.field_manager = self._shotgun_field_manager
+        self.ui.shot_info_widget.setMinimumSize(ListItemWidget.calculate_size())
 
         # Signal handling.
+        self._task_manager.task_group_finished.connect(
+            self._task_group_finished
+        )
         self.ui.pin_button.toggled.connect(self._set_pinned)
+        self.ui.more_info_button.toggled.connect(self._more_info_toggled)
         self.ui.shotgun_nav_button.clicked.connect(
             self.ui.note_stream_widget._load_shotgun_activity_stream
         )
@@ -104,6 +126,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param entity:  The Shotgun entity to load. This is a dict in
                         the form returned by the Shotgun Python API.
         """
+        if not entity:
+            return
+
+        # We have various buttons hidden until an entity is loaded,
+        # so we need to turn those on now.
+        self.ui.more_info_button.show()
+        self.ui.pin_button.show()
+        self.ui.shotgun_nav_button.show()
+
         # If we're pinned, then we don't allow loading new entities.
         if not self._pinned:
             self.ui.note_stream_widget.load_data(entity)
@@ -131,6 +162,20 @@ class DetailsPanelWidget(QtGui.QWidget):
         else:
             self._requested_entity = entity
 
+    def _more_info_toggled(self, checked):
+        """
+        Toggled more/less info functionality for the info widget in the
+        Notes tab.
+
+        :param checked: True or False
+        """
+        if checked:
+            self.ui.more_info_button.setText("Hide info")
+            self.ui.shot_info_widget.setMinimumSize(ListItemWidget.calculate_size(4))
+        else:
+            self.ui.more_info_button.setText("More info")
+            self.ui.shot_info_widget.setMinimumSize(ListItemWidget.calculate_size())
+
     def _set_pinned(self, checked):
         """
         Sets the "pinned" state of the details panel. When the panel is
@@ -150,4 +195,16 @@ class DetailsPanelWidget(QtGui.QWidget):
             if self._requested_entity:
                 self.load_data(self._requested_entity)
                 self._requested_entity = None
+
+    def _task_group_finished(self, group):
+        """
+        Repaints the necessary widgets and views when a task is completed
+        by the ShotgunFieldManager object. This will ensure that all widgets
+        making use of Shotgun field widgets will be repainted once all data
+        has been queried from Shotgun.
+
+        :param group:   The task group that was completed.
+        """
+        self.ui.shot_info_widget.repaint()
+        self.ui.entity_version_view.repaint()
 

@@ -48,6 +48,10 @@ QTabBar::tab:selected {
     color: {{SG_HIGHLIGHT_COLOR}};
 }
 
+QToolButton#more_info_button:hover {
+    color: {{SG_HIGHLIGHT_COLOR}};
+}
+
 /****************************************************************/
 /* Info tab showing all shotgun fields 							*/
 

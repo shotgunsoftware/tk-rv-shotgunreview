@@ -23,14 +23,22 @@ class ListItemWidget(QtGui.QWidget):
     :ivar show_labels:      Whether to show entity field labels when the
                             widget is drawn.
     :vartype show_labels:   bool
+    :ivar field_manager:    The accompanying ShotgunFieldManager object
+                            used to construct all Shotgun field widgets.
     """
-    def __init__(self, parent, fields=None, show_labels=True, show_border=False):
+    def __init__(
+        self, parent, fields=None, show_labels=True, show_border=False,
+        shotgun_field_manager=None
+    ):
         """
         Constructs a new ListItemWidget.
 
-        :param parant:      The widget's parent.
-        :param fields:      A list of Shotgun field names to display.
-        :param show_labels: Whether to show labels for fields being displayed.
+        :param parant:                  The widget's parent.
+        :param fields:                  A list of Shotgun field names to display.
+        :param show_labels:             Whether to show labels for fields being
+                                        displayed.
+        :param shotgun_field_manager:   An optional ShotgunFieldManager object. If
+                                        one is not provided one will be instantiated.
         """
         QtGui.QWidget.__init__(self, parent)
 
@@ -43,8 +51,9 @@ class ListItemWidget(QtGui.QWidget):
 
         self.show_labels = show_labels
 
-        self._field_manager = ShotgunFieldManager()
-        self._field_manager.initialize()
+        self.field_manager = shotgun_field_manager or ShotgunFieldManager()
+        self.field_manager.initialize()
+
         self.set_selected(False)
 
     def set_entity(self, entity):
@@ -65,7 +74,7 @@ class ListItemWidget(QtGui.QWidget):
         # the field widgets into the layout.
         if self._entity:
             self._entity = entity
-            self.ui.thumbnail.set_value(entity.get("image"))
+            self.thumbnail.set_value(entity.get("image"))
 
             for field in self._fields:
                 field_widget = getattr(self, field)
@@ -73,31 +82,32 @@ class ListItemWidget(QtGui.QWidget):
                     field_widget.set_value(entity.get(field))
         else:
             self._entity = entity
-            self.thumbnail = self._field_manager.create_display_widget(
+            self.thumbnail = self.field_manager.create_display_widget(
                 entity.get("type"),
                 "image",
                 self._entity,
             )
 
-            self.thumbnail.setMinimumWidth(100)
+            size_policy = QtGui.QSizePolicy(
+                QtGui.QSizePolicy.MinimumExpanding,
+                QtGui.QSizePolicy.MinimumExpanding,
+            )
+            size_policy.setHorizontalStretch(1)
+
+            self.thumbnail.setSizePolicy(size_policy)
+
             self.ui.left_layout.addWidget(self.thumbnail)
 
             field_layout = QtGui.QHBoxLayout()
             field_grid_layout = QtGui.QGridLayout()
             field_grid_layout.setHorizontalSpacing(5)
+            field_grid_layout.setColumnStretch(1, 3)
 
             self.field_layout = field_layout
             self.field_grid_layout = field_grid_layout
 
             field_layout.addLayout(field_grid_layout)
-            field_layout.addItem(
-                QtGui.QSpacerItem(
-                    20,
-                    40,
-                    QtGui.QSizePolicy.Minimum,
-                    QtGui.QSizePolicy.Expanding,
-                ),
-            )
+            field_layout.addStretch(2)
 
             # We want to put it below the upper spacer in the layout. The
             # reason for the findChild here is that Designer does not appear
@@ -115,7 +125,7 @@ class ListItemWidget(QtGui.QWidget):
             )
 
             for i, field in enumerate(self._fields):
-                field_widget = self._field_manager.create_display_widget(
+                field_widget = self.field_manager.create_display_widget(
                     entity.get("type"),
                     field,
                     self._entity,
@@ -124,7 +134,7 @@ class ListItemWidget(QtGui.QWidget):
                 # If we've been asked to show labels for the fields, then
                 # build those and get them into the layout.
                 if self.show_labels:
-                    field_label = self._field_manager.create_label(
+                    field_label = self.field_manager.create_label(
                         entity.get("type"),
                         field,
                     )
@@ -134,6 +144,8 @@ class ListItemWidget(QtGui.QWidget):
 
                 field_grid_layout.addWidget(field_widget, i, 1)
                 setattr(self, field, field_widget)
+
+            self.ui.right_layout.addStretch(3)
                    
     def set_selected(self, selected):
         """
@@ -188,6 +200,6 @@ class ListItemWidget(QtGui.QWidget):
                             widget. The default assumption is the display
                             of two fields.
         """
-        height = (75 + (10 * (field_count - 2)))
+        height = (50 + (10 * (field_count - 2)))
         return QtCore.QSize(300, height)
 

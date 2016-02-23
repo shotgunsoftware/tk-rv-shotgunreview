@@ -24,14 +24,18 @@ shotgun_model = tank.platform.import_framework(
 )
 
 class ListItemDelegate(shotgun_view.WidgetDelegate):
-    def __init__(self, parent, fields=None, show_labels=True, show_borders=True, **kwargs):
+    def __init__(
+        self, parent, fields=None, show_labels=True, show_borders=True, 
+        shotgun_field_manager=None, **kwargs):
         """
         Constructs a new ListItemDelegate.
 
-        :param parent:          The delegate's parent widget.
-        :param fields:          A list of Shotgun entity fields to be displayed.
-        :param show_labels:     Whether to show labels for the fields being displayed.
-        :param show_borders:    Whether to draw borders around each item.
+        :param parent:                  The delegate's parent widget.
+        :param fields:                  A list of Shotgun entity fields to be displayed.
+        :param show_labels:             Whether to show labels for the fields being displayed.
+        :param show_borders:            Whether to draw borders around each item.
+        :param shotgun_field_manager:   An option ShotgunFieldManager object to pass to any
+                                        ListItemWidgets that are constructed.
         """
         shotgun_view.WidgetDelegate.__init__(self, parent, **kwargs)
         
@@ -39,6 +43,7 @@ class ListItemDelegate(shotgun_view.WidgetDelegate):
         self._fields = fields
         self._show_labels = show_labels
         self._show_borders = show_borders
+        self._shotgun_field_manager = shotgun_field_manager
 
     def _create_widget(self, parent):
         """
@@ -49,6 +54,7 @@ class ListItemDelegate(shotgun_view.WidgetDelegate):
             fields=self._fields,
             show_labels=self._show_labels,
             show_border=self._show_borders,
+            shotgun_field_manager=self._shotgun_field_manager,
         )
 
     def _get_painter_widget(self, model_index, parent):
