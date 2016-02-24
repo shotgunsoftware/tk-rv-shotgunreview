@@ -56,6 +56,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.more_info_button.hide()
         self.ui.pin_button.hide()
         self.ui.shotgun_nav_button.hide()
+        self.ui.more_fields_button.hide()
 
         # We need to connect to some field manager signals, so
         # we will instantiate one and keep it around. It'll be
@@ -74,8 +75,9 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         self.version_delegate = ListItemDelegate(
             parent=self.ui.entity_version_view,
-            fields=["user","sg_status_list"],
+            fields=["code", "user","sg_status_list"],
             shotgun_field_manager=self._shotgun_field_manager,
+            label_exempt_fields=["code"],
         )
 
         # These are the minimum required fields that we need
@@ -86,6 +88,23 @@ class DetailsPanelWidget(QtGui.QWidget):
             "image",
             "user",
             "sg_status_list",
+        ]
+
+        # These are the fields that have been given to the info widget
+        # at the top of the Notes tab. This represents all fields that
+        # are displayed by default when the "More info" option is active.
+        self._active_fields = [
+            "code",
+            "entity",
+            "user",
+            "sg_status_list",
+        ]
+
+        # This is the subset of self._active_fields that are always
+        # visible, even when "More info" is not active.
+        self._persistent_fields = [
+            "code",
+            "entity",
         ]
 
         self.version_model = shotgun_model.SimpleShotgunModel(self.ui.entity_version_tab)
@@ -103,9 +122,10 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         # For the basic info widget in the Notes stream we won't show
         # labels for the fields we're including.
-        self.ui.shot_info_widget.show_labels = False
+        self.ui.shot_info_widget.fields = self._active_fields
+        self.ui.shot_info_widget.label_exempt_fields = ["code", "entity"]
         self.ui.shot_info_widget.field_manager = self._shotgun_field_manager
-        self.ui.shot_info_widget.setMinimumSize(ListItemWidget.calculate_size())
+        # self.ui.shot_info_widget.setMinimumSize(ListItemWidget.calculate_size())
 
         # Signal handling.
         self._task_manager.task_group_finished.connect(
@@ -152,6 +172,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             ).get_sg_data()
 
             self.ui.shot_info_widget.set_entity(sg_data)
+            self._more_info_toggled(self.ui.more_info_button.isChecked())
 
             version_filters = [["entity", "is", sg_data["entity"]]]
             self.version_model.load_data(
@@ -171,10 +192,23 @@ class DetailsPanelWidget(QtGui.QWidget):
         """
         if checked:
             self.ui.more_info_button.setText("Hide info")
-            self.ui.shot_info_widget.setMinimumSize(ListItemWidget.calculate_size(4))
+            self.ui.more_fields_button.show()
+
+            for field_name in self._active_fields:
+                self.ui.shot_info_widget.set_field_visibility(field_name, True)
+
+            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
         else:
             self.ui.more_info_button.setText("More info")
-            self.ui.shot_info_widget.setMinimumSize(ListItemWidget.calculate_size())
+            self.ui.more_fields_button.hide()
+
+            for field_name in self._active_fields:
+                if field_name not in self._persistent_fields:
+                    self.ui.shot_info_widget.set_field_visibility(field_name, False)
+
+            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
+
+        self.ui.info_layout.update()
 
     def _set_pinned(self, checked):
         """

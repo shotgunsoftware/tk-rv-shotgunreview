@@ -26,7 +26,7 @@ shotgun_model = tank.platform.import_framework(
 class ListItemDelegate(shotgun_view.WidgetDelegate):
     def __init__(
         self, parent, fields=None, show_labels=True, show_borders=True, 
-        shotgun_field_manager=None, **kwargs):
+        shotgun_field_manager=None, label_exempt_fields=None, **kwargs):
         """
         Constructs a new ListItemDelegate.
 
@@ -36,12 +36,15 @@ class ListItemDelegate(shotgun_view.WidgetDelegate):
         :param show_borders:            Whether to draw borders around each item.
         :param shotgun_field_manager:   An option ShotgunFieldManager object to pass to any
                                         ListItemWidgets that are constructed.
+        :param label_exempt_fields:     A list of field names that are exempt from having
+                                        labels displayed.
         """
         shotgun_view.WidgetDelegate.__init__(self, parent, **kwargs)
         
         self._widget_cache = dict()
         self._fields = fields
         self._show_labels = show_labels
+        self._label_exempt_fields = label_exempt_fields
         self._show_borders = show_borders
         self._shotgun_field_manager = shotgun_field_manager
 
@@ -55,6 +58,7 @@ class ListItemDelegate(shotgun_view.WidgetDelegate):
             show_labels=self._show_labels,
             show_border=self._show_borders,
             shotgun_field_manager=self._shotgun_field_manager,
+            label_exempt_fields=self._label_exempt_fields,
         )
 
     def _get_painter_widget(self, model_index, parent):
