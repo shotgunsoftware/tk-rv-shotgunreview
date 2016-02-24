@@ -63,6 +63,9 @@ class ListItemWidget(QtGui.QWidget):
 
         self.set_selected(False)
 
+    ##########################################################################
+    # properties
+
     def _get_fields(self):
         return self._fields
 
@@ -71,6 +74,9 @@ class ListItemWidget(QtGui.QWidget):
         self._field_visibility = {field:True for field in fields}
 
     fields = property(_get_fields, _set_fields)
+
+    ##########################################################################
+    # public methods
 
     def add_field(self, field_name):
         """
@@ -85,8 +91,11 @@ class ListItemWidget(QtGui.QWidget):
         if field_name not in self._field_visibility:
             self._field_visibility[field_name] = True
 
+        self.fields.append(field_name)
+
+        # If we've not yet loaded an entity, then we don't need to
+        # do any widget work.
         if not self._entity:
-            self.fields.append(field_name)
             return
 
         field_widget = self.field_manager.create_display_widget(
@@ -120,6 +129,40 @@ class ListItemWidget(QtGui.QWidget):
         Returns a list of field names that are currently visible.
         """
         return [f for f in self._field_visibility.keys() if self._field_visibility[f]]
+
+    def remove_field(self, field_name):
+        """
+        Removes the field widget and its label (when present) for the
+        given field name.
+
+        :param field_name:  The Shotgun field name to remove.
+        """
+        if field_name not in self.fields:
+            return
+
+        # Remove the field from the list of stuff we're tracking.
+        self.fields.remove(field_name)
+
+        if field_name in self._field_visibility:
+            del self._field_visibility[field_name]
+
+        # There won't be a widget to get rid of if we've not
+        # loaded an entity.
+        if not self._entity:
+            return
+
+        # Now ditch the widget for the field.
+        field_widget = getattr(self, field_name)
+        field_widget.hide()
+        self.field_grid_layout.removeWidget(field_widget)
+
+        # If there's a label, then also remove that.
+        label_name = "%s_label" % field_name
+
+        if hasattr(self, label_name):
+            field_label = getattr(self, label_name)
+            field_label.hide()
+            self.field_grid_layout.removeWidget(field_label)
 
     def set_entity(self, entity):
         """
@@ -269,6 +312,9 @@ class ListItemWidget(QtGui.QWidget):
         else:
             self.ui.box.setStyleSheet("")
 
+    ##########################################################################
+    # widget sizing
+
     def sizeHint(self):
         """
         Tells Qt what the sizeHint for the widget is, based on
@@ -293,6 +339,6 @@ class ListItemWidget(QtGui.QWidget):
                             widget. The default assumption is the display
                             of two fields.
         """
-        height = (50 + (15 * (field_count - 2)))
+        height = (50 + (18 * (field_count - 2)))
         return QtCore.QSize(300, height)
 

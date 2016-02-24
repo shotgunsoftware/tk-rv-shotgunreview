@@ -21,6 +21,11 @@ shotgun_view = tank.platform.import_framework(
     "views",
 )
 
+shotgun_menus = tank.platform.import_framework(
+    "tk-framework-qtwidgets",
+    "shotgun_menus",
+)
+
 shotgun_model = tank.platform.import_framework(
     "tk-framework-shotgunutils",
     "shotgun_model",
@@ -125,7 +130,6 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.shot_info_widget.fields = self._active_fields
         self.ui.shot_info_widget.label_exempt_fields = ["code", "entity"]
         self.ui.shot_info_widget.field_manager = self._shotgun_field_manager
-        # self.ui.shot_info_widget.setMinimumSize(ListItemWidget.calculate_size())
 
         # Signal handling.
         self._task_manager.task_group_finished.connect(
@@ -136,6 +140,13 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.shotgun_nav_button.clicked.connect(
             self.ui.note_stream_widget._load_shotgun_activity_stream
         )
+
+        # The fields menu attached to the "More fields..." button
+        # when "More info" is active.
+        self._setup_fields_menu()
+
+    ##########################################################################
+    # public methods
 
     def load_data(self, entity):
         """
@@ -183,6 +194,9 @@ class DetailsPanelWidget(QtGui.QWidget):
         else:
             self._requested_entity = entity
 
+    ##########################################################################
+    # internal utilities
+
     def _more_info_toggled(self, checked):
         """
         Toggled more/less info functionality for the info widget in the
@@ -229,6 +243,76 @@ class DetailsPanelWidget(QtGui.QWidget):
             if self._requested_entity:
                 self.load_data(self._requested_entity)
                 self._requested_entity = None
+
+    def _checked_filter(self, field):
+        """
+        Checked filter method for the EntityFieldMenu. Determines whether the
+        given field should be checked in the field menu.
+
+        :param field:   The field name being processed.
+        """
+        if field in self._active_fields:
+            return True
+        else:
+            return False
+
+    def _disabled_filter(self, field):
+        """
+        Disabled filter method for the EntityFieldMenu. Determines whether the
+        given field should be active or disabled in the field menu.
+
+        :param field:   The field name being processed.
+        """
+        if field in self._persistent_fields:
+            return True
+        else:
+            return False
+
+    def _field_filter(self, field):
+        """
+        Field filter method for the EntityFieldMenu. Determines whether the
+        given field should be included in the field menu.
+
+        :param field:   The field name being processed.
+        """
+        # Allow any fields that we have a widget available for.
+        return bool(
+            self.ui.shot_info_widget.field_manager.supported_fields(
+                "Version",
+                [field],
+            )
+        )
+
+    def _field_menu_triggered(self, action):
+        """
+        Adds or removes a field when it checked or unchecked
+        via the EntityFieldMenu.
+
+        :param action:  The QMenuAction that was triggered. 
+        """
+        if action:
+            field_name = action.data()["field"]
+
+            if action.isChecked():
+                self.ui.shot_info_widget.add_field(field_name)
+            else:
+                self.ui.shot_info_widget.remove_field(field_name)
+
+            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
+            self.ui.shot_info_widget.repaint()
+
+    def _setup_fields_menu(self):
+        """
+        Sets up the EntityFieldMenu and attaches it as the "More fields"
+        button's menu.
+        """
+        menu = shotgun_menus.EntityFieldMenu("Version")
+        menu.set_field_filter(self._field_filter)
+        menu.set_checked_filter(self._checked_filter)
+        menu.set_disabled_filter(self._disabled_filter)
+        self._field_menu = menu
+        self._field_menu.triggered.connect(self._field_menu_triggered)
+        self.ui.more_fields_button.setMenu(menu)
 
     def _task_group_finished(self, group):
         """

@@ -243,6 +243,9 @@
            <property name="text">
             <string>More fields...</string>
            </property>
+           <property name="popupMode">
+            <enum>QToolButton::InstantPopup</enum>
+           </property>
           </widget>
          </item>
          <item>

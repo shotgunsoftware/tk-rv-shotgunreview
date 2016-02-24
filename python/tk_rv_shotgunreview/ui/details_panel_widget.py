@@ -107,6 +107,7 @@ class Ui_DetailsPanelWidget(object):
         self.more_info_button.setObjectName("more_info_button")
         self.horizontalLayout_4.addWidget(self.more_info_button)
         self.more_fields_button = QtGui.QToolButton(self.entity_note_tab)
+        self.more_fields_button.setPopupMode(QtGui.QToolButton.InstantPopup)
         self.more_fields_button.setObjectName("more_fields_button")
         self.horizontalLayout_4.addWidget(self.more_fields_button)
         spacerItem2 = QtGui.QSpacerItem(40, 20, QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)

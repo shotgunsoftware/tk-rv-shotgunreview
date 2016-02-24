@@ -56,6 +56,10 @@ QToolButton#more_fields_button:hover {
     color: {{SG_HIGHLIGHT_COLOR}};
 }
 
+QToolButton#more_fields_button:menu-indicator {
+    image:none;
+}
+
 /****************************************************************/
 /* Info tab showing all shotgun fields 							*/
 
