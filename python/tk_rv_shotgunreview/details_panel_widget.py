@@ -299,7 +299,6 @@ class DetailsPanelWidget(QtGui.QWidget):
                 self.ui.shot_info_widget.remove_field(field_name)
 
             self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
-            self.ui.shot_info_widget.repaint()
 
     def _setup_fields_menu(self):
         """
