@@ -126,9 +126,11 @@ class DetailsPanelWidget(QtGui.QWidget):
         )
 
         # For the basic info widget in the Notes stream we won't show
-        # labels for the fields we're including.
+        # labels for the fields that are persistent. The non-standard,
+        # user-specified list of fields that are shown when "more info"
+        # is active will be labeled.
         self.ui.shot_info_widget.fields = self._active_fields
-        self.ui.shot_info_widget.label_exempt_fields = ["code", "entity"]
+        self.ui.shot_info_widget.label_exempt_fields = self._persistent_fields
         self.ui.shot_info_widget.field_manager = self._shotgun_field_manager
 
         # Signal handling.
@@ -251,10 +253,7 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         :param field:   The field name being processed.
         """
-        if field in self._active_fields:
-            return True
-        else:
-            return False
+        return (field in self._active_fields)
 
     def _disabled_filter(self, field):
         """
@@ -263,10 +262,7 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         :param field:   The field name being processed.
         """
-        if field in self._persistent_fields:
-            return True
-        else:
-            return False
+        return (field in self._persistent_fields)
 
     def _field_filter(self, field):
         """
