@@ -120,11 +120,6 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.note_stream_widget.show_sg_stream_button = False
         self.shot_info_model = shotgun_model.SimpleShotgunModel(self.ui.note_stream_widget)
 
-        si_size = ListItemWidget.calculate_size()
-        self.ui.shot_info_widget.setMaximumSize(
-            QtCore.QSize(si_size.width(), si_size.height())
-        )
-
         # For the basic info widget in the Notes stream we won't show
         # labels for the fields that are persistent. The non-standard,
         # user-specified list of fields that are shown when "more info"
@@ -181,7 +176,7 @@ class DetailsPanelWidget(QtGui.QWidget):
 
             sg_data = self.shot_info_model.item_from_entity(
                 "Version",
-                entity["id"]
+                entity["id"],
             ).get_sg_data()
 
             self.ui.shot_info_widget.set_entity(sg_data)
@@ -287,6 +282,9 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param action:  The QMenuAction that was triggered. 
         """
         if action:
+            # The MenuAction's data will have a "field" key that was
+            # added by the EntityFieldMenu that contains the name of
+            # the field that was checked or unchecked.
             field_name = action.data()["field"]
 
             if action.isChecked():
@@ -294,7 +292,14 @@ class DetailsPanelWidget(QtGui.QWidget):
             else:
                 self.ui.shot_info_widget.remove_field(field_name)
 
+            # The processEvents() call will ensure that the widget
+            # and layout changes have all been processed and any
+            # new widgets have been shown. This is important,
+            # because the sizeHint call below is dependent upon
+            # field widget visibility.
+            QtGui.QApplication.processEvents()
             self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
+            self._active_fields = self.ui.shot_info_widget.fields
 
     def _setup_fields_menu(self):
         """

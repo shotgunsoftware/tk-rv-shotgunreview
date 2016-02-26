@@ -8,6 +8,8 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+from collections import OrderedDict
+
 from .ui.list_item_widget import Ui_ListItemWidget
 
 import tank
@@ -37,7 +39,8 @@ class ListItemWidget(QtGui.QWidget):
         Constructs a new ListItemWidget.
 
         :param parant:                  The widget's parent.
-        :param fields:                  A list of Shotgun field names to display.
+        :param fields:                  A list of Shotgun field names to display. Defaults to
+                                        ["code", "entity"].
         :param show_labels:             Whether to show labels for fields being
                                         displayed.
         :param shotgun_field_manager:   An optional ShotgunFieldManager object. If
@@ -50,16 +53,18 @@ class ListItemWidget(QtGui.QWidget):
         self.ui = Ui_ListItemWidget() 
         self.ui.setupUi(self)
 
-        self._entity = None
-        self._show_border = show_border
-
-        self.show_labels = show_labels
-        self.label_exempt_fields = label_exempt_fields or []
-        self._fields = fields or ["code", "entity"]
-        self._field_visibility = {field:True for field in self.fields}
-
         self.field_manager = shotgun_field_manager or ShotgunFieldManager()
         self.field_manager.initialize()
+
+        self._entity = None
+        self._show_border = show_border
+        self._fields = OrderedDict()
+        self._show_labels = show_labels
+
+        self.fields = fields or ["code", "entity"]
+
+        if label_exempt_fields:
+            self.label_exempt_fields = label_exempt_fields
 
         self.set_selected(False)
 
@@ -67,31 +72,107 @@ class ListItemWidget(QtGui.QWidget):
     # properties
 
     def _get_fields(self):
-        return self._fields
+        """
+        Returns a list of field names currently registered with the item.
+        """
+        return self._fields.keys()
 
     def _set_fields(self, fields):
-        self._fields = fields
-        self._field_visibility = {field:True for field in fields}
+        """
+        Replaces the existing list of fields with those provided. All
+        existing fields will be removed from the item, including any
+        labels and widgets associated with them. The new list of fields
+        will then be added to the item.
+
+        :param fields:  List of Shotgun field names as strings.
+        """
+        self.clear_fields()
+
+        for field_name in fields:
+            self.add_field(field_name)
 
     fields = property(_get_fields, _set_fields)
+
+    def _get_label_exempt_fields(self):
+        """
+        Returns a list of field names that are exempt from receiving
+        labels in the item's layout.
+        """
+        return [f for f, d in self._fields.iteritems() if d["label_exempt"]]
+
+    def _set_label_exempt_fields(self, fields):
+        """
+        Sets which fields are exempt from receiving labels in the item's
+        layout. Note that any fields provided here that reference fields
+        not currently registered the item will be disregarded. Adding
+        those fields to the item after setting label_exempt_fields will
+        not automatically cause the newly-added field to inherit the
+        label-exempt status.
+
+        :param fields:  A list of Shotgun field names as strings.
+        """
+        for field_name, field_data in self._fields.iteritems():
+            now_exempt = (field_name in fields)
+
+            if self._entity:
+                previously_exempt = field_data["label_exempt"]
+
+                # If the state is changing for this field, then we
+                # need to rebuild its widgets in the layout.
+                if previously_exempt != now_exempt:
+                    self.remove_field(field_name)
+                    self.add_field(field_name, label_exempt=now_exempt)
+            else:
+                self._fields[field_name]["label_exempt"] = now_exempt
+
+    label_exempt_fields = property(_get_label_exempt_fields, _set_label_exempt_fields)
+
+    def _get_show_labels(self):
+        """
+        Whether labels are shown for field widgets displayed by the
+        item.
+        """
+        return self._show_labels
+
+    def _set_show_labels(self, state):
+        if bool(state) == self._show_labels:
+            return
+
+        self._show_labels = bool(state)
+
+        if not self._entity:
+            return
+
+        # Re-add all of the current fields. This will cause the item to
+        # clear its fields list and rebuild the layout. Since _show_labels
+        # will be False when this happens, we will end up in the correct
+        # state.
+        self._show_labels = bool(state)
+        current_fields = self.fields
+        self.fields = current_fields
+
+    show_labels = property(_get_show_labels, _set_show_labels)
 
     ##########################################################################
     # public methods
 
-    def add_field(self, field_name):
+    def add_field(self, field_name, label_exempt=False):
         """
         Adds the given field to the list of Shotgun entity fields displayed
         by the widget.
 
-        :param field_name:  The Shotgun entity field name to add.
+        :param field_name:      The Shotgun entity field name to add.
+        :param label_exempt:    Whether to exempt the field from having a label
+                                in the item layout. Defaults to False.
         """
         if field_name in self.fields:
             return
 
-        if field_name not in self._field_visibility:
-            self._field_visibility[field_name] = True
-
-        self.fields.append(field_name)
+        self._fields[field_name] = OrderedDict(
+            widget=None,
+            label=None,
+            label_exempt=label_exempt,
+        )
 
         # If we've not yet loaded an entity, then we don't need to
         # do any widget work.
@@ -103,7 +184,8 @@ class ListItemWidget(QtGui.QWidget):
             field_name,
             self._entity,
         )
-        setattr(self, field_name, field_widget)
+
+        self._fields[field_name]["widget"] = field_widget
 
         if self.show_labels:
             # If this field is exempt from having a label, then it
@@ -112,23 +194,45 @@ class ListItemWidget(QtGui.QWidget):
             # space on this row of the layout instead of just the first
             # column.
             if field_name in self.label_exempt_fields:
-                self.field_grid_layout.addWidget(field_widget, len(self.fields), 0, 1, -1)
+                # If there's no label, then the widget goes in the first
+                # column and is set to span all columns.
+                self.ui.field_grid_layout.addWidget(field_widget, len(self.fields), 0, 1, -1)
             else:
+                # We have a label, so we put that in column 0 and the
+                # field widget in column 1.
                 field_label = self.field_manager.create_label(
                     self._entity.get("type"),
                     field_name,
                 )
-                setattr(self, "%s_label" % field_name, field_label)
-                self.field_grid_layout.addWidget(field_label, len(self.fields), 0)
-                self.field_grid_layout.addWidget(field_widget, len(self.fields), 1)
+                self._fields[field_name]["label"] = field_label
+                self.ui.field_grid_layout.addWidget(field_label, len(self.fields), 0)
+                self.ui.field_grid_layout.addWidget(field_widget, len(self.fields), 1)
         else:
-            self.field_grid_layout.addWidget(field_widget, len(self.fields), 0)
+            # Nothing at all will have labels, so we can just put the
+            # widget into column 0. No need to worry about telling it to
+            # span any additional columns, because there will only be a
+            # single column.
+            self.ui.field_grid_layout.addWidget(field_widget, len(self.fields), 0)
+
+    def clear_fields(self):
+        """
+        Removes all field widgets from the item.
+        """
+        field_names = self.fields
+
+        for field_name in field_names:
+            self.remove_field(field_name)
 
     def get_visible_fields(self):
         """
         Returns a list of field names that are currently visible.
         """
-        return [f for f in self._field_visibility.keys() if self._field_visibility[f]]
+        # If we have no entity, we have no widgets. If we have no widgets
+        # then we definitely don't have anything visible.
+        if not self._entity:
+            return []
+
+        return [f for f, d in self._fields.iteritems() if d["widget"].isVisible()]
 
     def remove_field(self, field_name):
         """
@@ -140,29 +244,24 @@ class ListItemWidget(QtGui.QWidget):
         if field_name not in self.fields:
             return
 
-        # Remove the field from the list of stuff we're tracking.
-        self.fields.remove(field_name)
+        # Now ditch the widget for the field.
+        field_widget = self._fields[field_name]["widget"]
 
-        if field_name in self._field_visibility:
-            del self._field_visibility[field_name]
-
-        # There won't be a widget to get rid of if we've not
-        # loaded an entity.
-        if not self._entity:
+        if not field_widget:
             return
 
-        # Now ditch the widget for the field.
-        field_widget = getattr(self, field_name)
         field_widget.hide()
-        self.field_grid_layout.removeWidget(field_widget)
+        self.ui.field_grid_layout.removeWidget(field_widget)
 
         # If there's a label, then also remove that.
-        label_name = "%s_label" % field_name
+        field_label = self._fields[field_name]["label"]
 
-        if hasattr(self, label_name):
-            field_label = getattr(self, label_name)
+        if field_label:
             field_label.hide()
-            self.field_grid_layout.removeWidget(field_label)
+            self.ui.field_grid_layout.removeWidget(field_label)
+
+        # Remove the field from the list of stuff we're tracking.
+        del self._fields[field_name]
 
     def set_entity(self, entity):
         """
@@ -184,8 +283,9 @@ class ListItemWidget(QtGui.QWidget):
             self._entity = entity
             self.thumbnail.set_value(entity.get("image"))
 
-            for field in self.fields:
-                field_widget = getattr(self, field)
+            for field, field_data in self._fields.iteritems():
+                field_widget = field_data["widget"]
+
                 if field_widget:
                     field_widget.set_value(entity.get(field))
         else:
@@ -196,9 +296,16 @@ class ListItemWidget(QtGui.QWidget):
                 self._entity,
             )
 
+            # The stretch factor helps the item widget scale horizontally
+            # in a sane manner while generally pushing the field grid
+            # layout toward the thumbnail on the left.
             self.ui.box_layout.setStretchFactor(self.ui.right_layout, 15)
             self.ui.box_layout.setStretchFactor(self.ui.left_layout, 7)
 
+            # Setting the size policy for the thumbnail ensures that it
+            # doesn't get completely crowded out somehow. It will fill its
+            # layout horizontally, taking up a total share of space dictated
+            # by the stretch factors above.
             size_policy = QtGui.QSizePolicy(
                 QtGui.QSizePolicy.Preferred,
                 QtGui.QSizePolicy.MinimumExpanding,
@@ -207,19 +314,11 @@ class ListItemWidget(QtGui.QWidget):
             self.thumbnail.setSizePolicy(size_policy)
             self.ui.left_layout.insertWidget(0, self.thumbnail)
 
-            field_layout = QtGui.QHBoxLayout()
-            field_grid_layout = QtGui.QGridLayout()
-            field_grid_layout.setHorizontalSpacing(5)
-            field_grid_layout.setVerticalSpacing(2)
+            # Visually, this will just cause column 1 of the grid layout
+            # to fill any remaining space to the right of the grid within
+            # the parent layout.
+            field_grid_layout = self.ui.field_grid_layout
             field_grid_layout.setColumnStretch(1, 3)
-
-            self.field_layout = field_layout
-            self.field_grid_layout = field_grid_layout
-
-            field_layout.addLayout(field_grid_layout)
-            field_layout.addStretch(2)
-
-            self.ui.right_layout.insertLayout(0, field_layout)
 
             for i, field in enumerate(self.fields):
                 field_widget = self.field_manager.create_display_widget(
@@ -237,7 +336,7 @@ class ListItemWidget(QtGui.QWidget):
                     # space on this row of the layout instead of just the first
                     # column.
                     if field in self.label_exempt_fields:
-                        self.field_grid_layout.addWidget(field_widget, i, 0, 1, -1)
+                        field_grid_layout.addWidget(field_widget, i, 0, 1, -1)
                     else:
                         field_label = self.field_manager.create_label(
                             entity.get("type"),
@@ -245,13 +344,12 @@ class ListItemWidget(QtGui.QWidget):
                         )
 
                         field_grid_layout.addWidget(field_label, i, 0)
-                        setattr(self, "%s_label" % field, field_label)
+                        self._fields[field]["label"] = field_label
                         field_grid_layout.addWidget(field_widget, i, 1)
                 else:
                     field_grid_layout.addWidget(field_widget, i, 0)
-                setattr(self, field, field_widget)
 
-            self.ui.right_layout.addStretch(3)
+                self._fields[field]["widget"] = field_widget
 
     def set_field_visibility(self, field_name, state):
         """
@@ -260,14 +358,17 @@ class ListItemWidget(QtGui.QWidget):
         :param field_name:  The name of the Shotgun field.
         :param state:       True or False
         """
-        if hasattr(self, field_name):
-            getattr(self, field_name).setVisible(bool(state))
+        # If the field isn't registered with the item or if we've
+        # not loaded an entity, then there's nothing to do.
+        if field_name not in self._fields or not self._entity:
+            return
 
-            field_label_name = "%s_label" % field_name
-            if hasattr(self, field_label_name):
-                getattr(self, field_label_name).setVisible(bool(state))
+        self._fields[field_name]["widget"].setVisible(bool(state))
 
-            self._field_visibility[field_name] = bool(state)
+        field_label = self._fields[field_name]["label"]
+
+        if field_label:
+            field_label.setVisible(bool(state))
                    
     def set_selected(self, selected):
         """
@@ -320,7 +421,12 @@ class ListItemWidget(QtGui.QWidget):
         Tells Qt what the sizeHint for the widget is, based on
         the number of visible field widgets.
         """
-        return ListItemWidget.calculate_size(len(self.get_visible_fields()))
+        if self._entity:
+            fields = self.get_visible_fields()
+        else:
+            fields = self.fields
+
+        return ListItemWidget.calculate_size(len(fields))
 
     def minimumSizeHint(self):
         """
@@ -339,6 +445,8 @@ class ListItemWidget(QtGui.QWidget):
                             widget. The default assumption is the display
                             of two fields.
         """
-        height = (50 + (18 * (field_count - 2)))
+        # 0, 1, or 2 fields will all be the same, then we increase
+        # as we go above that number of fields.
+        height = max((40 + (15 * field_count)), 70)
         return QtCore.QSize(300, height)
 

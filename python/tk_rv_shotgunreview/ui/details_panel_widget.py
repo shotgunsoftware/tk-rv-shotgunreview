@@ -38,7 +38,7 @@ class Ui_DetailsPanelWidget(object):
         self.widget.setObjectName("widget")
         self.horizontalLayout_2 = QtGui.QHBoxLayout(self.widget)
         self.horizontalLayout_2.setSpacing(0)
-        self.horizontalLayout_2.setContentsMargins(15, 0, 0, 0)
+        self.horizontalLayout_2.setContentsMargins(10, 0, 0, 0)
         self.horizontalLayout_2.setObjectName("horizontalLayout_2")
         self.shot_info_widget = ListItemWidget(self.widget)
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Minimum, QtGui.QSizePolicy.Minimum)
@@ -149,6 +149,5 @@ class Ui_DetailsPanelWidget(object):
 
 from ..qtwidgets import ActivityStreamWidget
 from ..list_item_widget import ListItemWidget
-from . import resources_rc
 from . import resources_rc
 from . import resources_rc

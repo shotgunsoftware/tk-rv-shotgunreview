@@ -74,12 +74,31 @@
         </item>
         <item>
          <layout class="QVBoxLayout" name="right_layout">
+          <property name="spacing">
+           <number>0</number>
+          </property>
           <property name="topMargin">
-           <number>2</number>
+           <number>0</number>
           </property>
           <property name="bottomMargin">
-           <number>2</number>
+           <number>0</number>
           </property>
+          <item>
+           <layout class="QGridLayout" name="field_grid_layout">
+            <property name="topMargin">
+             <number>4</number>
+            </property>
+            <property name="bottomMargin">
+             <number>4</number>
+            </property>
+            <property name="horizontalSpacing">
+             <number>5</number>
+            </property>
+            <property name="verticalSpacing">
+             <number>2</number>
+            </property>
+           </layout>
+          </item>
           <item>
            <spacer name="right_layout_spacer">
             <property name="orientation">

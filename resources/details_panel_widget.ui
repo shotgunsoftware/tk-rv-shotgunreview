@@ -75,7 +75,7 @@
              <number>0</number>
             </property>
             <property name="leftMargin">
-             <number>15</number>
+             <number>10</number>
             </property>
             <property name="topMargin">
              <number>0</number>
@@ -316,7 +316,6 @@
  <resources>
   <include location="../../tk-multi-shotgunpanel/resources/resources.qrc"/>
   <include location="resources.qrc"/>
-  <include location="C:/Program Files/Shotgun/Qt/bin/resources.qrc"/>
  </resources>
  <connections/>
 </ui>

@@ -105,11 +105,6 @@ class ListItemDelegate(shotgun_view.WidgetDelegate):
         Base the size on the number of entity fields to be displayed. This
         number will affect the height component of the size hint.
         """
-        if self._fields:
-            field_count = len(self._fields)
-        else:
-            field_count = 2
-
-        return ListItemWidget.calculate_size(field_count)
+        return ListItemWidget.calculate_size(len(self._fields))
 
 
