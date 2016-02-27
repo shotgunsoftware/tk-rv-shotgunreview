@@ -137,6 +137,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.shotgun_nav_button.clicked.connect(
             self.ui.note_stream_widget._load_shotgun_activity_stream
         )
+        self.ui.entity_version_view.clicked.connect(self._select_version_item)
 
         # The fields menu attached to the "More fields..." button
         # when "More info" is active.
@@ -300,6 +301,21 @@ class DetailsPanelWidget(QtGui.QWidget):
             QtGui.QApplication.processEvents()
             self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
             self._active_fields = self.ui.shot_info_widget.fields
+
+    def _select_version_item(self, index):
+        """
+        Causes the widget at the given index to be treated and repainted
+        as the selected item in the version list.
+
+        :param index:   The QModelIndex to select.
+        """
+        self.ui.entity_version_view.setCurrentIndex(index)
+        self.ui.entity_version_view.selectionModel().select(
+            index,
+            self.ui.entity_version_view.selectionModel().ClearAndSelect,
+        )
+        self.version_delegate._get_painter_widget(index, None).set_selected(True)
+        self.ui.entity_version_view.repaint()
 
     def _setup_fields_menu(self):
         """
