@@ -8,7 +8,11 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+import json
+
 import tank
+import rv
+
 from tank.platform.qt import QtCore, QtGui
 
 from .ui.details_panel_widget import Ui_DetailsPanelWidget
@@ -197,86 +201,6 @@ class DetailsPanelWidget(QtGui.QWidget):
     ##########################################################################
     # internal utilities
 
-    def _more_info_toggled(self, checked):
-        """
-        Toggled more/less info functionality for the info widget in the
-        Notes tab.
-
-        :param checked: True or False
-        """
-        if checked:
-            self.ui.more_info_button.setText("Hide info")
-            self.ui.more_fields_button.show()
-
-            for field_name in self._active_fields:
-                self.ui.shot_info_widget.set_field_visibility(field_name, True)
-
-            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
-        else:
-            self.ui.more_info_button.setText("More info")
-            self.ui.more_fields_button.hide()
-
-            for field_name in self._active_fields:
-                if field_name not in self._persistent_fields:
-                    self.ui.shot_info_widget.set_field_visibility(field_name, False)
-
-            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
-
-        self.ui.info_layout.update()
-
-    def _set_pinned(self, checked):
-        """
-        Sets the "pinned" state of the details panel. When the panel is
-        pinned it will not accept updates. It will, however, record the
-        most recent entity passed to load_data that was not accepted. If
-        the panel is unpinned at a later time, the most recent rejected
-        entity update will be executed at that time.
-
-        :param checked: True or False
-        """
-        self._pinned = checked
-
-        if checked:
-            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_hover.png"))
-        else:
-            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_up.png"))
-            if self._requested_entity:
-                self.load_data(self._requested_entity)
-                self._requested_entity = None
-
-    def _checked_filter(self, field):
-        """
-        Checked filter method for the EntityFieldMenu. Determines whether the
-        given field should be checked in the field menu.
-
-        :param field:   The field name being processed.
-        """
-        return (field in self._active_fields)
-
-    def _disabled_filter(self, field):
-        """
-        Disabled filter method for the EntityFieldMenu. Determines whether the
-        given field should be active or disabled in the field menu.
-
-        :param field:   The field name being processed.
-        """
-        return (field in self._persistent_fields)
-
-    def _field_filter(self, field):
-        """
-        Field filter method for the EntityFieldMenu. Determines whether the
-        given field should be included in the field menu.
-
-        :param field:   The field name being processed.
-        """
-        # Allow any fields that we have a widget available for.
-        return bool(
-            self.ui.shot_info_widget.field_manager.supported_fields(
-                "Version",
-                [field],
-            )
-        )
-
     def _field_menu_triggered(self, action):
         """
         Adds or removes a field when it checked or unchecked
@@ -304,6 +228,41 @@ class DetailsPanelWidget(QtGui.QWidget):
             self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
             self._active_fields = self.ui.shot_info_widget.fields
 
+    def _more_info_toggled(self, checked):
+        """
+        Toggled more/less info functionality for the info widget in the
+        Notes tab.
+
+        :param checked: True or False
+        """
+        if checked:
+            self.ui.more_info_button.setText("Hide info")
+            self.ui.more_fields_button.show()
+
+            for field_name in self._active_fields:
+                self.ui.shot_info_widget.set_field_visibility(field_name, True)
+
+            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
+        else:
+            self.ui.more_info_button.setText("More info")
+            self.ui.more_fields_button.hide()
+
+            for field_name in self._active_fields:
+                if field_name not in self._persistent_fields:
+                    self.ui.shot_info_widget.set_field_visibility(field_name, False)
+
+            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
+
+        self.ui.info_layout.update()
+
+    def _selected_version_entities(self):
+        """
+        Returns a list of Version entities that are currently selected.
+        """
+        selection_model = self.ui.entity_version_view.selectionModel()
+        indexes = selection_model.selectedIndexes()
+        return [shotgun_model.get_sg_data(i) for i in indexes]
+
     def _select_version_item(self, index):
         """
         Causes the widget at the given index to be treated and repainted
@@ -318,6 +277,26 @@ class DetailsPanelWidget(QtGui.QWidget):
         )
         self.version_delegate._get_painter_widget(index, None).set_selected(True)
         self.ui.entity_version_view.repaint()
+
+    def _set_pinned(self, checked):
+        """
+        Sets the "pinned" state of the details panel. When the panel is
+        pinned it will not accept updates. It will, however, record the
+        most recent entity passed to load_data that was not accepted. If
+        the panel is unpinned at a later time, the most recent rejected
+        entity update will be executed at that time.
+
+        :param checked: True or False
+        """
+        self._pinned = checked
+
+        if checked:
+            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_hover.png"))
+        else:
+            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_up.png"))
+            if self._requested_entity:
+                self.load_data(self._requested_entity)
+                self._requested_entity = None
 
     def _setup_fields_menu(self):
         """
@@ -408,29 +387,77 @@ class DetailsPanelWidget(QtGui.QWidget):
         Builds a new RV view that compares the currently-selected version
         with what's currently active in RV.
         """
-        # TODO: Raise an RV event to trigger the action.
-        print "Compare with current!"
+        versions = self._selected_version_entities()
+        rv.commands.sendInternalEvent(
+            "compare_with_current",
+            json.dumps(versions),
+        )
 
     def _compare_selected(self):
         """
         Builds a new RV view that compares the currently-selected Versions.
         """
-        # TODO: Raise an RV event to trigger the action.
-        print "Compare selected!"
+        versions = self._selected_version_entities()
+        rv.commands.sendInternalEvent(
+            "compare_selected",
+            json.dumps(versions),
+        )
 
     def _swap_into_sequence(self):
         """
         Replaces the current Version in the current sequence view in RV
         with the selected Version.
         """
-        # TODO: Raise an RV event to trigger the action.
-        print "Swap into sequence!"
+        versions = self._selected_version_entities()
+        rv.commands.sendInternalEvent(
+            "swap_into_sequence",
+            json.dumps(versions),
+        )
 
     def _replace_with_selected(self):
         """
         Replaces the current view (whether a sequence or single Version) in
         RV with the selected Version.
         """
-        # TODO: Raise an RV event to trigger the action.
-        print "Replace with selected!"
+        versions = self._selected_version_entities()
+        rv.commands.sendInternalEvent(
+            "replace_with_selected",
+            json.dumps(versions),
+        )
+
+    ##########################################################################
+    # fields menu filters
+
+    def _checked_filter(self, field):
+        """
+        Checked filter method for the EntityFieldMenu. Determines whether the
+        given field should be checked in the field menu.
+
+        :param field:   The field name being processed.
+        """
+        return (field in self._active_fields)
+
+    def _disabled_filter(self, field):
+        """
+        Disabled filter method for the EntityFieldMenu. Determines whether the
+        given field should be active or disabled in the field menu.
+
+        :param field:   The field name being processed.
+        """
+        return (field in self._persistent_fields)
+
+    def _field_filter(self, field):
+        """
+        Field filter method for the EntityFieldMenu. Determines whether the
+        given field should be included in the field menu.
+
+        :param field:   The field name being processed.
+        """
+        # Allow any fields that we have a widget available for.
+        return bool(
+            self.ui.shot_info_widget.field_manager.supported_fields(
+                "Version",
+                [field],
+            )
+        )
 
