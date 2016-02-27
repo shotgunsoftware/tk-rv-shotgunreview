@@ -350,24 +350,43 @@ class DetailsPanelWidget(QtGui.QWidget):
         either = VersionContextMenuAction.SingleOrMultiSelectionRequired
 
         menu.addAction(
-            VersionContextMenuAction(either, "Compare with Current", self)
+            VersionContextMenuAction(
+                callback=self._compare_with_current,
+                required_selection=either,
+                text="Compare with Current",
+                parent=self,
+            )
         )
 
         menu.addAction(
-            VersionContextMenuAction(multi, "Compare Selected", self)
+            VersionContextMenuAction(
+                callback=self._compare_selected,
+                required_selection=multi,
+                text="Compare Selected",
+                parent=self,
+            )
         )
 
         menu.addAction(
-            VersionContextMenuAction(single, "Swap Into Sequence", self)
+            VersionContextMenuAction(
+                callback=self._swap_into_sequence,
+                required_selection=single,
+                text="Swap Into Sequence",
+                parent=self,
+            )
         )
 
         menu.addAction(
-            VersionContextMenuAction(single, "Replace", self)
+            VersionContextMenuAction(
+                callback=self._replace_with_selected,
+                required_selection=single,
+                text="Replace",
+                parent=self,
+            )
         )
 
         action = menu.exec_(self.ui.entity_version_view.mapToGlobal(point))
-
-        # TODO: Act upon this action!
+        action()
 
     def _task_group_finished(self, group):
         """
@@ -380,4 +399,38 @@ class DetailsPanelWidget(QtGui.QWidget):
         """
         self.ui.shot_info_widget.repaint()
         self.ui.entity_version_view.repaint()
+
+    ##########################################################################
+    # version list actions
+
+    def _compare_with_current(self):
+        """
+        Builds a new RV view that compares the currently-selected version
+        with what's currently active in RV.
+        """
+        # TODO: Raise an RV event to trigger the action.
+        print "Compare with current!"
+
+    def _compare_selected(self):
+        """
+        Builds a new RV view that compares the currently-selected Versions.
+        """
+        # TODO: Raise an RV event to trigger the action.
+        print "Compare selected!"
+
+    def _swap_into_sequence(self):
+        """
+        Replaces the current Version in the current sequence view in RV
+        with the selected Version.
+        """
+        # TODO: Raise an RV event to trigger the action.
+        print "Swap into sequence!"
+
+    def _replace_with_selected(self):
+        """
+        Replaces the current view (whether a sequence or single Version) in
+        RV with the selected Version.
+        """
+        # TODO: Raise an RV event to trigger the action.
+        print "Replace with selected!"
 

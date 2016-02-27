@@ -69,15 +69,29 @@ class VersionContextMenuAction(QtGui.QAction):
     MultiSelectionRequired = 2
     SingleOrMultiSelectionRequired = 3
 
-    def __init__(self, required_selection, *args, **kwargs):
+    def __init__(self, required_selection, callback, text, parent=None):
         """
         Constructs a new VersionContextMenuAction.
 
         :param required_selection:  One of: VersionContextMenuAction.SingleSelectionRequired,
                                     VersionContextMenuAction.MultiSelectionRequired,
                                     VersionContextMenuAction.SingleOrMultiSelectionRequired.
+        :param callback:            A callable to register as the callback of this action. The
+                                    callback will be executed if the action itself is called
+                                    directly (example: myAction())
+        :param text:                The text label of the action that will appear in a menu that
+                                    it is added to.
+        :param parent:              The parent widget of the action. Default is None.
         """
-        super(VersionContextMenuAction, self).__init__(*args, **kwargs)
+        super(VersionContextMenuAction, self).__init__(text, parent)
         self.required_selection = required_selection
+        self.callback = callback
+
+    def __call__(self, *args, **kwargs):
+        """
+        Executes the action's callback. All arguments are passed through
+        to the callback.
+        """
+        return self.callback(*args, **kwargs)
 
         
