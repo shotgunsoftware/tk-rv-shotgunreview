@@ -14,6 +14,7 @@ from tank.platform.qt import QtCore, QtGui
 from .ui.details_panel_widget import Ui_DetailsPanelWidget
 from .list_item_widget import ListItemWidget
 from .list_item_delegate import ListItemDelegate
+from .version_context_menu import VersionContextMenu, VersionContextMenuAction
 from .qtwidgets import ShotgunFieldManager
 
 shotgun_view = tank.platform.import_framework(
@@ -138,6 +139,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             self.ui.note_stream_widget._load_shotgun_activity_stream
         )
         self.ui.entity_version_view.clicked.connect(self._select_version_item)
+        self.ui.entity_version_view.customContextMenuRequested.connect(self._show_version_context_menu)
 
         # The fields menu attached to the "More fields..." button
         # when "More info" is active.
@@ -329,6 +331,43 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._field_menu = menu
         self._field_menu.triggered.connect(self._field_menu_triggered)
         self.ui.more_fields_button.setMenu(menu)
+
+    def _show_version_context_menu(self, point):
+        """
+        Shows the version list context menu containing all available
+        actions. Which actions are enabled is determined by how many
+        items in the list are selected.
+
+        :param point:   The QPoint location to show the context menu at.
+        """
+        selection_model = self.ui.entity_version_view.selectionModel()
+        num_selected = len(selection_model.selectedIndexes())
+        menu = VersionContextMenu(num_selected)
+
+        # Each action has some kind of selection requirement.
+        single = VersionContextMenuAction.SingleSelectionRequired
+        multi = VersionContextMenuAction.MultiSelectionRequired
+        either = VersionContextMenuAction.SingleOrMultiSelectionRequired
+
+        menu.addAction(
+            VersionContextMenuAction(either, "Compare with Current", self)
+        )
+
+        menu.addAction(
+            VersionContextMenuAction(multi, "Compare Selected", self)
+        )
+
+        menu.addAction(
+            VersionContextMenuAction(single, "Swap Into Sequence", self)
+        )
+
+        menu.addAction(
+            VersionContextMenuAction(single, "Replace", self)
+        )
+
+        action = menu.exec_(self.ui.entity_version_view.mapToGlobal(point))
+
+        # TODO: Act upon this action!
 
     def _task_group_finished(self, group):
         """
