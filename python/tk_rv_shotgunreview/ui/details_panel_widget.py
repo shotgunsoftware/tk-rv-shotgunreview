@@ -128,6 +128,8 @@ class Ui_DetailsPanelWidget(object):
         self.verticalLayout_2.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_2.setObjectName("verticalLayout_2")
         self.entity_version_view = QtGui.QListView(self.entity_version_tab)
+        self.entity_version_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.entity_version_view.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.entity_version_view.setVerticalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
         self.entity_version_view.setHorizontalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
         self.entity_version_view.setObjectName("entity_version_view")

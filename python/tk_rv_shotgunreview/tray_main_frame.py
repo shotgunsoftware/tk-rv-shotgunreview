@@ -114,11 +114,11 @@ class TrayMainFrame(QtGui.QFrame):
         from .tray_sort_filter import TraySortFilter
         self.tray_proxyModel =  TraySortFilter(self.tray_list)
         self.tray_proxyModel.setSourceModel(self.tray_model)
-        self.tray_proxyModel.setDynamicSortFilter(True)
 
-        self.tray_proxyModel.playhead_moved.connect( lambda rv_data: self.playhead_moved.emit(rv_data) )
+        #self.tray_proxyModel.playhead_moved.connect( lambda rv_data: self.playhead_moved.emit(rv_data) )
         
         self.tray_list.setModel(self.tray_proxyModel)
+        self.tray_proxyModel.setDynamicSortFilter(True)
 
         self.tray_delegate = RvTrayDelegate(self.tray_list)
         self.tray_list.setItemDelegate(self.tray_delegate)

@@ -27,9 +27,6 @@ class ListItemWidget(QtGui.QWidget):
     :vartype show_labels:   bool
     :ivar field_manager:    The accompanying ShotgunFieldManager object
                             used to construct all Shotgun field widgets.
-    :ivar fields:           The list of Shotgun fields to display for the
-                            loaded entity.
-    :vartype fields:        list of strings
     """
     def __init__(
         self, parent, fields=None, show_labels=True, show_border=False,

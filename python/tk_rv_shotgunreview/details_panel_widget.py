@@ -8,12 +8,17 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
+import json
+
 import tank
+import rv
+
 from tank.platform.qt import QtCore, QtGui
 
 from .ui.details_panel_widget import Ui_DetailsPanelWidget
 from .list_item_widget import ListItemWidget
 from .list_item_delegate import ListItemDelegate
+from .version_context_menu import VersionContextMenu, VersionContextMenuAction
 from .qtwidgets import ShotgunFieldManager
 
 shotgun_view = tank.platform.import_framework(
@@ -137,6 +142,8 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.shotgun_nav_button.clicked.connect(
             self.ui.note_stream_widget._load_shotgun_activity_stream
         )
+        self.ui.entity_version_view.clicked.connect(self._select_version_item)
+        self.ui.entity_version_view.customContextMenuRequested.connect(self._show_version_context_menu)
 
         # The fields menu attached to the "More fields..." button
         # when "More info" is active.
@@ -194,6 +201,33 @@ class DetailsPanelWidget(QtGui.QWidget):
     ##########################################################################
     # internal utilities
 
+    def _field_menu_triggered(self, action):
+        """
+        Adds or removes a field when it checked or unchecked
+        via the EntityFieldMenu.
+
+        :param action:  The QMenuAction that was triggered. 
+        """
+        if action:
+            # The MenuAction's data will have a "field" key that was
+            # added by the EntityFieldMenu that contains the name of
+            # the field that was checked or unchecked.
+            field_name = action.data()["field"]
+
+            if action.isChecked():
+                self.ui.shot_info_widget.add_field(field_name)
+            else:
+                self.ui.shot_info_widget.remove_field(field_name)
+
+            # The processEvents() call will ensure that the widget
+            # and layout changes have all been processed and any
+            # new widgets have been shown. This is important,
+            # because the sizeHint call below is dependent upon
+            # field widget visibility.
+            QtGui.QApplication.processEvents()
+            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
+            self._active_fields = self.ui.shot_info_widget.fields
+
     def _more_info_toggled(self, checked):
         """
         Toggled more/less info functionality for the info widget in the
@@ -221,6 +255,29 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         self.ui.info_layout.update()
 
+    def _selected_version_entities(self):
+        """
+        Returns a list of Version entities that are currently selected.
+        """
+        selection_model = self.ui.entity_version_view.selectionModel()
+        indexes = selection_model.selectedIndexes()
+        return [shotgun_model.get_sg_data(i) for i in indexes]
+
+    def _select_version_item(self, index):
+        """
+        Causes the widget at the given index to be treated and repainted
+        as the selected item in the version list.
+
+        :param index:   The QModelIndex to select.
+        """
+        self.ui.entity_version_view.setCurrentIndex(index)
+        self.ui.entity_version_view.selectionModel().select(
+            index,
+            self.ui.entity_version_view.selectionModel().ClearAndSelect,
+        )
+        self.version_delegate._get_painter_widget(index, None).set_selected(True)
+        self.ui.entity_version_view.repaint()
+
     def _set_pinned(self, checked):
         """
         Sets the "pinned" state of the details panel. When the panel is
@@ -240,6 +297,136 @@ class DetailsPanelWidget(QtGui.QWidget):
             if self._requested_entity:
                 self.load_data(self._requested_entity)
                 self._requested_entity = None
+
+    def _setup_fields_menu(self):
+        """
+        Sets up the EntityFieldMenu and attaches it as the "More fields"
+        button's menu.
+        """
+        menu = shotgun_menus.EntityFieldMenu("Version")
+        menu.set_field_filter(self._field_filter)
+        menu.set_checked_filter(self._checked_filter)
+        menu.set_disabled_filter(self._disabled_filter)
+        self._field_menu = menu
+        self._field_menu.triggered.connect(self._field_menu_triggered)
+        self.ui.more_fields_button.setMenu(menu)
+
+    def _show_version_context_menu(self, point):
+        """
+        Shows the version list context menu containing all available
+        actions. Which actions are enabled is determined by how many
+        items in the list are selected.
+
+        :param point:   The QPoint location to show the context menu at.
+        """
+        selection_model = self.ui.entity_version_view.selectionModel()
+        num_selected = len(selection_model.selectedIndexes())
+        menu = VersionContextMenu(num_selected)
+
+        # Each action has some kind of selection requirement.
+        single = VersionContextMenuAction.SingleSelectionRequired
+        multi = VersionContextMenuAction.MultiSelectionRequired
+        either = VersionContextMenuAction.SingleOrMultiSelectionRequired
+
+        menu.addAction(
+            VersionContextMenuAction(
+                callback=self._compare_with_current,
+                required_selection=either,
+                text="Compare with Current",
+                parent=self,
+            )
+        )
+
+        menu.addAction(
+            VersionContextMenuAction(
+                callback=self._compare_selected,
+                required_selection=multi,
+                text="Compare Selected",
+                parent=self,
+            )
+        )
+
+        menu.addAction(
+            VersionContextMenuAction(
+                callback=self._swap_into_sequence,
+                required_selection=single,
+                text="Swap Into Sequence",
+                parent=self,
+            )
+        )
+
+        menu.addAction(
+            VersionContextMenuAction(
+                callback=self._replace_with_selected,
+                required_selection=single,
+                text="Replace",
+                parent=self,
+            )
+        )
+
+        action = menu.exec_(self.ui.entity_version_view.mapToGlobal(point))
+        action()
+
+    def _task_group_finished(self, group):
+        """
+        Repaints the necessary widgets and views when a task is completed
+        by the ShotgunFieldManager object. This will ensure that all widgets
+        making use of Shotgun field widgets will be repainted once all data
+        has been queried from Shotgun.
+
+        :param group:   The task group that was completed.
+        """
+        self.ui.shot_info_widget.repaint()
+        self.ui.entity_version_view.repaint()
+
+    ##########################################################################
+    # version list actions
+
+    def _compare_with_current(self):
+        """
+        Builds a new RV view that compares the currently-selected version
+        with what's currently active in RV.
+        """
+        versions = self._selected_version_entities()
+        rv.commands.sendInternalEvent(
+            "compare_with_current",
+            json.dumps(versions),
+        )
+
+    def _compare_selected(self):
+        """
+        Builds a new RV view that compares the currently-selected Versions.
+        """
+        versions = self._selected_version_entities()
+        rv.commands.sendInternalEvent(
+            "compare_selected",
+            json.dumps(versions),
+        )
+
+    def _swap_into_sequence(self):
+        """
+        Replaces the current Version in the current sequence view in RV
+        with the selected Version.
+        """
+        versions = self._selected_version_entities()
+        rv.commands.sendInternalEvent(
+            "swap_into_sequence",
+            json.dumps(versions),
+        )
+
+    def _replace_with_selected(self):
+        """
+        Replaces the current view (whether a sequence or single Version) in
+        RV with the selected Version.
+        """
+        versions = self._selected_version_entities()
+        rv.commands.sendInternalEvent(
+            "replace_with_selected",
+            json.dumps(versions),
+        )
+
+    ##########################################################################
+    # fields menu filters
 
     def _checked_filter(self, field):
         """
@@ -273,56 +460,4 @@ class DetailsPanelWidget(QtGui.QWidget):
                 [field],
             )
         )
-
-    def _field_menu_triggered(self, action):
-        """
-        Adds or removes a field when it checked or unchecked
-        via the EntityFieldMenu.
-
-        :param action:  The QMenuAction that was triggered. 
-        """
-        if action:
-            # The MenuAction's data will have a "field" key that was
-            # added by the EntityFieldMenu that contains the name of
-            # the field that was checked or unchecked.
-            field_name = action.data()["field"]
-
-            if action.isChecked():
-                self.ui.shot_info_widget.add_field(field_name)
-            else:
-                self.ui.shot_info_widget.remove_field(field_name)
-
-            # The processEvents() call will ensure that the widget
-            # and layout changes have all been processed and any
-            # new widgets have been shown. This is important,
-            # because the sizeHint call below is dependent upon
-            # field widget visibility.
-            QtGui.QApplication.processEvents()
-            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
-            self._active_fields = self.ui.shot_info_widget.fields
-
-    def _setup_fields_menu(self):
-        """
-        Sets up the EntityFieldMenu and attaches it as the "More fields"
-        button's menu.
-        """
-        menu = shotgun_menus.EntityFieldMenu("Version")
-        menu.set_field_filter(self._field_filter)
-        menu.set_checked_filter(self._checked_filter)
-        menu.set_disabled_filter(self._disabled_filter)
-        self._field_menu = menu
-        self._field_menu.triggered.connect(self._field_menu_triggered)
-        self.ui.more_fields_button.setMenu(menu)
-
-    def _task_group_finished(self, group):
-        """
-        Repaints the necessary widgets and views when a task is completed
-        by the ShotgunFieldManager object. This will ensure that all widgets
-        making use of Shotgun field widgets will be repainted once all data
-        has been queried from Shotgun.
-
-        :param group:   The task group that was completed.
-        """
-        self.ui.shot_info_widget.repaint()
-        self.ui.entity_version_view.repaint()
 
