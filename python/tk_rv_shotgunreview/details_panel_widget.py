@@ -18,7 +18,7 @@ from tank.platform.qt import QtCore, QtGui
 from .ui.details_panel_widget import Ui_DetailsPanelWidget
 from .list_item_widget import ListItemWidget
 from .list_item_delegate import ListItemDelegate
-from .version_context_menu import VersionContextMenu, VersionContextMenuAction
+from .version_context_menu import VersionContextMenu
 from .qtwidgets import ShotgunFieldManager
 
 shotgun_view = tank.platform.import_framework(
@@ -320,52 +320,49 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param point:   The QPoint location to show the context menu at.
         """
         selection_model = self.ui.entity_version_view.selectionModel()
-        num_selected = len(selection_model.selectedIndexes())
-        menu = VersionContextMenu(num_selected)
+        versions = self._selected_version_entities()
+        menu = VersionContextMenu(versions)
 
-        # Each action has some kind of selection requirement.
-        single = VersionContextMenuAction.SingleSelectionRequired
-        multi = VersionContextMenuAction.MultiSelectionRequired
-        either = VersionContextMenuAction.SingleOrMultiSelectionRequired
-
+        # Each action has its own callback, text (the label shown in the
+        # menu), and selection requirement. If the selection requirement
+        # is met, the action will be enabled. If not, it will be disabled.
         menu.addAction(
-            VersionContextMenuAction(
+            action_definition=dict(
                 callback=self._compare_with_current,
-                required_selection=either,
+                required_selection="either",
                 text="Compare with Current",
-                parent=self,
             )
         )
 
         menu.addAction(
-            VersionContextMenuAction(
+            action_definition=dict(
                 callback=self._compare_selected,
-                required_selection=multi,
+                required_selection="multi",
                 text="Compare Selected",
                 parent=self,
             )
         )
 
         menu.addAction(
-            VersionContextMenuAction(
+            action_definition=dict(
                 callback=self._swap_into_sequence,
-                required_selection=single,
+                required_selection="single",
                 text="Swap Into Sequence",
-                parent=self,
             )
         )
 
         menu.addAction(
-            VersionContextMenuAction(
+            action_definition=dict(
                 callback=self._replace_with_selected,
-                required_selection=single,
+                required_selection="single",
                 text="Replace",
-                parent=self,
             )
         )
 
+        # Show the menu at the mouse cursor. Whatever action is
+        # chosen from the menu will have its callback executed.
         action = menu.exec_(self.ui.entity_version_view.mapToGlobal(point))
-        action()
+        menu.execute_callback(action)
 
     def _task_group_finished(self, group):
         """
@@ -382,33 +379,36 @@ class DetailsPanelWidget(QtGui.QWidget):
     ##########################################################################
     # version list actions
 
-    def _compare_with_current(self):
+    def _compare_with_current(self, versions):
         """
-        Builds a new RV view that compares the currently-selected version
+        Builds a new RV view that compares the given version entity
         with what's currently active in RV.
+
+        :param versions:    The list of version entities to compare.
         """
-        versions = self._selected_version_entities()
         rv.commands.sendInternalEvent(
             "compare_with_current",
             json.dumps(versions),
         )
 
-    def _compare_selected(self):
+    def _compare_selected(self, versions):
         """
-        Builds a new RV view that compares the currently-selected Versions.
+        Builds a new RV view that compares the given Versions.
+
+        :param versions:    The list of version entities to compare.
         """
-        versions = self._selected_version_entities()
         rv.commands.sendInternalEvent(
             "compare_selected",
             json.dumps(versions),
         )
 
-    def _swap_into_sequence(self):
+    def _swap_into_sequence(self, versions):
         """
         Replaces the current Version in the current sequence view in RV
-        with the selected Version.
+        with the given Version.
+
+        :param versions:    A list containing a single version entity.
         """
-        versions = self._selected_version_entities()
         rv.commands.sendInternalEvent(
             "swap_into_sequence",
             json.dumps(versions),
@@ -417,9 +417,10 @@ class DetailsPanelWidget(QtGui.QWidget):
     def _replace_with_selected(self):
         """
         Replaces the current view (whether a sequence or single Version) in
-        RV with the selected Version.
+        RV with the given Version.
+
+        :param versions:    A list containing a single version entity.
         """
-        versions = self._selected_version_entities()
         rv.commands.sendInternalEvent(
             "replace_with_selected",
             json.dumps(versions),

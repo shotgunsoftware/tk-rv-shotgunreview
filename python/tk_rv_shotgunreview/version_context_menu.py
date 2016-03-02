@@ -16,7 +16,7 @@ class VersionContextMenu(QtGui.QMenu):
     is enabled or disabled according to its selection requirements and
     the reported number of selected items.
     """
-    def __init__(self, num_selected, *args, **kwargs):
+    def __init__(self, selected_entities, *args, **kwargs):
         """
         Constructs a new VersionContextMenu.
 
@@ -26,72 +26,68 @@ class VersionContextMenu(QtGui.QMenu):
                                 requirements and the number given.
         """
         super(VersionContextMenu, self).__init__(*args, **kwargs)
-        self._num_selected = num_selected
+        self._selected_entities = selected_entities
+        self._actions = dict()
 
-    def addAction(self, action):
+    def addAction(self, action_definition):
         """
         Adds a VersionContextMenuAction to the menu.
 
-        :param action:  The action to add to the menu.
-        """
-        if not isinstance(action, VersionContextMenuAction):
-            raise TypeError("The given action must be of type VersionContextMenuAction.")
+        Action definitions passed in must take the following form:
 
-        single = VersionContextMenuAction.SingleSelectionRequired
-        multi = VersionContextMenuAction.MultiSelectionRequired
-        either = VersionContextMenuAction.SingleOrMultiSelectionRequired
+            dict(
+                callback=callable,
+                text=str,
+                required_selection="single"
+            )
+
+        Where the callback is a callable object that expects to receive
+        a list of Version entity dictionaries as returned by the Shotgun
+        Python API. The text key contains the string labels of the action
+        in the QMenu, and the required_selection is one of "single", "multi",
+        or "either". Any action requiring a "single" selection will be enabled
+        only if there is a single item selected in the Version list view,
+        those requiring "multi" selection require 2 or more selected items,
+        and the "either" requirement results in the action being enabled if
+        one or more items are selected.
+
+        :param action_definition:   The action defition to add to the menu.
+                                    This takes the form of a dictionary of
+                                    a structure described in the method docs
+                                    above.
+        """
+        action = QtGui.QAction(action_definition.get("text"), self)
+        num_selected = len(self._selected_entities)
+        required_selection = action_definition.get("required_selection")
 
         # Now we can enable or disable the action according to
         # how many items have been reported as being selected.
-        if not self._num_selected:
+        if not num_selected:
             action.setEnabled(False)
-        elif action.required_selection == single:
-            action.setEnabled((self._num_selected == 1))
-        elif action.required_selection == multi:
-            action.setEnabled((self._num_selected > 1))
-        elif action.required_selection == either:
+        elif required_selection == "single":
+            action.setEnabled((num_selected == 1))
+        elif required_selection == "multi":
+            action.setEnabled((num_selected > 1))
+        elif required_selection == "either":
             action.setEnabled(True)
         else:
             # This shouldn't ever happen.
             action.setEnabled(False)
 
+        self._actions[action] = action_definition
         return super(VersionContextMenu, self).addAction(action)
 
-
-class VersionContextMenuAction(QtGui.QAction):
-    """
-    A QAction with additional selection requirements. Each action requires
-    one of a single item selected, multiple items selected, or one or more
-    items selected.
-    """
-
-    SingleSelectionRequired = 1
-    MultiSelectionRequired = 2
-    SingleOrMultiSelectionRequired = 3
-
-    def __init__(self, required_selection, callback, text, parent=None):
+    def execute_callback(self, action):
         """
-        Constructs a new VersionContextMenuAction.
+        Execute's the given action's callback method, as defined when
+        it was added to the menu using addAction.
 
-        :param required_selection:  One of: VersionContextMenuAction.SingleSelectionRequired,
-                                    VersionContextMenuAction.MultiSelectionRequired,
-                                    VersionContextMenuAction.SingleOrMultiSelectionRequired.
-        :param callback:            A callable to register as the callback of this action. The
-                                    callback will be executed if the action itself is called
-                                    directly (example: myAction())
-        :param text:                The text label of the action that will appear in a menu that
-                                    it is added to.
-        :param parent:              The parent widget of the action. Default is None.
+        :param action:  The QAction to use when looking up which callback
+                        to execute.
         """
-        super(VersionContextMenuAction, self).__init__(text, parent)
-        self.required_selection = required_selection
-        self.callback = callback
+        if action:
+            callback = self._actions[action]["callback"]
+            callback(self._selected_entities)
 
-    def __call__(self, *args, **kwargs):
-        """
-        Executes the action's callback. All arguments are passed through
-        to the callback.
-        """
-        return self.callback(*args, **kwargs)
 
         
