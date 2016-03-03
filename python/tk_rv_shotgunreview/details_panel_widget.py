@@ -181,10 +181,15 @@ class DetailsPanelWidget(QtGui.QWidget):
                 fields=self._fields,
             )
 
-            sg_data = self.shot_info_model.item_from_entity(
+            item = self.shot_info_model.item_from_entity(
                 "Version",
                 entity["id"],
-            ).get_sg_data()
+            )
+
+            if not item:
+                return
+
+            sg_data = item.get_sg_data()
 
             self.ui.shot_info_widget.set_entity(sg_data)
             self._more_info_toggled(self.ui.more_info_button.isChecked())
