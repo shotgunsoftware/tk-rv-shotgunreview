@@ -79,6 +79,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         shotgun_globals.register_bg_task_manager(self._task_manager)
 
         self._shotgun_field_manager = ShotgunFieldManager(
+            self,
             bg_task_manager=self._task_manager,
         )
         self._shotgun_field_manager.initialize()
@@ -129,9 +130,9 @@ class DetailsPanelWidget(QtGui.QWidget):
         # labels for the fields that are persistent. The non-standard,
         # user-specified list of fields that are shown when "more info"
         # is active will be labeled.
+        self.ui.shot_info_widget.field_manager = self._shotgun_field_manager
         self.ui.shot_info_widget.fields = self._active_fields
         self.ui.shot_info_widget.label_exempt_fields = self._persistent_fields
-        self.ui.shot_info_widget.field_manager = self._shotgun_field_manager
 
         # Signal handling.
         self._task_manager.task_group_finished.connect(

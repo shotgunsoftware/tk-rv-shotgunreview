@@ -50,15 +50,25 @@ class ListItemWidget(QtGui.QWidget):
         self.ui = Ui_ListItemWidget() 
         self.ui.setupUi(self)
 
-        self.field_manager = shotgun_field_manager or ShotgunFieldManager()
-        self.field_manager.initialize()
+        self._field_manager = shotgun_field_manager
 
         self._entity = None
         self._show_border = show_border
         self._fields = OrderedDict()
         self._show_labels = show_labels
 
-        self.fields = fields or ["code", "entity"]
+        fields = fields or ["code", "entity"]
+
+        # If we have a field manager we can go ahead and add the
+        # fields and have their widgets created in the layout. If
+        # we don't, then we record the list of fields and delay
+        # the creation of their widget(s) until a field manager
+        # is set.
+        if self.field_manager:
+            self.fields = fields
+        else:
+            for field in fields:
+                self._fields[field] = dict()
 
         if label_exempt_fields:
             self.label_exempt_fields = label_exempt_fields
@@ -67,6 +77,25 @@ class ListItemWidget(QtGui.QWidget):
 
     ##########################################################################
     # properties
+
+    def _get_field_manager(self):
+        """
+        Returns the ShotgunFieldManager.
+        """
+        return self._field_manager
+
+    def _set_field_manager(self, manager):
+        """
+        Sets the widget's ShotgunFieldManager object. This object
+        handles creation of widgets representing Shotgun fields and
+        their labels.
+
+        :param manager: An initialized ShotgunFieldManager object.
+        """
+        self._field_manager = manager
+        self.fields = self.fields
+
+    field_manager = property(_get_field_manager, _set_field_manager)
 
     def _get_fields(self):
         """
@@ -162,6 +191,9 @@ class ListItemWidget(QtGui.QWidget):
         :param label_exempt:    Whether to exempt the field from having a label
                                 in the item layout. Defaults to False.
         """
+        if not self.field_manager:
+            raise RuntimeError("No ShotgunFieldManager has been set, unable to add fields.")
+
         if field_name in self.fields:
             return
 
@@ -241,8 +273,12 @@ class ListItemWidget(QtGui.QWidget):
         if field_name not in self.fields:
             return
 
-        # Now ditch the widget for the field.
-        field_widget = self._fields[field_name]["widget"]
+        # Now ditch the widget for the field if we have one. If we
+        # don't then we have nothing to worry about.
+        try:
+            field_widget = self._fields[field_name]["widget"]
+        except KeyError:
+            return
 
         if not field_widget:
             return
@@ -268,6 +304,9 @@ class ListItemWidget(QtGui.QWidget):
         :param entity:  The Shotgun entity data dict, as returned from
                         the Shotgun Python API.
         """
+        if not self.field_manager:
+            raise RuntimeError("No ShotgunFieldManager has been set, unable to set entity.")
+
         # Don't bother if it's the same entity we already have.
         if self._entity and self._entity == entity:
             return
