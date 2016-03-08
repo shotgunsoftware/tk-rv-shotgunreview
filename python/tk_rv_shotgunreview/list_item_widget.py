@@ -68,7 +68,11 @@ class ListItemWidget(QtGui.QWidget):
             self.fields = fields
         else:
             for field in fields:
-                self._fields[field] = dict()
+                self._fields[field] = OrderedDict(
+                    widget=None,
+                    label=None,
+                    label_exempt=False,
+                )
 
         if label_exempt_fields:
             self.label_exempt_fields = label_exempt_fields
@@ -394,6 +398,9 @@ class ListItemWidget(QtGui.QWidget):
         :param field_name:  The name of the Shotgun field.
         :param state:       True or False
         """
+        if not self.field_manager:
+            return
+
         # If the field isn't registered with the item or if we've
         # not loaded an entity, then there's nothing to do.
         if field_name not in self._fields or not self._entity:
