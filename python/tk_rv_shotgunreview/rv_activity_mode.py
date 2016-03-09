@@ -246,6 +246,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.last_mini_center = None
         self._mini_before_shots = 2
         self._mini_after_shots = 2
+        self.details_dirty = False
 
         # RV specific
         # the current sequence node

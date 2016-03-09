@@ -22,7 +22,6 @@ class RVShotgunReviewApp(Application):
     The app entry point. This class is responsible for intializing and tearing down
     the application, handle menu registration etc.
     """
-    
     def init_app(self):
         """
         Called as the application is being initialized
@@ -76,6 +75,42 @@ class RVShotgunReviewApp(Application):
 
         # TODO: debug info and triggers a load_data for activity stream REMOVE LATER
         # self._env_info()
+
+    #####################################################################################
+    # Properties
+
+    @property
+    def context_change_allowed(self):
+        """
+        Specifies that on-the-fly context changes are supported.
+        """
+        return True
+
+    #####################################################################################
+    # utility methods
+
+    def change_to_entity_context(self, entity_type, entity_id):
+        """
+        Changes to the context matching that of the given entity.
+
+        :param entity_type: The entity type (example: Cut, Version, etc).
+        :param entity_id:   The id number of the entity.
+        """
+        # TODO: Note that this does not work right now with the
+        # bootstrap strategy employed with RV. We end up getting
+        # an error stating that the given entity is from a project
+        # that does not match our current config and it bails.
+        tk = tank.tank_from_entity(entity_type, entity_id)
+
+        if not tk:
+            return
+
+        context = tk.context_from_entity(entity_type, entity_id)
+
+        if not context or context == self.engine.context:
+            return
+
+        self.engine.change_context(context)
 
     def _env_info(self):
         self.engine.log_info("TANK_CONTEXT: %s" % os.environ.get("TANK_CONTEXT"))
