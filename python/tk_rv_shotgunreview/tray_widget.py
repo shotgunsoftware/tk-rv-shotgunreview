@@ -62,10 +62,12 @@ class TrayWidget(QtGui.QWidget):
         if selected:
             self.ui.thumbnail.setStyleSheet("QLabel { border: 4px solid rgb(40,136,175); }")
         else:
-            if in_mini_cut:
-                self.ui.thumbnail.setStyleSheet("QLabel { border: 2px solid #444444; }")
-            else:
-                self.ui.thumbnail.setStyleSheet("QLabel { border: 1px solid #000000; }")
+            # if in_mini_cut:
+            #     self.ui.thumbnail.setStyleSheet("QLabel { border: 2px solid #444444; }")
+            # else:
+            #     self.ui.thumbnail.setStyleSheet("QLabel { border: 1px solid #000000; }")
+            self.ui.thumbnail.setStyleSheet("QLabel { border: 1px solid #000000; }")
+ 
                 #self.ui.thumbnail.setAttribute(QtCore.Qt.WA_TranslucentBackground)
         #self.ui.thumbnail.style().unpolish(self.ui.thumbnail)
         #self.ui.thumbnail.style().polish(self.ui.thumbnail)

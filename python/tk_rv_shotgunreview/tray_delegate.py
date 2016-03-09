@@ -22,16 +22,14 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
     def __init__(self, view):
         self.tray_view = view
         shotgun_view.WidgetDelegate.__init__(self, view)
-        # note! Need to have a model connected to the view in order
-        # to have a selection model.
         self.__selection_model = view.selectionModel()
-        #if self.__selection_model:
-                #self.__selection_model.selectionChanged.connect(self._on_selection_changed)
-                #self.__selection_model.currentChanged.connect(self._on_current_changed)
-
-        #view.clicked.connect(self._handle_clicked)
-        #view.doubleClicked.connect(self._handle_double_clicked)
-        #view.entered.connect(self._handle_entered)
+        # make an alpha
+        self._alpha_size = TrayWidget.calculate_size()
+        # alpha_data = []
+        # for x in range( 0, self._alpha_size.width() * self._alpha_size.height() ):
+        #     alpha_data.append(127)
+        # self._alpha_bitmap = QtGui.QBitmap.fromData(self._alpha_size, bytearray(alpha_data))
+        # self._alpha_brush = QtGui.QBrush(QtGui.QColor(0,0,0,64))
                    
     def _handle_entered(self, index):
         print "ITEM ENTERED: %r" % index
@@ -111,39 +109,20 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
             widget.ui.thumbnail.setScaledContents(False)
 
         in_mini_cut = False
+        # cur_index = self.tray_view.selectionModel().currentIndex()
+        # sel_indexes = self.tray_view.selectionModel().selection().indexes()
+        # cur_row = 0
 
-        cur_index = self.tray_view.selectionModel().currentIndex()
-
-        sel_indexes = self.tray_view.selectionModel().selection().indexes()
-
-        cur_row = 0
-        if sel_indexes:
-            cur_row = sel_indexes[0].row()
+        # if sel_indexes:
+        #     cur_row = sel_indexes[0].row()
 
         if self.tray_view.selectionModel().isSelected(model_index):
             selected = True
 
-        if cur_row - 3 < model_index.row() and cur_row + 3 > model_index.row():
-            in_mini_cut = True
-#            print "ROW %d is MINICUT but %d" % (model_index.row(), cur_row)
-
-        # if rv_item:
-        #         if rv_item.has_key('rv_cut_selected'):
-        #                 if rv_item['rv_cut_selected'] == model_index.row():
-        #                         selected = True
-        #                 else:
-        #                         (_, item, model) = self._source_for_index(model_index)
-        #                         item.setData(None, self._RV_DATA_ROLE)
-        #                         selected = False
-
-        #Qif self.tray_view.mini_cut.mini_on:
-
-        #if cur_index.row() == model_index.row():
-        #        selected = True
+        # if cur_row - 3 < model_index.row() and cur_row + 3 > model_index.row():
+        #     in_mini_cut = True
         
         widget.set_selected(selected, in_mini_cut)
-        #model = model_index.model()
-        #model.dataChanged.emit(model_index, model_index)
 
     def _on_before_selection(self, widget, model_index, style_options):
         """
@@ -193,3 +172,49 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         #print "CURRENT CHANGED"
         print "_on_current_changed %d WAS %d" % (current_index.row(), previous_index.row())
 
+    def paint(self, painter, style_options, model_index):
+        """
+        Paint method to handle all cells that are not being currently edited.
+
+        :param painter:         The painter instance to use when painting
+        :param style_options:   The style options to use when painting
+        :param model_index:     The index in the data model that needs to be painted
+        """
+
+        # for performance reasons, we are not creating a widget every time
+        # but merely moving the same widget around. 
+        paint_widget = self._get_painter_widget(model_index, self.parent())
+        if not paint_widget:
+            # just paint using the base implementation:
+            QtGui.QStyledItemDelegate.paint(self, painter, style_options, model_index)
+            return
+
+        # make sure that the widget that is just used for painting isn't visible otherwise
+        # it'll appear in the wrong place!
+        paint_widget.setVisible(False)
+
+        # call out to have the widget set the right values            
+        self._on_before_paint(paint_widget, model_index, style_options)
+
+        # now paint!
+        painter.save()
+        try:
+            paint_widget.resize(style_options.rect.size())
+            painter.translate(style_options.rect.topLeft())
+            # note that we set the render flags NOT to render the background of the widget
+            # this makes it consistent with the way the editor widget is mounted inside 
+            # each element upon hover.
+            paint_widget.render(painter, 
+                                      QtCore.QPoint(0,0),
+                                      renderFlags=QtGui.QWidget.DrawChildren)
+            if self.tray_view.rv_mode.mini_cut and painter:
+                mini_index = self.tray_view.rv_mode.last_mini_center
+                cur_row = 0
+                if mini_index:
+                    cur_row = mini_index.row()
+                    if cur_row - 2 > model_index.row() or cur_row + 2 < model_index.row():
+                        painter.fillRect( 0, 0, self._alpha_size.width(), self._alpha_size.height(), QtGui.QColor(0,0,0,127) )
+
+
+        finally:
+            painter.restore()

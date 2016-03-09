@@ -26,10 +26,19 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_list = None
         self.tray_delegate = None
         self.tray_proxyModel = None
+
+        self._rv_mode = None
         
         # set up the UI
         self.init_ui()
-    
+
+    def set_rv_mode(self, rv_mode):
+        """
+        reference to application state
+        """
+        self._rv_mode = rv_mode
+        self.tray_list.rv_mode = rv_mode
+
     def init_ui(self):
         self.setMinimumSize(QtCore.QSize(1255,140))
 
