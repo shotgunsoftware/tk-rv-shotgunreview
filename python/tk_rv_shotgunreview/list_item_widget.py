@@ -40,8 +40,9 @@ class ListItemWidget(QtGui.QWidget):
                                         ["code", "entity"].
         :param show_labels:             Whether to show labels for fields being
                                         displayed.
-        :param shotgun_field_manager:   An optional ShotgunFieldManager object. If
-                                        one is not provided one will be instantiated.
+        :param shotgun_field_manager:   A ShotgunFieldManager object. If one is not provided
+                                        the widget will not construct field widgets until one
+                                        is set later via the field_manager property.
         :param label_exempt_fields:     A list of field names that are exempt from having
                                         labels displayed.
         """
@@ -54,6 +55,10 @@ class ListItemWidget(QtGui.QWidget):
 
         self._entity = None
         self._show_border = show_border
+
+        # TODO: Note that OrderedDict is only in Python 2.7. If we move
+        # this widget out to be used elsewhere, we'll need to find a
+        # solution that's supported by earlier versions of Python.
         self._fields = OrderedDict()
         self._show_labels = show_labels
 
@@ -96,6 +101,12 @@ class ListItemWidget(QtGui.QWidget):
 
         :param manager: An initialized ShotgunFieldManager object.
         """
+        # We keep track of the manager, but then we also need to trigger
+        # the creation (or recreation) of the widgets for all of the
+        # fields that we have. The quickest way to do that is to just
+        # reset the fields property to the same list of field names. That
+        # will clear any existing fields data we have and trigger the
+        # creation of widgets for those fields using the new field manager.
         self._field_manager = manager
         self.fields = self.fields
 

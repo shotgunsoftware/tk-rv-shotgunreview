@@ -99,6 +99,9 @@ class DetailsPanelWidget(QtGui.QWidget):
             "image",
             "user",
             "sg_status_list",
+            "sg_path_to_frames",
+            "sg_first_frame",
+            "sg_last_frame",
         ]
 
         # These are the fields that have been given to the info widget
