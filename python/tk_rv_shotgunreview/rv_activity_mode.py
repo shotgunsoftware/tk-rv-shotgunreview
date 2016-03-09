@@ -176,7 +176,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 try:
                     sg_data = json.loads(str(j_data[0]))
                     if sg_data['version.Version.id'] != self.version_id:
-                        print "INFO: version_id is %d" % sg_data['version.Version.id']
                         entity = {}
                         entity["type"] = "Version"
                         entity["id"] = sg_data['version.Version.id']
@@ -200,6 +199,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.detail_version_id = None
         self._tray_height = 140
         self.last_mini_center = None
+        self.details_dirty = False
 
         # RV specific
         # the current sequence node
