@@ -25,6 +25,8 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         self.__selection_model = view.selectionModel()
         # make an alpha
         self._alpha_size = TrayWidget.calculate_size()
+        self._pen = QtGui.QPen(QtCore.Qt.white, 1, QtCore.Qt.SolidLine)
+ 
         # alpha_data = []
         # for x in range( 0, self._alpha_size.width() * self._alpha_size.height() ):
         #     alpha_data.append(127)
@@ -109,18 +111,9 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
             widget.ui.thumbnail.setScaledContents(False)
 
         in_mini_cut = False
-        # cur_index = self.tray_view.selectionModel().currentIndex()
-        # sel_indexes = self.tray_view.selectionModel().selection().indexes()
-        # cur_row = 0
-
-        # if sel_indexes:
-        #     cur_row = sel_indexes[0].row()
 
         if self.tray_view.selectionModel().isSelected(model_index):
             selected = True
-
-        # if cur_row - 3 < model_index.row() and cur_row + 3 > model_index.row():
-        #     in_mini_cut = True
         
         widget.set_selected(selected, in_mini_cut)
 
@@ -129,6 +122,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         Called when a cell is being selected.
         """
         # do std drawing first
+        # this never happens ....
         print "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&_on_before_selection"
         self._on_before_paint(widget, model_index, style_options, selected=True)        
         widget.set_selected(True)  
@@ -204,16 +198,25 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
             # note that we set the render flags NOT to render the background of the widget
             # this makes it consistent with the way the editor widget is mounted inside 
             # each element upon hover.
+
             paint_widget.render(painter, 
                                       QtCore.QPoint(0,0),
                                       renderFlags=QtGui.QWidget.DrawChildren)
+
             if self.tray_view.rv_mode.mini_cut and painter:
+                if self.tray_view.rv_mode.last_mini_center:
+                    if self.tray_view.rv_mode.last_mini_center.row() == model_index.row():
+                        painter.setPen(self._pen)
+                        ws = paint_widget.size()
+                        painter.drawRect( 1, 1, ws.width()-2, ws.height()-2)
+
                 mini_index = self.tray_view.rv_mode.last_mini_center
                 cur_row = 0
                 if mini_index:
                     cur_row = mini_index.row()
                     if cur_row - 2 > model_index.row() or cur_row + 2 < model_index.row():
                         painter.fillRect( 0, 0, self._alpha_size.width(), self._alpha_size.height(), QtGui.QColor(0,0,0,127) )
+
 
 
         finally:

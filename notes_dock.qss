@@ -1,0 +1,10 @@
+QWidget { 
+    font-family: Proxima Nova; 
+    background: rgb(36,38,41); 
+    color: rgb(126,127,129);
+} 
+QDockWidget::title { 
+    background: rgb(36,38,41); 
+    color: rgb(126,127,129); 
+    padding: 8px; border: 0px;
+}
