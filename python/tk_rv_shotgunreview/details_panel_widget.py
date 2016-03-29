@@ -46,6 +46,11 @@ task_manager = tank.platform.import_framework(
     "task_manager",
 )
 
+screen_grab = tank.platform.import_framework(
+    "tk-framework-qtwidgets",
+    "screen_grab",
+)
+
 class DetailsPanelWidget(QtGui.QWidget):
     def __init__(self, parent=None):
         """
@@ -125,9 +130,12 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.entity_version_view.setModel(self.version_model)
         self.ui.entity_version_view.setItemDelegate(self.version_delegate)
         self.ui.note_stream_widget.set_bg_task_manager(self._task_manager)
-        self.ui.note_stream_widget.allow_screenshots = False
         self.ui.note_stream_widget.show_sg_stream_button = False
         self.shot_info_model = shotgun_model.SimpleShotgunModel(self.ui.note_stream_widget)
+
+        # We need to register our screen-grab callback. Instead
+        # of what ships with the widget
+        screen_grab.ScreenGrabber.SCREEN_GRAB_CALLBACK = self._trigger_rv_screen_grab
 
         # For the basic info widget in the Notes stream we won't show
         # labels for the fields that are persistent. The non-standard,
@@ -206,6 +214,17 @@ class DetailsPanelWidget(QtGui.QWidget):
             )
         else:
             self._requested_entity = entity
+
+    def set_note_screenshot(self, image_path):
+        """
+        Takes the given file path to an image and sets the new note
+        widget's thumbnail image.
+
+        :param image_path:  A file path to an image file on disk.
+        """
+        self.ui.note_stream_widget.note_widget._set_screenshot_pixmap(
+            QtGui.QPixmap(image_path),
+        )
 
     ##########################################################################
     # internal utilities
@@ -385,6 +404,13 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.shot_info_widget.repaint()
         self.ui.entity_version_view.repaint()
 
+    def _trigger_rv_screen_grab(self):
+        """
+        Triggers an RV event instructing the mode running as part of
+        the SG Review app to trigger RV's native frame capture routine.
+        """
+        rv.commands.sendInternalEvent("new_note_screenshot", "")
+
     ##########################################################################
     # version list actions
 
@@ -423,7 +449,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             json.dumps(versions),
         )
 
-    def _replace_with_selected(self):
+    def _replace_with_selected(self, versions):
         """
         Replaces the current view (whether a sequence or single Version) in
         RV with the given Version.
