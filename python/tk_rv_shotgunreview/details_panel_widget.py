@@ -135,7 +135,7 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         # We need to register our screen-grab callback. Instead
         # of what ships with the widget
-        screen_grab.override_screen_grab_callback(self._trigger_rv_screen_grab)
+        screen_grab.ScreenGrabber.SCREEN_GRAB_CALLBACK = self._trigger_rv_screen_grab
 
         # For the basic info widget in the Notes stream we won't show
         # labels for the fields that are persistent. The non-standard,
