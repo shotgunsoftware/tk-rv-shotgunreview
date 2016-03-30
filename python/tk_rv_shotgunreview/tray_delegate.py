@@ -17,7 +17,7 @@ shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "sho
 
 
 class RvTrayDelegate(shotgun_view.WidgetDelegate):
-    _RV_DATA_ROLE = QtCore.Qt.UserRole + 99
+    _RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
 
     def __init__(self, view):
         self.tray_view = view
@@ -174,6 +174,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         :param style_options:   The style options to use when painting
         :param model_index:     The index in the data model that needs to be painted
         """
+        # sg_item = shotgun_model.get_sg_data(model_index)  
 
         # for performance reasons, we are not creating a widget every time
         # but merely moving the same widget around. 
@@ -202,6 +203,10 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
             paint_widget.render(painter, 
                                       QtCore.QPoint(0,0),
                                       renderFlags=QtGui.QWidget.DrawChildren)
+
+            if model_index.row() in self.tray_view.rv_mode.pinned_items:
+                painter.fillRect( self._alpha_size.width() - 10, 0, 10, 10, QtGui.QColor(240,200,50,127) )
+
 
             if self.tray_view.rv_mode.mini_cut and painter:
                 if self.tray_view.rv_mode.last_mini_center:

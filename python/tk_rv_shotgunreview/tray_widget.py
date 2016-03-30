@@ -79,12 +79,14 @@ class TrayWidget(QtGui.QWidget):
         Set a thumbnail given the current pixmap.
         """
         # pixmap.fill(QtCore.Qt.transparent)
+        # print "SETPIXMAP: %r" % pixmap
         self.ui.thumbnail.setPixmap(pixmap)
             
     def set_text(self, header, body):
         """
         Populate the lines of text in the widget
         """
+        #print "set_text %r %r" % (header, body)
         pass
         # self.setToolTip("%s\n%s" % (header, body))        
 

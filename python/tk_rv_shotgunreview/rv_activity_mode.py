@@ -80,10 +80,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         finally:
             event.reject()
 
-
     def swapIntoSequence(self, event):
         s = copy.copy(event.contents())
-        print "swapIntoSequence %r" % s
         try:
             v = json.loads(s)
             self.replace_version_in_sequence(v)
@@ -103,7 +101,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             # now whatever we got from the event
             vd = json.loads(event.contents())
             for v in vd:
-                print "Version id: %d" % v['id']
+                # print "Version id: %d" % v['id']
+                v['pinned'] = 1
                 vlist.append(v)
             self.load_sequence_with_versions(vlist)
             
@@ -221,6 +220,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.mini_cut_seq_node = None
 
         self.details_dirty = False
+
+        self.pinned_items = []
 
         # RV specific
         # the current sequence node
@@ -406,7 +407,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             "sg_first_frame", "sg_last_frame",
             "sg_path_to_movie", "sg_movie_aspect_ratio",
             "sg_movie_as_slate", "sg_frames_aspect_ratio",
-            "sg_frames_has_slate", "image",
+            "sg_frames_has_slate", "image", "code"
             "sg_uploaded_movie_frame_rate", "sg_uploaded_movie_mp4", 
         ]
         # get the version info we need
@@ -417,6 +418,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def on_id_from_gma(self, event):
         print "on_id_from_gma %r" % event.contents()
+        self.pinned_items = []
         self.version_swap_out = None
         self.no_cut_context = False
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
@@ -440,7 +442,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     "sg_first_frame", "sg_last_frame",
                     "sg_path_to_movie", "sg_movie_aspect_ratio",
                     "sg_movie_as_slate", "sg_frames_aspect_ratio",
-                    "sg_frames_has_slate", "image",
+                    "sg_frames_has_slate", "image", "code",
                     "sg_uploaded_movie_frame_rate", "sg_uploaded_movie_mp4", 
                 ]
                 # get the version info we need
@@ -474,20 +476,22 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             print "ERROR: on_id_from_gma %r" % e
 
     def replace_version_in_sequence(self, versions):
-        version = versions[0]
-        fno = rv.commands.frame()
-        print "replace_version_in_sequence %r %d" % (version, fno)
-        # ok, selected cutitem in tray is destination for this version
-        ph_version = self.load_version_id_from_session()
-        # add the source, build a new sequence based on the tray, swap in the version
-        f = None
-        if 'version.Version.sg_path_to_frames' in version:
-            f = version['version.Version.sg_path_to_frames']
-        else:
-            f = version['sg_path_to_frames']
+        #print "VERSIONS: %r" % versions
+        #version = versions[0]
+        fno = rv.commands.frame()    
+        for version in versions:
+            version = self.convert_sg_dict(version)
+            # print "replace_version_in_sequence %r %d" % (version, fno)
 
-        try:
-            if f:    
+            # ok, selected cutitem in tray is destination for this version
+            ph_version = self.load_version_id_from_session()
+
+            f = version['version.Version.sg_path_to_frames']
+
+            try:
+                if not f:
+                    f =  'black,start=%d,end=%d.movieproc' % (version['version.Version.sg_first_frame'],
+                                                              version['version.Version.sg_last_frame'])            
                 if f in self.loaded_sources:
                     source_name = self.loaded_sources[f]
                 else:
@@ -501,6 +505,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 # add markers from ph_version
                 version['ui_index'] = ph_version['ui_index']
                 version['tl_index'] = ph_version['tl_index']
+                # as we are swapping in, this version will be pinned
+                version['pinned'] = 1
+                self.pinned_items.append(version['ui_index'])
                 # as this is a version we may need to translate the dict into a different form...?
                 json_sg_item = json.dumps(version)
                 rv.commands.setStringProperty(source_prop_name, [json_sg_item], True)
@@ -511,34 +518,33 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 
                 (source, _) = source_name.split('_')
                 self.swapped_sources[source_index] = source
-
-                # for x in range(0, len(swapped_sources)):
-                #     print "RANGE: %r %r" % (swapped_sources[x], self.tray_sources[x])
                         
-                if not self.mod_seq_node:
-                    self.mod_seq_node = rv.commands.newNode("RVSequenceGroup")
-                
-                cut_name = self.tray_main_frame.tray_button_browse_cut.text()
-                rv.extra_commands.setUIName(self.mod_seq_node, 'MOD.' + cut_name)
-                #self.tray_main_frame.tray_button_browse_cut.setText('MOD.' + cut_name)
-                
-                self.mod_seq_name = rv.extra_commands.nodesInGroupOfType(self.mod_seq_node, 'RVSequence')[0]
+            except Exception as e:
+                print "%r" % e
 
-                rv.commands.setIntProperty('%s.edl.source' % self.mod_seq_name, self.rv_source_nums, True)
-                rv.commands.setIntProperty('%s.edl.frame' % self.mod_seq_name, self.rv_frames, True)
-                rv.commands.setIntProperty('%s.edl.in' % self.mod_seq_name, self.rv_ins, True)
-                rv.commands.setIntProperty('%s.edl.out' % self.mod_seq_name, self.rv_outs, True)
-                rv.commands.setIntProperty("%s.mode.autoEDL" % self.mod_seq_name, [0])
-                rv.commands.setIntProperty("%s.mode.useCutInfo" % self.mod_seq_name, [0])
-       
-                rv.commands.setNodeInputs(self.mod_seq_node, self.swapped_sources)
-                rv.commands.setViewNode(self.mod_seq_node)
-                rv.commands.setFrame(fno)
+        if not self.mod_seq_node:
+            self.mod_seq_node = rv.commands.newNode("RVSequenceGroup")
+        
+        cut_name = self.tray_main_frame.tray_button_browse_cut.text()
+        rv.extra_commands.setUIName(self.mod_seq_node, 'MOD.' + cut_name)
+        #self.tray_main_frame.tray_button_browse_cut.setText('MOD.' + cut_name)
+        
+        self.mod_seq_name = rv.extra_commands.nodesInGroupOfType(self.mod_seq_node, 'RVSequence')[0]
 
-            else:
-                print "ERROR: replace_version_in_sequence f is %r" % f
-        except Exception as e:
-            print "%r" % e
+        rv.commands.setIntProperty('%s.edl.source' % self.mod_seq_name, self.rv_source_nums, True)
+        rv.commands.setIntProperty('%s.edl.frame' % self.mod_seq_name, self.rv_frames, True)
+        rv.commands.setIntProperty('%s.edl.in' % self.mod_seq_name, self.rv_ins, True)
+        rv.commands.setIntProperty('%s.edl.out' % self.mod_seq_name, self.rv_outs, True)
+        rv.commands.setIntProperty("%s.mode.autoEDL" % self.mod_seq_name, [0])
+        rv.commands.setIntProperty("%s.mode.useCutInfo" % self.mod_seq_name, [0])
+
+        rv.commands.setNodeInputs(self.mod_seq_node, self.swapped_sources)
+        rv.commands.setViewNode(self.mod_seq_node)
+        rv.commands.setFrame(fno)
+
+        seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
+        rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
+        self.tray_list.repaint()
 
 
     def load_sequence_with_versions(self, vlist):
@@ -554,15 +560,19 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         w = 0
         shot_start = 0
 
+        ph_dict = self.load_version_id_from_session()
+        self.pinned_items.append(ph_dict['ui_index'])
         for sg in vlist:
-            f = None
-            if 'version.Version.sg_path_to_frames' in sg:
-                f = sg['version.Version.sg_path_to_frames']
-            else:
-                f = sg['sg_path_to_frames']
+            sg = self.convert_sg_dict(sg)
+            sg['pinned'] = 1
+            
+
+            f = sg['version.Version.sg_path_to_frames']
+            
+            if not f:
+                f =  'black,start=%d,end=%d.movieproc' % (sg['sg_first_frame'], sg['sg_last_frame'])
 
             try:
-                #print "f is %r" % f
                 if f:    
                     if f in self.loaded_sources:
                         source_name = self.loaded_sources[f]
@@ -589,6 +599,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             v_source_names.append(num_plus)
  
             v_sources.append(w)
+            self.pinned_items.append(w)
             w = w + 1
             
             v_frames.append(t)
@@ -623,6 +634,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         
             rv.commands.setNodeInputs(self._layout_node, v_source_names)
             rv.commands.setViewNode(self._layout_node)
+
+        seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
+        rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
+        self.tray_list.repaint()
         # rv.commands.setFrame(shot_start + shot_offset)
 
     def load_tray_with_playlist_id(self, playlist_id=None):
@@ -631,7 +646,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         plist_fields =  ['sg_path_to_frames', 'sg_first_frame', 'sg_last_frame', 
                         'sg_path_to_movie', 'sg_movie_aspect_ratio', 'sg_movie_as_slate',
                         'sg_frames_aspect_ratio', 'sg_frames_has_slate',
-                        'sg_uploaded_movie_frame_rate', 'sg_uploaded_movie_mp4',
+                        'sg_uploaded_movie_frame_rate', 'sg_uploaded_movie_mp4', 'code', 'client_code'
                         'playlists']
         self.tray_model.load_data(entity_type="Version", filters=plist_filters, fields=plist_fields)
 
@@ -649,6 +664,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
                 "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
                 "version.Version.sg_frames_has_slate", "version.Version.image",
+                "version.Version.code",
                 "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
                 "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.Version"]
 
@@ -776,6 +792,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def on_data_refreshed(self, was_refreshed):
         self.swapped_sources = None
+
         v_id = -1
         # first see if we have a selection
         cur_index = self.tray_list.currentIndex()
@@ -902,12 +919,15 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             seq_prop_name = ("%s.cut_support.json_cutitem_data") % self.cut_seq_name
             self.set_session_prop(seq_prop_name, cut_items)
         else:
-            #print "WHAT PROPS FOR PLAYLIST? %r" % sg_item
-            for p in sg_item['playlists']:
-                if p['id'] == self.entity_from_gma['id']:
-                    seq_prop_name = ("%s.cut_support.json_playlist_data") % self.cut_seq_name
-                    self.set_session_prop(seq_prop_name, p)
-                    tray_seq_name = p['name']
+            print "PLIST: %r" % sg_item
+            if 'playlists' in sg_item:
+                for p in sg_item['playlists']:
+                    if p['id'] == self.entity_from_gma['id']:
+                        seq_prop_name = ("%s.cut_support.json_playlist_data") % self.cut_seq_name
+                        self.set_session_prop(seq_prop_name, p)
+                        tray_seq_name = p['name']
+            else:
+                tray_seq_name = sg_item['code']
 
         self.tray_main_frame.tray_button_browse_cut.setText(tray_seq_name)
         rv.extra_commands.setUIName(self.cut_seq_node, tray_seq_name)
@@ -937,6 +957,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         self.tray_list.scrollTo(item, QtGui.QAbstractItemView.EnsureVisible)
         self.load_version_id_from_session()
+
+        seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
+        if not rv.commands.propertyExists(seq_pinned_name):
+            rv.commands.newProperty(seq_pinned_name, rv.commands.IntType, 1)
+        rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
+        
     
     def tray_double_clicked(self, index):
         sg_item = shotgun_model.get_sg_data(index)
@@ -1055,7 +1081,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def tray_clicked(self, index):
 
-        sg_item = shotgun_model.get_sg_data(index)  
+        sg_item = shotgun_model.get_sg_data(index)
+        sg_item = self.convert_sg_dict(sg_item) 
         
         # the version the playhead is parked on
         ph_version = self.load_version_id_from_session()
