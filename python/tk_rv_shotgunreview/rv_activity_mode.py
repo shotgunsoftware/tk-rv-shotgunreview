@@ -267,73 +267,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def deactivate(self):
         rv.rvtypes.MinorMode.deactivate(self)
-   
-    # meant to be the one that rules them all
-    def load_timeline(self, start_row, end_row, add_source=False):
-        print "load_timeline:"
-        self.tray_proxyModel.sort(0, QtCore.Qt.AscendingOrder)
+              
 
-        ids = self.tray_model.entity_ids
-        our_type =  self.tray_model.get_entity_type()
-
-        source_nums = []
-        frames = []
-        ins = []
-        outs = []
-        
-        n = ids[start_row]
-        t = 1
-        
-        for i in ids[start_row:end_row]:
-            item = self.tray_model.index_from_entity(our_type, i)
-            sg_item = shotgun_model.get_sg_data(item)
-            f = sg_item['version.Version.sg_path_to_frames']
-            if add_source:
-                rv.commands.addSource(f)
-            source_nums.append(n)
-            n = n + 1
-            ins.append( sg_item['cut_item_in'] )
-            outs.append( sg_item['cut_item_out'] )
-            frames.append(t)
-            t = sg_item['cut_item_out'] - sg_item['cut_item_in'] + 1 + t
-        
-        source_nums.append(0)
-        ins.append(0)
-        outs.append(0)
-        frames.append(t)
-
-        if add_source:
-            self.rv_source_nums = source_nums
-            self.rv_frames = frames
-            self.rv_ins = ins
-            self.rv_outs = outs
-
-        self.cut_seq_node = rv.commands.newNode("RVSequenceGroup")
-        
-        # need to get the name into the query...
-        rv.extra_commands.setUIName(self.cut_seq_node, "CUTZ cut")
-        self.cut_seq_name = rv.extra_commands.nodesInGroupOfType(self.cut_seq_node, 'RVSequence')[0]
-
-        k = "%s.mode.autoEDL" % str(self.cut_seq_name)
-        if not rv.commands.propertyExists(k):
-            rv.commands.newProperty(k, rv.commands.IntType, 1)
-               
-        rv.commands.setIntProperty('%s.edl.source' % self.cut_seq_name, source_nums, True)
-        rv.commands.setIntProperty('%s.edl.frame' % self.cut_seq_name, frames, True)
-        rv.commands.setIntProperty('%s.edl.in' % self.cut_seq_name, ins, True)
-        rv.commands.setIntProperty('%s.edl.out' % self.cut_seq_name, outs, True)
-        
-        rv.commands.setIntProperty("%s.mode.autoEDL" % self.cut_seq_name, [0])
-        rv.commands.setIntProperty("%s.mode.useCutInfo" % self.cut_seq_name, [0])
-
-        sources = rv.commands.nodesOfType("RVSourceGroup")
-        rv.commands.setNodeInputs(self.cut_seq_node, sources[start_row:end_row])
-        rv.commands.setViewNode(self.cut_seq_node)
-
-        self.tray_list.setCurrentIndex(self.tray_model.createIndex(n-1, 0))
-            
-
-################################################################################### qt stuff down here. 
+    ################################################################################### qt stuff down here. 
 
     def load_data(self, entity):
         self.version_id = entity['id']
@@ -499,6 +435,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     self.loaded_sources[f] = source_name
                 source_prop_name = ("%s.cut_support.json_sg_data") % source_name
 
+                group_name = rv.commands.nodeGroup(source_name)
+                rv.extra_commands.setUIName(source_name, version['version.Version.code'])
+                rv.extra_commands.setUIName(group_name, version['version.Version.code'])
+                
+
                 if not rv.commands.propertyExists(source_prop_name):
                     rv.commands.newProperty(source_prop_name, rv.commands.StringType, 1)
 
@@ -522,14 +463,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             except Exception as e:
                 print "%r" % e
 
-        if not self.mod_seq_node:
-            self.mod_seq_node = rv.commands.newNode("RVSequenceGroup")
+        if not self.cut_seq_node:
+            self.cut_seq_node = rv.commands.newNode("RVSequenceGroup")
         
         cut_name = self.tray_main_frame.tray_button_browse_cut.text()
-        rv.extra_commands.setUIName(self.mod_seq_node, 'MOD.' + cut_name)
+        rv.extra_commands.setUIName(self.mod_seq_node, cut_name)
         #self.tray_main_frame.tray_button_browse_cut.setText('MOD.' + cut_name)
         
-        self.mod_seq_name = rv.extra_commands.nodesInGroupOfType(self.mod_seq_node, 'RVSequence')[0]
+        self.mod_seq_name = rv.extra_commands.nodesInGroupOfType(self.cut_seq_node, 'RVSequence')[0]
 
         rv.commands.setIntProperty('%s.edl.source' % self.mod_seq_name, self.rv_source_nums, True)
         rv.commands.setIntProperty('%s.edl.frame' % self.mod_seq_name, self.rv_frames, True)
@@ -538,12 +479,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.commands.setIntProperty("%s.mode.autoEDL" % self.mod_seq_name, [0])
         rv.commands.setIntProperty("%s.mode.useCutInfo" % self.mod_seq_name, [0])
 
-        rv.commands.setNodeInputs(self.mod_seq_node, self.swapped_sources)
-        rv.commands.setViewNode(self.mod_seq_node)
+        rv.commands.setNodeInputs(self.cut_seq_node, self.swapped_sources)
+        rv.commands.setViewNode(self.cut_seq_node)
         rv.commands.setFrame(fno)
 
         seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
         rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
+
+        self.load_data(versions[0])
         self.tray_list.repaint()
 
 
@@ -579,6 +522,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     else:
                         source_name = rv.commands.addSourceVerbose([f])
                         self.loaded_sources[f] = source_name
+                    group_name = rv.commands.nodeGroup(source_name)
+                    rv.extra_commands.setUIName(source_name, sg['version.Version.code'])
+                    rv.extra_commands.setUIName(group_name, sg['version.Version.code'])
+                
                 else:
                     print "ERROR: f is %r" % f
                     continue
@@ -637,6 +584,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
         rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
+
+        self.load_data(vlist[0])
         self.tray_list.repaint()
         # rv.commands.setFrame(shot_start + shot_offset)
 
@@ -779,7 +728,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 "version.Version.sg_first_frame", "version.Version.sg_last_frame",
                 "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
                 "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
-                "version.Version.sg_frames_has_slate", "version.Version.image",
+                "version.Version.sg_frames_has_slate", "version.Version.image", "version.Version.code",
                 "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
             ]
 
@@ -790,6 +739,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         return sg_dict
 
+    # the way data from shotgun gets into the tray
     def on_data_refreshed(self, was_refreshed):
         self.swapped_sources = None
 
@@ -852,6 +802,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     source_name = self.loaded_sources[f]
             else:
                 source_name = rv.commands.addSourceVerbose([f])
+                group_name = rv.commands.nodeGroup(source_name)
+                rv.extra_commands.setUIName(source_name, sg_item['version.Version.code'])
+                rv.extra_commands.setUIName(group_name, sg_item['version.Version.code'])
+                
                 self.loaded_sources[f] = source_name
            
             source_prop_name = ("%s.cut_support.json_sg_data") % source_name
@@ -935,6 +889,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         k = "%s.mode.autoEDL" % str(self.cut_seq_name)
         if not rv.commands.propertyExists(k):
             rv.commands.newProperty(k, rv.commands.IntType, 1)
+
+        # self._app.tank.shotgun_url
+        k = "%s.cut_support.shotgun_url" % str(self.cut_seq_name)
+        if not rv.commands.propertyExists(k):
+            rv.commands.newProperty(k, rv.commands.StringType, 1)
+        rv.commands.setStringProperty(k, [self._app.tank.shotgun_url], True)
+
                 
         rv.commands.setIntProperty('%s.edl.source' % self.cut_seq_name, self.rv_source_nums, True)
         rv.commands.setIntProperty('%s.edl.frame' % self.cut_seq_name, self.rv_frames, True)
