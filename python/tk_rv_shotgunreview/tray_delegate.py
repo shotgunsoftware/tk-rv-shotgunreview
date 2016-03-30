@@ -26,7 +26,13 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         # make an alpha
         self._alpha_size = TrayWidget.calculate_size()
         self._pen = QtGui.QPen(QtCore.Qt.white, 1, QtCore.Qt.SolidLine)
- 
+
+        # pinned icon
+        try:
+            f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "review_app_pinned.png")
+            self.pin_pixmap = QtGui.QPixmap(f)
+        except Exception as e:
+            print "ERROR: cant load pin %r" % e
         # alpha_data = []
         # for x in range( 0, self._alpha_size.width() * self._alpha_size.height() ):
         #     alpha_data.append(127)
@@ -205,7 +211,8 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                                       renderFlags=QtGui.QWidget.DrawChildren)
 
             if model_index.row() in self.tray_view.rv_mode.pinned_items:
-                painter.fillRect( self._alpha_size.width() - 10, 0, 10, 10, QtGui.QColor(240,200,50,127) )
+                painter.drawPixmap(self._alpha_size.width() - self.pin_pixmap.width(), 0, self.pin_pixmap)
+                #painter.fillRect( self._alpha_size.width() - 10, 0, 10, 10, QtGui.QColor(240,200,50,127) )
 
 
             if self.tray_view.rv_mode.mini_cut and painter:
