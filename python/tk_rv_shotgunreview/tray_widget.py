@@ -32,12 +32,12 @@ class TrayWidget(QtGui.QWidget):
         Constructor
         """
         QtGui.QWidget.__init__(self, parent)
-        # make sure this widget isn't shown  WHY????
-        self.setVisible(True)
         
         # set up the UI
         self.ui = Ui_TrayWidget() 
         self.ui.setupUi(self)
+        # make sure this widget isn't shown  WHY????
+        self.setVisible(False)
         
     def set_actions(self, actions):
         """
@@ -91,12 +91,14 @@ class TrayWidget(QtGui.QWidget):
         # self.setToolTip("%s\n%s" % (header, body))        
 
     def sizeHint(self):
-        return QtCore.QSize(114, 64)
+        return self.ui.thumbnail.size()
+        #return QtCore.QSize(114, 64)
 
     @staticmethod
     def calculate_size():
         """
         Calculates and returns a suitable size for this widget.
-        """        
+        """ 
+        #return self.ui.thumbnail.size()       
         return QtCore.QSize(114, 64)
 

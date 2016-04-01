@@ -41,11 +41,6 @@ class RVShotgunReviewApp(Application):
             # )
  
         try:
-            fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tray_dock.qss")          
-            f = open(fn, 'r')
-            s = f.read()
-            f.close()
-            tray_dock.setStyleSheet(s)
 
             fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), "notes_dock.qss")          
             f = open(fn, 'r')
@@ -65,11 +60,20 @@ class RVShotgunReviewApp(Application):
         self._rv_activity_stream = tk_rv_shotgunreview.RvActivityMode(app=self)
         self._rv_activity_stream.init_ui(notes_dock, tray_dock, 8)
 
+
         rv.commands.activateMode("RvActivityMode")
         
         parent_widget.addDockWidget(QtCore.Qt.RightDockWidgetArea, notes_dock)
         parent_widget.addDockWidget(QtCore.Qt.BottomDockWidgetArea, tray_dock)
 
+        try:
+            fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tray_dock.qss")          
+            f = open(fn, 'r')
+            s = f.read()
+            f.close()
+            tray_dock.setStyleSheet(s)
+        except Exception as e:
+            self.engine.log_error(e)
 
     #####################################################################################
     # Properties

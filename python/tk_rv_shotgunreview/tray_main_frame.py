@@ -10,6 +10,8 @@
 
 from tank.platform.qt import QtCore, QtGui
 from .tray_delegate import RvTrayDelegate
+import tank
+task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
 
 class TrayMainFrame(QtGui.QFrame):
 
@@ -28,6 +30,11 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_proxyModel = None
 
         self._rv_mode = None
+
+        self._task_manager = task_manager.BackgroundTaskManager(parent=self,
+                                                                start_processing=True,
+                                                                max_threads=2)
+        
         
         # set up the UI
         self.init_ui()
@@ -40,15 +47,20 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_list.rv_mode = rv_mode
 
     def init_ui(self):
-        self.setMinimumSize(QtCore.QSize(1255,140))
-
+        # self.setMinimumSize(QtCore.QSize(1255,140))
+        self.setObjectName('tray_frame')
         self.tray_frame_vlayout = QtGui.QVBoxLayout(self)
 
         # tray button bar
-        self.tray_button_bar = QtGui.QFrame(self.tray_dock)
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Ignored, QtGui.QSizePolicy.Ignored)
+        # self.tray_button_bar = QtGui.QFrame(self.tray_dock)
+        self.tray_button_bar = QtGui.QFrame()
+        
+        # self.tray_button_bar.setStyleSheet('QFrame { background: rgb(0,200,0);}')
+        self.tray_button_bar.setObjectName('tray_button_bar')
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(1)
         sizePolicy.setVerticalStretch(0)
+
 
         self.tray_button_bar.setSizePolicy(sizePolicy)
 
@@ -86,7 +98,7 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_bar_hlayout.addWidget(self.tray_button_approved)
 
         self.tray_frame_vlayout.addWidget(self.tray_button_bar)
-        self.tray_frame_vlayout.setStretchFactor(self.tray_button_bar, 1)
+        #self.tray_frame_vlayout.setStretchFactor(self.tray_button_bar, 1)
         
 
         # QListView ##########################
@@ -94,10 +106,11 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_list = QtGui.QListView()
                 
         self.tray_frame_vlayout.addWidget(self.tray_list)
-        self.tray_frame_vlayout.setStretchFactor(self.tray_list, 1)
+        #self.tray_frame_vlayout.setStretchFactor(self.tray_list, 1)
         
         from .tray_model import TrayModel
-        self.tray_model = TrayModel(self.tray_list)
+        self.tray_model = TrayModel(self.tray_list, bg_task_manager=self._task_manager)
+
         from .tray_sort_filter import TraySortFilter
         self.tray_proxyModel =  TraySortFilter(self.tray_list)
         self.tray_proxyModel.setSourceModel(self.tray_model)

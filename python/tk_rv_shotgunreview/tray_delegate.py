@@ -211,7 +211,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                                       renderFlags=QtGui.QWidget.DrawChildren)
 
             if model_index.row() in self.tray_view.rv_mode.pinned_items:
-                painter.drawPixmap(self._alpha_size.width() - self.pin_pixmap.width(), 0, self.pin_pixmap)
+                painter.drawPixmap(paint_widget.width() - self.pin_pixmap.width(), 0, self.pin_pixmap)
                 #painter.fillRect( self._alpha_size.width() - 10, 0, 10, 10, QtGui.QColor(240,200,50,127) )
 
 
@@ -227,7 +227,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                 if mini_index:
                     cur_row = mini_index.row()
                     if cur_row - 2 > model_index.row() or cur_row + 2 < model_index.row():
-                        painter.fillRect( 0, 0, self._alpha_size.width(), self._alpha_size.height(), QtGui.QColor(0,0,0,127) )
+                        painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(0,0,0,127) )
 
 
 

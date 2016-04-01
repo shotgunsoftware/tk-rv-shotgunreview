@@ -7,12 +7,14 @@ import os
 import math
 import rv
 import rv.qtutils
+# import sgtk
 import tank
 
 import json
 
 shotgun_view = tank.platform.import_framework("tk-framework-qtwidgets", "views")
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
+
 
 from .tray_delegate import RvTrayDelegate
 from .details_panel_widget import DetailsPanelWidget
@@ -84,6 +86,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         s = copy.copy(event.contents())
         try:
             v = json.loads(s)
+        except Exception as e:
+            print "ERROR: swapIntoSequence JSON %r" % e
+        try:
             self.replace_version_in_sequence(v)
         except Exception as e:
             print "ERROR: swapIntoSequence %r" % e
@@ -211,7 +216,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.mini_cut = False
         self.detail_version_id = None
 
-        self._tray_height = 140
+        self._tray_height = 180
 
         self.last_mini_center = None
         self._mini_before_shots = 2
@@ -261,6 +266,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 ],
                 None,
                 None);
+
         
     def activate(self):
         rv.rvtypes.MinorMode.activate(self)
@@ -289,7 +295,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.note_dock.setWidget(self.details_panel)
         self._app.engine._apply_external_styleshet(self._app, self.details_panel)
 
-        self.tray_dock.setMinimumSize(QtCore.QSize(1355,self._tray_height))
+        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height))
+        
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame
         self.tray_main_frame = TrayMainFrame(self.tray_dock)
@@ -316,7 +323,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_button_browse_cut.clicked.connect(self.on_browse_cut)
         self.tray_main_frame.tray_button_latest_pipeline.clicked.connect(self.load_sequence_with_versions)
 
-        self.load_tray_with_cut_id(6)
+        # self.load_tray_with_cut_id(6)
 
         self.details_timer = QTimer(rv.qtutils.sessionWindow())
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
@@ -326,15 +333,15 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     def on_browse_cut(self):
         # forcing a test....
         entity = {}
-        entity['id'] = 4
+        entity['id'] = 6
         entity['type'] = 'Cut'
 
         # version
-        entity['id'] = 6953
-        entity['type'] = 'Version'
+        # entity['id'] = 7406
+        # entity['type'] = 'Version'
 
-        entity['id'] = 62
-        entity['type'] = "Playlist"
+        # entity['id'] = 62
+        # entity['type'] = "Playlist"
         rv.commands.sendInternalEvent('id_from_gma', json.dumps(entity))        
 
     def get_version_from_id(self, id):
@@ -361,16 +368,24 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
 
         try:
+            
             d = json.loads(event.contents())
             # we save the request so that we know what exactly was requested when we get down to loading the tray asynchronously
             self.entity_from_gma = d
 
             if d['type'] == "Cut":
+                # self.tray_dock.setVisible(True)
                 self.load_tray_with_cut_id(d['id'])
             if d['type'] == "Version":
-                shot = self._bundle.shotgun.find_one("Version", [["id", "is", d["id"]]], ["entity"] ).get('entity')
-                orders = [{'field_name':'cut.Cut.updated_at','direction':'desc'}]
-                cuts = self._bundle.shotgun.find('CutItem', [['shot', 'is', shot]], fields=["cut", "cut.Cut.updated_at"], order=orders)
+                
+                # disabling this feature for now....
+                
+                # shot = self._bundle.shotgun.find_one("Version", [["id", "is", d["id"]]], ["entity"] ).get('entity')
+                # orders = [{'field_name':'cut.Cut.updated_at','direction':'desc'}]
+                # cuts = self._bundle.shotgun.find('CutItem', [['shot', 'is', shot]], fields=["cut", "cut.Cut.updated_at"], order=orders)
+                
+                cuts = None
+
                 # now we have the latest cut
                 # we need to swap in the version we want into the cut.
                 v_fields = [
@@ -383,7 +398,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 ]
                 # get the version info we need
                 version  = self._bundle.shotgun.find_one("Version", [["id", "is", d['id']]], v_fields)
-                if cuts[0]['cut']:
+
+                if cuts:
                     version['cutitem_id'] = cuts[0]['id']
                     self.version_swap_out = version
                     self.load_tray_with_cut_id(cuts[0]['cut']['id'])
@@ -394,11 +410,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     sa = [sg_dict]
                     self.load_sequence_with_versions(sa)
                     self.no_cut_context = True
-                    self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
-                    self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
+                    # self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
+                    # self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
+                    # self.tray_model.clear()
+                    # self.tray_dock.setVisible(False)
 
 
             if d['type'] == "Playlist":
+                # self.tray_dock.setVisible(True)
                 # playlist = self._bundle.shotgun.find_one("Playlist", [['id', 'is', d['id']]], fields=['versions'])
                 # print "PLAYLIST: %r" % playlist
                 # for v in playlist['versions']:
@@ -421,6 +440,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             # ok, selected cutitem in tray is destination for this version
             ph_version = self.load_version_id_from_session()
+            if 'ui_index' not in ph_version:
+                self._app.engine.log_error('ui_index missing from %r' % ph_version)
 
             f = version['version.Version.sg_path_to_frames']
 
@@ -436,38 +457,45 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 source_prop_name = ("%s.cut_support.json_sg_data") % source_name
 
                 group_name = rv.commands.nodeGroup(source_name)
-                rv.extra_commands.setUIName(source_name, version['version.Version.code'])
-                rv.extra_commands.setUIName(group_name, version['version.Version.code'])
+
+                if version['version.Version.code']:
+                    rv.extra_commands.setUIName(source_name, version['version.Version.code'])
+                    if group_name:
+                        rv.extra_commands.setUIName(group_name, version['version.Version.code'])
                 
 
                 if not rv.commands.propertyExists(source_prop_name):
                     rv.commands.newProperty(source_prop_name, rv.commands.StringType, 1)
 
                 # add markers from ph_version
+                # if 'ui_index' in ph_version:
                 version['ui_index'] = ph_version['ui_index']
                 version['tl_index'] = ph_version['tl_index']
                 # as we are swapping in, this version will be pinned
                 version['pinned'] = 1
                 self.pinned_items.append(version['ui_index'])
-                # as this is a version we may need to translate the dict into a different form...?
-                json_sg_item = json.dumps(version)
-                rv.commands.setStringProperty(source_prop_name, [json_sg_item], True)
- 
+
+
                 source_index = ph_version['ui_index']
                 if not self.swapped_sources:
                     self.swapped_sources = list(self.tray_sources)
                 
                 (source, _) = source_name.split('_')
                 self.swapped_sources[source_index] = source
+
+                # as this is a version we may need to translate the dict into a different form...?
+                json_sg_item = json.dumps(version)
+                rv.commands.setStringProperty(source_prop_name, [json_sg_item], True)
                         
             except Exception as e:
-                print "%r" % e
+                print "replace version in session: %r" % e
 
         if not self.cut_seq_node:
             self.cut_seq_node = rv.commands.newNode("RVSequenceGroup")
         
         cut_name = self.tray_main_frame.tray_button_browse_cut.text()
-        rv.extra_commands.setUIName(self.mod_seq_node, cut_name)
+        if cut_name:
+            rv.extra_commands.setUIName(self.cut_seq_node, cut_name)
         #self.tray_main_frame.tray_button_browse_cut.setText('MOD.' + cut_name)
         
         self.mod_seq_name = rv.extra_commands.nodesInGroupOfType(self.cut_seq_node, 'RVSequence')[0]
@@ -503,15 +531,16 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         w = 0
         shot_start = 0
 
-        ph_dict = self.load_version_id_from_session()
-        self.pinned_items.append(ph_dict['ui_index'])
-        for sg in vlist:
-            sg = self.convert_sg_dict(sg)
-            sg['pinned'] = 1
-            
+        # ph_dict = self.load_version_id_from_session()
+        # if ph_dict:            
+        #     if 'ui_index' in ph_dict:
+        #         self.pinned_items.append(ph_dict['ui_index'])
 
+        for sgd in vlist:
+            sg = self.convert_sg_dict(sgd)
+            sg['pinned'] = 1
             f = sg['version.Version.sg_path_to_frames']
-            
+
             if not f:
                 f =  'black,start=%d,end=%d.movieproc' % (sg['sg_first_frame'], sg['sg_last_frame'])
 
@@ -550,6 +579,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             w = w + 1
             
             v_frames.append(t)
+
             if 'version.Version.sg_first_frame' in sg:
                 v_ins.append( sg['version.Version.sg_first_frame'] )
                 v_outs.append( sg['version.Version.sg_last_frame'] )            
@@ -567,26 +597,32 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if self.want_stacked:
             if not self._stack_node:
                 self._stack_node = rv.commands.newNode('RVStackGroup')
-                self._v_cut_seq_name = 'VersionStack'
-                rv.extra_commands.setUIName(self._stack_node, self._v_cut_seq_name)     
+            self._v_cut_seq_name = sg['version.Version.code']
+            rv.extra_commands.setUIName(self._stack_node, self._v_cut_seq_name)     
             rv.commands.setNodeInputs(self._stack_node, v_source_names)
             rv.commands.setViewNode(self._stack_node)
 
         else:        
             if not self._layout_node:
                 self._layout_node = rv.commands.newNode("RVLayoutGroup")
-                self._v_cut_seq_name = 'VersionLayout'
-                rv.extra_commands.setUIName(self._layout_node, self._v_cut_seq_name)
-                rv.commands.setStringProperty("%s.layout.mode" % self._layout_node, ["grid"]);     
+            self._v_cut_seq_name = sg['version.Version.code']
+            rv.extra_commands.setUIName(self._layout_node, self._v_cut_seq_name)
+            rv.commands.setStringProperty("%s.layout.mode" % self._layout_node, ["grid"]);     
         
             rv.commands.setNodeInputs(self._layout_node, v_source_names)
             rv.commands.setViewNode(self._layout_node)
 
-        seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
-        rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
+        # if ph_dict:
+        #     if 'ui_index' in ph_dict:
+        #         seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
+        #         rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
 
-        self.load_data(vlist[0])
-        self.tray_list.repaint()
+        #         self.load_data(vlist[0])
+        #         self.tray_list.repaint()
+        # else:
+        self.tray_dock.toggleViewAction()
+        self.tray_model.clear()
+
         # rv.commands.setFrame(shot_start + shot_offset)
 
     def load_tray_with_playlist_id(self, playlist_id=None):
@@ -615,7 +651,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 "version.Version.sg_frames_has_slate", "version.Version.image",
                 "version.Version.code",
                 "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
-                "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.Version"]
+                "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.Version", "cut.Cut.revision_numnber"]
 
         orders = [{'field_name':'cut_order','direction':'asc'}]
         self.tray_model.load_data(entity_type="CutItem", filters=tray_filters, fields=tray_fields, order=orders)
@@ -753,6 +789,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         self.tray_proxyModel.sort(0, QtCore.Qt.AscendingOrder)
         rows = self.tray_proxyModel.rowCount()
+
+        if rows < 1:
+            self._app.engine.log_error('Query returned no rows.')
+            return
  
         self.rv_source_nums = []
         self.rv_frames = []
@@ -771,6 +811,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         for x in range(0, rows):
             item = self.tray_proxyModel.index(x, 0)
             sg_item = shotgun_model.get_sg_data(item)
+            if not sg_item:
+                print "WOW what do I do when there is no data at all for item %d" % item.row()
             sg_item = self.convert_sg_dict(sg_item)
             
             # removing keys we want on the source node
@@ -792,7 +834,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             #    f = sg_item['sg_path_to_frames']
             
             if not f:
-                v = self.get_version_from_id(sg_item['cut.Cut.version']['id'])
+                vid = sg_item['version.Version.id']
+                if sg_item['cut.Cut.version']:
+                    vid = sg_item['cut.Cut.version']['id']
+                                  
+                v = self.get_version_from_id(vid)
                 if v['version.Version.sg_path_to_movie']:
                     f = v['version.Version.sg_path_to_movie']
 
@@ -803,8 +849,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             else:
                 source_name = rv.commands.addSourceVerbose([f])
                 group_name = rv.commands.nodeGroup(source_name)
-                rv.extra_commands.setUIName(source_name, sg_item['version.Version.code'])
-                rv.extra_commands.setUIName(group_name, sg_item['version.Version.code'])
+                if sg_item['version.Version.code']:
+                    rv.extra_commands.setUIName(source_name, sg_item['version.Version.code'])
+                    rv.extra_commands.setUIName(group_name, sg_item['version.Version.code'])
                 
                 self.loaded_sources[f] = source_name
            
@@ -848,16 +895,22 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     final_selection = item
         
         tray_seq_name = 'unknown'
+        if not sg_item:
+            self._app.engine.log_error('SG_ITEM is null.')
+            return
+
         if 'cut.Cut.code' in sg_item:
             tray_seq_name = sg_item['cut.Cut.code']
+            if sg_item['cut.Cut.revision_numnber'] > 1:
+                tray_seq_name = "%s_%04d" % (sg_item['cut.Cut.code'], sg_item['cut.Cut.revision_numnber'])
         
         self.rv_source_nums.append(0)
         self.rv_ins.append(0)
         self.rv_outs.append(0)
         self.rv_frames.append(t)
 
-        if not self.cut_seq_node:
-            self.cut_seq_node = rv.commands.newNode("RVSequenceGroup")
+        #if not self.cut_seq_node:
+        self.cut_seq_node = rv.commands.newNode("RVSequenceGroup")
 
         # create a cut level dict from sg_item
         cut_keys = ["cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps"]
@@ -914,7 +967,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             zero_index = self.tray_model.createIndex(0, 0)
             self.tray_list.selectionModel().select(zero_index, self.tray_list.selectionModel().ClearAndSelect)
         
-        rv.commands.fullScreenMode(True)
+        # rv.commands.fullScreenMode(True)
 
         self.tray_list.scrollTo(item, QtGui.QAbstractItemView.EnsureVisible)
         self.load_version_id_from_session()
