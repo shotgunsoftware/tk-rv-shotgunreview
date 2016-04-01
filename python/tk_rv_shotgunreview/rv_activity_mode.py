@@ -206,6 +206,39 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         traysize = self.tray_dock.size().width()
         self.tray_main_frame.resize(traysize - 10, self._tray_height)
 
+    def launchSubmitTool(self, event):
+        if (self.tray_dock):
+            self.tray_dock.hide()
+            
+        rv.runtime.eval("""
+            {
+                require shotgun_mode;
+                require shotgun_review_app;
+                require shotgun_upload;
+
+                if (! shotgun_mode.localModeReady())
+                {
+                    //  Silence the mode first, then activate it.
+                    //  shotgun_mode.silent = true;
+                    shotgun_mode.createLocalMode();
+                }
+                if (! shotgun_review_app.localModeReady())
+                {
+                    //  Silence the mode first, then activate it.
+                    //  shotgun_review_app.silent = true;
+                    shotgun_review_app.createLocalMode();
+                }
+                if (! shotgun_upload.localModeReady())
+                {
+                    //  Silence the mode first, then activate it.
+                    //  shotgun_upload.silent = true;
+                    shotgun_upload.createLocalMode();
+                }
+
+                shotgun_review_app.theMode().internalLaunchSubmitTool();
+            }
+            """, [])
+
     def __init__(self, app):
         rv.rvtypes.MinorMode.__init__(self)
         self._bundle = sgtk.platform.current_bundle()
@@ -264,7 +297,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 ('id_from_gma', self.on_id_from_gma, ""),
                 ('view-size-changed', self.on_view_size_changed, ''),
                 ],
-                None,
+                [("SG Review", [
+                    ("Submit Tool", self.launchSubmitTool, None, lambda: rv.commands.UncheckedMenuState),
+                    ("_", None)]
+                )],
                 None);
 
         
