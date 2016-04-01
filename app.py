@@ -41,13 +41,11 @@ class RVShotgunReviewApp(Application):
             # )
  
         try:
-
             fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), "notes_dock.qss")          
             f = open(fn, 'r')
             s = f.read()
             f.close()
             notes_dock.setStyleSheet(s)
-
         except Exception as e:
             self.engine.log_error(e)
 
@@ -59,7 +57,6 @@ class RVShotgunReviewApp(Application):
         tk_rv_shotgunreview = self.import_module("tk_rv_shotgunreview")
         self._rv_activity_stream = tk_rv_shotgunreview.RvActivityMode(app=self)
         self._rv_activity_stream.init_ui(notes_dock, tray_dock, 8)
-
 
         rv.commands.activateMode("RvActivityMode")
         

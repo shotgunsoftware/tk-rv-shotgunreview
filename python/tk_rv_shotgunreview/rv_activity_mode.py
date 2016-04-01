@@ -293,6 +293,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # Setup the details panel.
         self.details_panel = DetailsPanelWidget()
         self.note_dock.setWidget(self.details_panel)
+        
         self._app.engine._apply_external_styleshet(self._app, self.details_panel)
 
         self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height))
@@ -375,9 +376,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             if d['type'] == "Cut":
                 # self.tray_dock.setVisible(True)
+                self.tray_dock.show()
                 self.load_tray_with_cut_id(d['id'])
             if d['type'] == "Version":
-                
+                self.tray_dock.hide()
                 # disabling this feature for now....
                 
                 # shot = self._bundle.shotgun.find_one("Version", [["id", "is", d["id"]]], ["entity"] ).get('entity')
@@ -417,6 +419,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
             if d['type'] == "Playlist":
+                self.tray_dock.show()
                 # self.tray_dock.setVisible(True)
                 # playlist = self._bundle.shotgun.find_one("Playlist", [['id', 'is', d['id']]], fields=['versions'])
                 # print "PLAYLIST: %r" % playlist
@@ -519,7 +522,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
     def load_sequence_with_versions(self, vlist):
-        print "load_sequence_with_versions: %r" % vlist
+        print "load_sequence_with_versions:" #" %r" % vlist
         
         v_sources = []
         v_frames = []
@@ -620,7 +623,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         #         self.load_data(vlist[0])
         #         self.tray_list.repaint()
         # else:
-        self.tray_dock.toggleViewAction()
+        self.tray_dock.hide()
         self.tray_model.clear()
 
         # rv.commands.setFrame(shot_start + shot_offset)
