@@ -57,9 +57,8 @@ class RVShotgunReviewApp(Application):
         tk_rv_shotgunreview = self.import_module("tk_rv_shotgunreview")
         self._rv_activity_stream = tk_rv_shotgunreview.RvActivityMode(app=self)
         self._rv_activity_stream.init_ui(notes_dock, tray_dock, 8)
+        self._rv_activity_stream.toggle()
 
-        rv.commands.activateMode("RvActivityMode")
-        
         parent_widget.addDockWidget(QtCore.Qt.RightDockWidgetArea, notes_dock)
         parent_widget.addDockWidget(QtCore.Qt.BottomDockWidgetArea, tray_dock)
 
