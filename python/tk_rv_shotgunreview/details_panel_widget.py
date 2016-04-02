@@ -164,6 +164,20 @@ class DetailsPanelWidget(QtGui.QWidget):
     ##########################################################################
     # public methods
 
+    def add_note_attachments(self, file_paths, cleanup_after_upload=True):
+        """
+        Adds a given list of files to the note widget as file attachments.
+
+        :param file_paths:              A list of file paths to attach to the
+                                        current note.
+        :param cleanup_after_upload:    If True, after the files are uploaded
+                                        to Shotgun they will be removed from disk.
+        """
+        self.ui.note_stream_widget.note_widget.add_files_to_attachments(
+            file_paths,
+            cleanup_after_upload,
+        )
+
     def load_data(self, entity):
         """
         Loads the given Shotgun entity into the details panel,
