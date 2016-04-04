@@ -249,7 +249,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.mini_cut = False
         self.detail_version_id = None
 
-        self._tray_height = 180
+        self._tray_height = 96
 
         self.last_mini_center = None
         self._mini_before_shots = 2
@@ -332,7 +332,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         
         self._app.engine._apply_external_styleshet(self._app, self.details_panel)
 
-        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height))
+        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 60))
         
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame

@@ -35,7 +35,6 @@ class TrayMainFrame(QtGui.QFrame):
                                                                 start_processing=True,
                                                                 max_threads=2)
         
-        
         # set up the UI
         self.init_ui()
 
@@ -75,9 +74,13 @@ class TrayMainFrame(QtGui.QFrame):
 
         self.tray_button_entire_cut = QtGui.QPushButton()
         self.tray_button_entire_cut.setText('Entire Cut')
-        # self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
         self.tray_button_bar_hlayout.addWidget(self.tray_button_entire_cut)
         
+
+        bar = QtGui.QPushButton()
+        bar.setText('|')
+        self.tray_button_bar_hlayout.addWidget(bar)
+
 
         self.tray_button_mini_cut = QtGui.QPushButton()
         self.tray_button_mini_cut.setText('Mini Cut')
@@ -98,9 +101,8 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_bar_hlayout.addWidget(self.tray_button_approved)
 
         self.tray_frame_vlayout.addWidget(self.tray_button_bar)
-        #self.tray_frame_vlayout.setStretchFactor(self.tray_button_bar, 1)
+        self.tray_frame_vlayout.setStretchFactor(self.tray_button_bar, 1)
         
-
         # QListView ##########################
         #####################################################################
         self.tray_list = QtGui.QListView()
