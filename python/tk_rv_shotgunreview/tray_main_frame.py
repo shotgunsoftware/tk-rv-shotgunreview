@@ -104,6 +104,7 @@ class TrayMainFrame(QtGui.QFrame):
         # QListView ##########################
         #####################################################################
         self.tray_list = QtGui.QListView()
+        self.tray_list.setFocusPolicy(QtCore.Qt.NoFocus)
                 
         self.tray_frame_vlayout.addWidget(self.tray_list)
         #self.tray_frame_vlayout.setStretchFactor(self.tray_list, 1)

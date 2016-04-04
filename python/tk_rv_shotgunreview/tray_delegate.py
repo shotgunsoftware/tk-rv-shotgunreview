@@ -24,7 +24,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         shotgun_view.WidgetDelegate.__init__(self, view)
         self.__selection_model = view.selectionModel()
         # make an alpha
-        self._alpha_size = TrayWidget.calculate_size()
+        # self._alpha_size = TrayWidget.calculate_size()
         self._pen = QtGui.QPen(QtCore.Qt.white, 1, QtCore.Qt.SolidLine)
 
         # pinned icon
@@ -139,7 +139,9 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         """
         Base the size on the icon size property of the view
         """
-        return TrayWidget.calculate_size()
+        paint_widget = self._get_painter_widget(model_index, self.parent())
+        return paint_widget.size()
+        # return TrayWidget.calculate_size()
         #return QtCore.QSize(150,100)
 
     def _on_selection_changed(self, selected, deselected):
