@@ -16,7 +16,7 @@ class Ui_TrayWidget(object):
         self.box = QtGui.QFrame(TrayWidget)
         self.box.setObjectName("tray_box")
         
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Fixed)        
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Minimum)        
         sizePolicy.setHorizontalStretch(1)
         sizePolicy.setVerticalStretch(0)
         

@@ -35,6 +35,7 @@ class TrayWidget(QtGui.QWidget):
         # make sure this widget isn't shown  WHY????
         self.setVisible(False)
         self.hintSize = None
+        self.parent = parent
 
         
     def set_actions(self, actions):
@@ -60,6 +61,10 @@ class TrayWidget(QtGui.QWidget):
         """
         self.ui.thumbnail.setPixmap(pixmap)
         self.resize(pixmap.size())
+        if pixmap.height() < 74:
+            self.parent.resize(self.parent.width(), 74)
+        else:
+            self.parent.resize(self.parent.width(), pixmap.height())
             
     def set_text(self, header, body):
         """
@@ -70,8 +75,9 @@ class TrayWidget(QtGui.QWidget):
     def sizeHint(self):
         #  = QtCore.QSize(self.ui.thumbnail.width() * 2, self.ui.thumbnail.height()*2)
         # return s
-        return QtCore.QSize(96, 54)
-        #return self.ui.thumbnail.size()
+        # return QtCore.QSize(96, 54)
+        #self.parent.resize(self.parent.width(), 74)
+        return self.ui.thumbnail.size()
 
     # @staticmethod
     # def calculate_size():
