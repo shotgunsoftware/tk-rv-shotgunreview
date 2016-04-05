@@ -8,6 +8,34 @@ QWidget {
     padding: 0px;
 }
 
+QMenu {
+color: rgb(200,200,200); 
+border: 1px solid rgb(100,100,100);
+border-radius: 1px;
+background-color: rgb(50, 50, 50);
+selection-color: rgb(255, 255, 255);
+selection-background-color: #18A7E3;
+}
+
+QMenu::item {
+background: transparent;
+color: rgb(200,200,200);
+selection-color: rgb(255, 255, 255);
+selection-background-color: #18A7E3;
+}
+
+QMenu::right-arrow {
+    background: rgb(200,200,200);
+}
+
+QMenu::item:disabled {
+background: transparent;
+color: rgb(120,120,120);
+selection-background-color: rgb(50, 50, 50);
+}
+
+
+
 QDockWidget {
     padding: 0px; 
     margin: 0px;

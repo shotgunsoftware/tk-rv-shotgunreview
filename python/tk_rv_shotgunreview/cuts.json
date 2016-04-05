@@ -1,0 +1,96 @@
+[
+    {
+        "cuts": [
+            {
+                "code": "08_a-team_base_layer_example_versions_that_fit_cut", 
+                "revisions": [
+                    {
+                        "cached_display_name": "08_a-team_base_layer_example_versions_that_fit_cut_001", 
+                        "id": 1
+                    }
+                ]
+            }, 
+            {
+                "code": "08_a-team_base_layer_example_with_large_baselayer_and_matching_CutItems", 
+                "revisions": [
+                    {
+                        "cached_display_name": "08_a-team_base_layer_example_with_large_baselayer_and_matching_CutItems_001", 
+                        "id": 2
+                    }
+                ]
+            }, 
+            {
+                "code": "08_a-team_base_layer_example_with_large_baselayer_version", 
+                "revisions": [
+                    {
+                        "cached_display_name": "08_a-team_base_layer_example_with_large_baselayer_version_001", 
+                        "id": 3
+                    }
+                ]
+            }, 
+            {
+                "code": "08_a-team_base_layer_example_with_two_non_vfx_shots_sharing_base_version", 
+                "revisions": [
+                    {
+                        "cached_display_name": "08_a-team_base_layer_example_with_two_non_vfx_shots_sharing_base_version", 
+                        "id": 4
+                    }
+                ]
+            }, 
+            {
+                "code": "08_a-team_client_cut", 
+                "revisions": [
+                    {
+                        "cached_display_name": "08_a-team_client_cut_001", 
+                        "id": 5
+                    }, 
+                    {
+                        "cached_display_name": "08_a-team_client_cut_002", 
+                        "id": 6
+                    }
+                ]
+            }, 
+            {
+                "code": "08_a-team_temp_cut", 
+                "revisions": [
+                    {
+                        "cached_display_name": "08_a-team_temp_cut", 
+                        "id": 7
+                    }
+                ]
+            }, 
+            {
+                "code": "badnamecut", 
+                "revisions": [
+                    {
+                        "cached_display_name": "badnamecut", 
+                        "id": 79
+                    }
+                ]
+            }, 
+            {
+                "code": "Cut24FPSWithCutItems12fps", 
+                "revisions": [
+                    {
+                        "cached_display_name": "Cut24FPSWithCutItems12fps", 
+                        "id": 176
+                    }
+                ]
+            }, 
+            {
+                "code": "nabe_test", 
+                "revisions": [
+                    {
+                        "cached_display_name": "nabe_test", 
+                        "id": 127
+                    }
+                ]
+            }
+        ], 
+        "entity": {
+            "type": "Sequence", 
+            "id": 31, 
+            "name": "08_a-team"
+        }
+    }
+]

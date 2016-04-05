@@ -314,6 +314,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     ################################################################################### qt stuff down here. 
 
     def load_data(self, entity):
+        print "LOAD_DATA with %r" % entity
         self.version_id = entity['id']
         try:
             self.details_panel.load_data(entity)
@@ -357,7 +358,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
         
-        self.tray_button_browse_cut.clicked.connect(self.on_browse_cut)
+        # self.tray_button_browse_cut.clicked.connect(self.on_browse_cut)
+        
         self.tray_main_frame.tray_button_latest_pipeline.clicked.connect(self.load_sequence_with_versions)
 
         # self.load_tray_with_cut_id(6)
@@ -365,6 +367,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.details_timer = QTimer(rv.qtutils.sessionWindow())
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
         self.details_timer.start(1000)
+
+        self.create_related_cuts_menu(None)
 
 
     def on_browse_cut(self):
@@ -784,7 +788,29 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             end = sg['sg_last_frame']
         s = 'black,start=%d,end=%d.movieproc' % (start, end)
         return s
-            
+     
+
+    def createText(self, node, key, value, hpos, vpos):
+        rv.commands.newProperty('%s.position' % node, rv.commands.FloatType, 2)
+        rv.commands.newProperty('%s.color' % node, rv.commands.FloatType, 4)
+        rv.commands.newProperty('%s.spacing' % node, rv.commands.FloatType, 1)
+        rv.commands.newProperty('%s.size' % node, rv.commands.FloatType, 1)
+        rv.commands.newProperty('%s.scale' % node, rv.commands.FloatType, 1)
+        rv.commands.newProperty('%s.rotation' % node, rv.commands.FloatType, 1)
+        rv.commands.newProperty("%s.font" % node, rv.commands.StringType, 1)
+        rv.commands.newProperty("%s.text" % node, rv.commands.StringType, 1)
+        rv.commands.newProperty('%s.debug' % node, rv.commands.IntType, 1)
+
+        rv.commands.setFloatProperty('%s.position' % node, [ float(hpos), float(vpos) ], True)
+        rv.commands.setFloatProperty('%s.color' % node, [ 1.0, 1.0, 0.0, 1.0 ], True)
+        rv.commands.setFloatProperty('%s.spacing' % node, [ 1.0 ], True)
+        rv.commands.setFloatProperty('%s.size' % node, [ 0.003 ], True)
+        rv.commands.setFloatProperty('%s.scale' % node, [ 1.0 ], True)
+        rv.commands.setFloatProperty('%s.rotation' % node, [ 0.0 ], True)
+        rv.commands.setStringProperty("%s.font" % node, [""], True)
+        rv.commands.setStringProperty("%s.text" % node, ["%s: %s" % (key, value)], True)
+        rv.commands.setIntProperty('%s.debug' % node, [ 0 ], True)
+
 
     def set_session_prop(self, name, item):
         try:
@@ -813,6 +839,66 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 sg_dict[k] = sg_dict[s]
 
         return sg_dict
+
+    def handle_menu(self, action=None):
+        if action:
+            self.load_tray_with_cut_id(action.data()['id'])
+            print "STUFF %r" % action.data() 
+
+    def create_related_cuts_menu(self, entity_in):
+        # entity would be a cut?
+        entity = {}
+        entity['id'] = 6
+        entity['type'] = 'Cut'
+
+        results = []
+        try:
+            fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cuts.json")
+            f = open(fn, 'r')
+            results = json.load(f)
+            f.close() 
+        except Exception as e:
+            print e
+
+        menu = QtGui.QMenu(self.tray_button_browse_cut)
+        menu.triggered.connect(self.handle_menu)
+        action = QtGui.QAction(self.tray_button_browse_cut)
+        action.setText('Cuts for Sequence %s' % results[0]['entity']['name'])
+        menu.addAction(action)
+        menu.addSeparator()
+
+        #print results[0]['entity']
+        #print '=============='
+        #print results[0]['cuts']
+        last_menu = menu
+        for x in results[0]['cuts']:
+            #print x
+            #print '-------------'
+            action = QtGui.QAction(self.tray_button_browse_cut)
+            action.setText(x['code'])
+            en = {}
+            en['id'] = x['revisions'][0]['id']
+            en['type'] = 'Cut'
+            action.setData(en)
+            if len(x['revisions']) > 1:
+                last_menu = last_menu.addMenu(x['code'])
+                for n in x['revisions']:
+                    action = QtGui.QAction(self.tray_button_browse_cut)
+                    action.setText(n['cached_display_name'])
+                    en = {}
+                    en['id'] = n['id']
+                    en['type'] = 'Cut'
+                    action.setData(en)
+                    last_menu.addAction(action)
+                last_menu = menu
+            else:
+                last_menu = menu
+                last_menu.addAction(action)
+
+
+
+        self.tray_button_browse_cut.setMenu(menu)        
+
 
     # the way data from shotgun gets into the tray
     def on_data_refreshed(self, was_refreshed):
@@ -871,7 +957,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             f = sg_item['version.Version.sg_path_to_frames']
             #else:
             #    f = sg_item['sg_path_to_frames']
-            
+            was_black = False
             if not f:
                 vid = sg_item['version.Version.id']
                 if sg_item['cut.Cut.version']:
@@ -882,18 +968,24 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     f = v['version.Version.sg_path_to_movie']
 
                 f = 'black,start=%d,end=%d.movieproc' % (v['version.Version.sg_first_frame'], v['version.Version.sg_last_frame'])
-            
+                was_black = True
             if f in self.loaded_sources:
                     source_name = self.loaded_sources[f]
             else:
                 source_name = rv.commands.addSourceVerbose([f])
                 group_name = rv.commands.nodeGroup(source_name)
+                
                 if sg_item['version.Version.code']:
                     rv.extra_commands.setUIName(source_name, sg_item['version.Version.code'])
                     rv.extra_commands.setUIName(group_name, sg_item['version.Version.code'])
                 
                 self.loaded_sources[f] = source_name
-           
+
+            if was_black:
+                was_black = False
+            #overlays = rv.extra_commands.associatedNodes("RVOverlay",source_name)
+            #self.createText(overlays[0], 'foo', 'bar', 100, 100)
+                
             source_prop_name = ("%s.cut_support.json_sg_data") % source_name
             try:
                 sg_item['ui_index'] = n
