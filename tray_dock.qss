@@ -9,24 +9,39 @@ QWidget {
 }
 
 QMenu {
-color: rgb(200,200,200); 
-border: 1px solid rgb(100,100,100);
-border-radius: 1px;
-background-color: rgb(50, 50, 50);
-selection-color: rgb(255, 255, 255);
-selection-background-color: #18A7E3;
+    color: rgb(200,200,200); 
+    border: 1px solid rgb(100,100,100);
+    border-radius: 1px;
+    background-color: rgb(50, 50, 50);
+    selection-color: rgb(255, 255, 255);
+    selection-background-color: #18A7E3;
+}
+
+QMenu::separator {
+    background: rgb(200, 200, 200);
+    height: 1px;
 }
 
 QMenu::item {
-background: transparent;
-color: rgb(200,200,200);
-selection-color: rgb(255, 255, 255);
-selection-background-color: #18A7E3;
+    background: transparent;
+    color: rgb(200,200,200);
+    selection-color: rgb(255, 255, 255);
+    selection-background-color: #18A7E3;
+}
+
+QMenu::indicator {
+    background: rgb(200,200,200);
 }
 
 QMenu::right-arrow {
     background: rgb(200,200,200);
+    image: url(':down_triangle.png');
 }
+
+QMenu::down-arrow {
+    background: rgb(200,200,200);
+}
+
 
 QMenu::item:disabled {
 background: transparent;

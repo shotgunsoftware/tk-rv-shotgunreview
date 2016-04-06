@@ -7,22 +7,18 @@ import os
 import math
 import rv
 import rv.qtutils
-# import sgtk
 import tank
-
 import json
+import urllib
 
 shotgun_view = tank.platform.import_framework("tk-framework-qtwidgets", "views")
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
-
 
 from .tray_delegate import RvTrayDelegate
 from .details_panel_widget import DetailsPanelWidget
 
 import sgtk
 
-# isnt it obvious, really?
-# there is something about this i dont get?
 def groupMemberOfType(node, memberType):
     for n in rv.commands.nodesInGroup(node):
         if rv.commands.nodeType(n) == memberType:
@@ -496,7 +492,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     source_name = self.loaded_sources[f]
                 else:
                     source_name = rv.commands.addSourceVerbose([f])
-                    self.loaded_sources[f] = source_name
+                    fk = urllib.quote_plus(f)
+                    self.loaded_sources[fk] = source_name
                 source_prop_name = ("%s.cut_support.json_sg_data") % source_name
 
                 group_name = rv.commands.nodeGroup(source_name)
@@ -588,12 +585,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 f =  'black,start=%d,end=%d.movieproc' % (sg['sg_first_frame'], sg['sg_last_frame'])
 
             try:
-                if f:    
-                    if f in self.loaded_sources:
-                        source_name = self.loaded_sources[f]
+                if f:
+                    fk = urllib.quote_plus(f)    
+                    if fk in self.loaded_sources:
+                        source_name = self.loaded_sources[fk]
                     else:
                         source_name = rv.commands.addSourceVerbose([f])
-                        self.loaded_sources[f] = source_name
+                        self.loaded_sources[fk] = source_name
                     group_name = rv.commands.nodeGroup(source_name)
                     rv.extra_commands.setUIName(source_name, sg['version.Version.code'])
                     rv.extra_commands.setUIName(group_name, sg['version.Version.code'])
@@ -969,8 +967,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
                 f = 'black,start=%d,end=%d.movieproc' % (v['version.Version.sg_first_frame'], v['version.Version.sg_last_frame'])
                 was_black = True
-            if f in self.loaded_sources:
-                    source_name = self.loaded_sources[f]
+            fk = urllib.quote_plus(f)
+            if fk in self.loaded_sources:
+                    source_name = self.loaded_sources[fk]
             else:
                 source_name = rv.commands.addSourceVerbose([f])
                 group_name = rv.commands.nodeGroup(source_name)
@@ -979,7 +978,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     rv.extra_commands.setUIName(source_name, sg_item['version.Version.code'])
                     rv.extra_commands.setUIName(group_name, sg_item['version.Version.code'])
                 
-                self.loaded_sources[f] = source_name
+                self.loaded_sources[fk] = source_name
 
             if was_black:
                 was_black = False
@@ -1179,9 +1178,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
             if 'version.Version.sg_path_to_frames' in sg:
+                fk = urllib.quote_plus(sg['version.Version.sg_path_to_frames'])
                 source_name = self.loaded_sources[sg['version.Version.sg_path_to_frames']]
             else:
-                source_name = self.loaded_sources[sg['sg_path_to_frames']]
+                fk = urllib.quote_plus(sg['sg_path_to_frames'])
+                source_name = self.loaded_sources[fk]
             (num_plus, _) = source_name.split('_')
             mini_source_names.append(num_plus)
  
@@ -1237,7 +1238,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         #print "\nph: %r" % ph_version
         
         f = sg_item['version.Version.sg_path_to_frames']
-        source_name = self.loaded_sources[f]
+        fk = urllib.quote_plus(f)
+        source_name = self.loaded_sources[fk]
         sel_version = self.load_version_id_from_session(source_name)
         #print "sel: %r\n" % sel_version
         if sel_version:
