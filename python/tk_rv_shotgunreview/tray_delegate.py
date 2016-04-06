@@ -228,7 +228,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                 cur_row = 0
                 if mini_index:
                     cur_row = mini_index.row()
-                    if cur_row - 2 > model_index.row() or cur_row + 2 < model_index.row():
+                    if cur_row - self.tray_view.rv_mode._mini_before_shots > model_index.row() or cur_row + self.tray_view.rv_mode._mini_after_shots < model_index.row():
                         painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(0,0,0,127) )
 
 

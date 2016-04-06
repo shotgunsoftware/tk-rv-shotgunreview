@@ -166,27 +166,17 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         except Exception as e:
             print "ERROR: RV frameChanged EXCEPTION %r" % e
 
-    def sourcePath(self, event):
-        
+    def sourcePath(self, event):        
         print "################### sourcePath %r" % event
         # print event.contents()
         event.reject()
 
-    # why does cut_tracking from in contents?
     def graphStateChange(self, event):
-        # print "################### graphStateChange %r" % event
-        # print event.contents()
         event.reject()
         self.details_dirty = True
 
-    # this ASSUMES cut_tracking ALREADY EXISTS
     def sourceGroupComplete(self, event):
-        # this event shows up with some built in goodness in contents.
-        # below are some nice things i stole from Jon about how to 
-        # dig info out of whats there
         event.reject()
-
-        # sg_data = self.load_version_id_from_session()
 
         args         = event.contents().split(";;")
         # this source group was just created.
@@ -260,6 +250,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # RV specific
         # the current sequence node
         self.cut_seq_node = None
+        self.cut_seq_name = None
         self.loaded_sources = {}
         self._layout_node = None
         self.mod_seq_node = None
@@ -353,12 +344,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
-        
-        # self.tray_button_browse_cut.clicked.connect(self.on_browse_cut)
-        
+                
         self.tray_main_frame.tray_button_latest_pipeline.clicked.connect(self.load_sequence_with_versions)
-
-        # self.load_tray_with_cut_id(6)
 
         self.details_timer = QTimer(rv.qtutils.sessionWindow())
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
@@ -702,7 +689,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
     def on_entire_cut(self):
-        if self.no_cut_context:
+        if self.no_cut_context or not self.cut_seq_name:
             return
         #print "ON ENTIRE CUT"
 
@@ -740,7 +727,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     def on_mini_cut(self):
         if self.no_cut_context:
             return
-        # print "ON MINI CUT"
+        
+        if not self.tray_list.selectionModel().selectedIndexes():
+            self._app.engine.log_error("No shot selected for minicut.")
+            return
+
         self.mini_cut = True
         self.tray_list.mini_cut = True
 
@@ -1141,6 +1132,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     def tray_activated(self, index):
         print "Tray Activated! %r" % index
 
+    def get_mini_values(self):
+        self._mini_before_shots = self.tray_main_frame.mini_left_spinner.value()
+        self._mini_after_shots = self.tray_main_frame.mini_right_spinner.value()
+        print "MINI vals: %d %d" % (self._mini_before_shots, self._mini_after_shots)
+
     def load_mini_cut(self, index, shot_offset=0):
         print "load_mini_cut: %d %d" % ( index.row(), shot_offset )
         
@@ -1160,6 +1156,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         t = 1
         w = 0
         
+        self.get_mini_values()
+
         rs = max( 0, index.row() - self._mini_before_shots)
         re = min( index.row() + 1 + self._mini_after_shots, rows)
         shot_start = 0
@@ -1179,7 +1177,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             if 'version.Version.sg_path_to_frames' in sg:
                 fk = urllib.quote_plus(sg['version.Version.sg_path_to_frames'])
-                source_name = self.loaded_sources[sg['version.Version.sg_path_to_frames']]
+                source_name = self.loaded_sources[fk]
             else:
                 fk = urllib.quote_plus(sg['sg_path_to_frames'])
                 source_name = self.loaded_sources[fk]

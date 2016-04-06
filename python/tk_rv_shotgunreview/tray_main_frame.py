@@ -86,9 +86,24 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_mini_cut.setText('Mini Cut')
         self.tray_button_bar_hlayout.addWidget(self.tray_button_mini_cut)
 
-        self.tray_button_heads_and_tails = QtGui.QPushButton()
-        self.tray_button_heads_and_tails.setText('-2 2+')
-        self.tray_button_bar_hlayout.addWidget(self.tray_button_heads_and_tails)
+
+        self.mini_left_spinner = QtGui.QSpinBox()
+        self.mini_left_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.mini_left_spinner.setValue(2)
+        self.tray_button_bar_hlayout.addWidget(self.mini_left_spinner)
+
+        left_label = QtGui.QLabel()
+        left_label.setText('Before')
+        self.tray_button_bar_hlayout.addWidget(left_label)
+
+        self.mini_right_spinner = QtGui.QSpinBox()
+        self.mini_right_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.mini_right_spinner.setValue(2)
+        self.tray_button_bar_hlayout.addWidget(self.mini_right_spinner)
+
+        right_label = QtGui.QLabel()
+        right_label.setText('After')
+        self.tray_button_bar_hlayout.addWidget(right_label)
 
         self.tray_button_bar_hlayout.addStretch(1)
 

@@ -180,3 +180,18 @@ QPushButton:default {
     color: rgb(255,155,155);
     border: 1px solid rgb(30,30,55);
 }
+
+
+QSpinBox  {
+    padding: 0px;
+    border-radius: 0px;
+    background-color: rgb(27,27,27);
+    border: 1px inset rgb(42,42,42);
+    color: rgb(200, 200, 200);
+}
+
+QSpinBox:focus {
+    border: 1px solid rgb(42,42,42);
+    background-color: rgb(42,42,42);
+}
+
