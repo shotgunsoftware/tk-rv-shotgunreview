@@ -7,22 +7,18 @@ import os
 import math
 import rv
 import rv.qtutils
-# import sgtk
 import tank
-
 import json
+import urllib
 
 shotgun_view = tank.platform.import_framework("tk-framework-qtwidgets", "views")
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
-
 
 from .tray_delegate import RvTrayDelegate
 from .details_panel_widget import DetailsPanelWidget
 
 import sgtk
 
-# isnt it obvious, really?
-# there is something about this i dont get?
 def groupMemberOfType(node, memberType):
     for n in rv.commands.nodesInGroup(node):
         if rv.commands.nodeType(n) == memberType:
@@ -170,27 +166,17 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         except Exception as e:
             print "ERROR: RV frameChanged EXCEPTION %r" % e
 
-    def sourcePath(self, event):
-        
+    def sourcePath(self, event):        
         print "################### sourcePath %r" % event
         # print event.contents()
         event.reject()
 
-    # why does cut_tracking from in contents?
     def graphStateChange(self, event):
-        # print "################### graphStateChange %r" % event
-        # print event.contents()
         event.reject()
         self.details_dirty = True
 
-    # this ASSUMES cut_tracking ALREADY EXISTS
     def sourceGroupComplete(self, event):
-        # this event shows up with some built in goodness in contents.
-        # below are some nice things i stole from Jon about how to 
-        # dig info out of whats there
         event.reject()
-
-        # sg_data = self.load_version_id_from_session()
 
         args         = event.contents().split(";;")
         # this source group was just created.
@@ -249,7 +235,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.mini_cut = False
         self.detail_version_id = None
 
-        self._tray_height = 180
+        self._tray_height = 96
 
         self.last_mini_center = None
         self._mini_before_shots = 2
@@ -264,6 +250,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # RV specific
         # the current sequence node
         self.cut_seq_node = None
+        self.cut_seq_name = None
         self.loaded_sources = {}
         self._layout_node = None
         self.mod_seq_node = None
@@ -314,6 +301,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     ################################################################################### qt stuff down here. 
 
     def load_data(self, entity):
+        print "LOAD_DATA with %r" % entity
         self.version_id = entity['id']
         try:
             self.details_panel.load_data(entity)
@@ -332,7 +320,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         
         self._app.engine._apply_external_styleshet(self._app, self.details_panel)
 
-        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height))
+        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 60))
         
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame
@@ -356,15 +344,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
-        
-        self.tray_button_browse_cut.clicked.connect(self.on_browse_cut)
+                
         self.tray_main_frame.tray_button_latest_pipeline.clicked.connect(self.load_sequence_with_versions)
-
-        # self.load_tray_with_cut_id(6)
 
         self.details_timer = QTimer(rv.qtutils.sessionWindow())
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
         self.details_timer.start(1000)
+
+        self.create_related_cuts_menu(None)
 
 
     def on_browse_cut(self):
@@ -492,7 +479,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     source_name = self.loaded_sources[f]
                 else:
                     source_name = rv.commands.addSourceVerbose([f])
-                    self.loaded_sources[f] = source_name
+                    fk = urllib.quote_plus(f)
+                    self.loaded_sources[fk] = source_name
                 source_prop_name = ("%s.cut_support.json_sg_data") % source_name
 
                 group_name = rv.commands.nodeGroup(source_name)
@@ -584,12 +572,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 f =  'black,start=%d,end=%d.movieproc' % (sg['sg_first_frame'], sg['sg_last_frame'])
 
             try:
-                if f:    
-                    if f in self.loaded_sources:
-                        source_name = self.loaded_sources[f]
+                if f:
+                    fk = urllib.quote_plus(f)    
+                    if fk in self.loaded_sources:
+                        source_name = self.loaded_sources[fk]
                     else:
                         source_name = rv.commands.addSourceVerbose([f])
-                        self.loaded_sources[f] = source_name
+                        self.loaded_sources[fk] = source_name
                     group_name = rv.commands.nodeGroup(source_name)
                     rv.extra_commands.setUIName(source_name, sg['version.Version.code'])
                     rv.extra_commands.setUIName(group_name, sg['version.Version.code'])
@@ -700,7 +689,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
     def on_entire_cut(self):
-        if self.no_cut_context:
+        if self.no_cut_context or not self.cut_seq_name:
             return
         #print "ON ENTIRE CUT"
 
@@ -738,7 +727,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     def on_mini_cut(self):
         if self.no_cut_context:
             return
-        # print "ON MINI CUT"
+        
+        if not self.tray_list.selectionModel().selectedIndexes():
+            self._app.engine.log_error("No shot selected for minicut.")
+            return
+
         self.mini_cut = True
         self.tray_list.mini_cut = True
 
@@ -784,7 +777,29 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             end = sg['sg_last_frame']
         s = 'black,start=%d,end=%d.movieproc' % (start, end)
         return s
-            
+     
+
+    def createText(self, node, key, value, hpos, vpos):
+        rv.commands.newProperty('%s.position' % node, rv.commands.FloatType, 2)
+        rv.commands.newProperty('%s.color' % node, rv.commands.FloatType, 4)
+        rv.commands.newProperty('%s.spacing' % node, rv.commands.FloatType, 1)
+        rv.commands.newProperty('%s.size' % node, rv.commands.FloatType, 1)
+        rv.commands.newProperty('%s.scale' % node, rv.commands.FloatType, 1)
+        rv.commands.newProperty('%s.rotation' % node, rv.commands.FloatType, 1)
+        rv.commands.newProperty("%s.font" % node, rv.commands.StringType, 1)
+        rv.commands.newProperty("%s.text" % node, rv.commands.StringType, 1)
+        rv.commands.newProperty('%s.debug' % node, rv.commands.IntType, 1)
+
+        rv.commands.setFloatProperty('%s.position' % node, [ float(hpos), float(vpos) ], True)
+        rv.commands.setFloatProperty('%s.color' % node, [ 1.0, 1.0, 0.0, 1.0 ], True)
+        rv.commands.setFloatProperty('%s.spacing' % node, [ 1.0 ], True)
+        rv.commands.setFloatProperty('%s.size' % node, [ 0.003 ], True)
+        rv.commands.setFloatProperty('%s.scale' % node, [ 1.0 ], True)
+        rv.commands.setFloatProperty('%s.rotation' % node, [ 0.0 ], True)
+        rv.commands.setStringProperty("%s.font" % node, [""], True)
+        rv.commands.setStringProperty("%s.text" % node, ["%s: %s" % (key, value)], True)
+        rv.commands.setIntProperty('%s.debug' % node, [ 0 ], True)
+
 
     def set_session_prop(self, name, item):
         try:
@@ -813,6 +828,66 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 sg_dict[k] = sg_dict[s]
 
         return sg_dict
+
+    def handle_menu(self, action=None):
+        if action:
+            self.load_tray_with_cut_id(action.data()['id'])
+            print "STUFF %r" % action.data() 
+
+    def create_related_cuts_menu(self, entity_in):
+        # entity would be a cut?
+        entity = {}
+        entity['id'] = 6
+        entity['type'] = 'Cut'
+
+        results = []
+        try:
+            fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cuts.json")
+            f = open(fn, 'r')
+            results = json.load(f)
+            f.close() 
+        except Exception as e:
+            print e
+
+        menu = QtGui.QMenu(self.tray_button_browse_cut)
+        menu.triggered.connect(self.handle_menu)
+        action = QtGui.QAction(self.tray_button_browse_cut)
+        action.setText('Cuts for Sequence %s' % results[0]['entity']['name'])
+        menu.addAction(action)
+        menu.addSeparator()
+
+        #print results[0]['entity']
+        #print '=============='
+        #print results[0]['cuts']
+        last_menu = menu
+        for x in results[0]['cuts']:
+            #print x
+            #print '-------------'
+            action = QtGui.QAction(self.tray_button_browse_cut)
+            action.setText(x['code'])
+            en = {}
+            en['id'] = x['revisions'][0]['id']
+            en['type'] = 'Cut'
+            action.setData(en)
+            if len(x['revisions']) > 1:
+                last_menu = last_menu.addMenu(x['code'])
+                for n in x['revisions']:
+                    action = QtGui.QAction(self.tray_button_browse_cut)
+                    action.setText(n['cached_display_name'])
+                    en = {}
+                    en['id'] = n['id']
+                    en['type'] = 'Cut'
+                    action.setData(en)
+                    last_menu.addAction(action)
+                last_menu = menu
+            else:
+                last_menu = menu
+                last_menu.addAction(action)
+
+
+
+        self.tray_button_browse_cut.setMenu(menu)        
+
 
     # the way data from shotgun gets into the tray
     def on_data_refreshed(self, was_refreshed):
@@ -871,7 +946,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             f = sg_item['version.Version.sg_path_to_frames']
             #else:
             #    f = sg_item['sg_path_to_frames']
-            
+            was_black = False
             if not f:
                 vid = sg_item['version.Version.id']
                 if sg_item['cut.Cut.version']:
@@ -882,18 +957,25 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     f = v['version.Version.sg_path_to_movie']
 
                 f = 'black,start=%d,end=%d.movieproc' % (v['version.Version.sg_first_frame'], v['version.Version.sg_last_frame'])
-            
-            if f in self.loaded_sources:
-                    source_name = self.loaded_sources[f]
+                was_black = True
+            fk = urllib.quote_plus(f)
+            if fk in self.loaded_sources:
+                    source_name = self.loaded_sources[fk]
             else:
                 source_name = rv.commands.addSourceVerbose([f])
                 group_name = rv.commands.nodeGroup(source_name)
+                
                 if sg_item['version.Version.code']:
                     rv.extra_commands.setUIName(source_name, sg_item['version.Version.code'])
                     rv.extra_commands.setUIName(group_name, sg_item['version.Version.code'])
                 
-                self.loaded_sources[f] = source_name
-           
+                self.loaded_sources[fk] = source_name
+
+            if was_black:
+                was_black = False
+            #overlays = rv.extra_commands.associatedNodes("RVOverlay",source_name)
+            #self.createText(overlays[0], 'foo', 'bar', 100, 100)
+                
             source_prop_name = ("%s.cut_support.json_sg_data") % source_name
             try:
                 sg_item['ui_index'] = n
@@ -1050,6 +1132,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     def tray_activated(self, index):
         print "Tray Activated! %r" % index
 
+    def get_mini_values(self):
+        self._mini_before_shots = self.tray_main_frame.mini_left_spinner.value()
+        self._mini_after_shots = self.tray_main_frame.mini_right_spinner.value()
+        print "MINI vals: %d %d" % (self._mini_before_shots, self._mini_after_shots)
+
     def load_mini_cut(self, index, shot_offset=0):
         print "load_mini_cut: %d %d" % ( index.row(), shot_offset )
         
@@ -1069,6 +1156,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         t = 1
         w = 0
         
+        self.get_mini_values()
+
         rs = max( 0, index.row() - self._mini_before_shots)
         re = min( index.row() + 1 + self._mini_after_shots, rows)
         shot_start = 0
@@ -1087,9 +1176,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
             if 'version.Version.sg_path_to_frames' in sg:
-                source_name = self.loaded_sources[sg['version.Version.sg_path_to_frames']]
+                fk = urllib.quote_plus(sg['version.Version.sg_path_to_frames'])
+                source_name = self.loaded_sources[fk]
             else:
-                source_name = self.loaded_sources[sg['sg_path_to_frames']]
+                fk = urllib.quote_plus(sg['sg_path_to_frames'])
+                source_name = self.loaded_sources[fk]
             (num_plus, _) = source_name.split('_')
             mini_source_names.append(num_plus)
  
@@ -1145,7 +1236,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         #print "\nph: %r" % ph_version
         
         f = sg_item['version.Version.sg_path_to_frames']
-        source_name = self.loaded_sources[f]
+        fk = urllib.quote_plus(f)
+        source_name = self.loaded_sources[fk]
         sel_version = self.load_version_id_from_session(source_name)
         #print "sel: %r\n" % sel_version
         if sel_version:
