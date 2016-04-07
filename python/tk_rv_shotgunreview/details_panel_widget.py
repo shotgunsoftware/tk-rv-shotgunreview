@@ -62,6 +62,7 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         self._pinned = False
         self._requested_entity = None
+        self._current_entity = None
 
         self.ui = Ui_DetailsPanelWidget() 
         self.ui.setupUi(self)
@@ -197,6 +198,7 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         # If we're pinned, then we don't allow loading new entities.
         if not self._pinned:
+            self._current_entity = entity
             self.ui.note_stream_widget.load_data(entity)
 
             shot_filters = [["id", "is", entity["id"]]]
@@ -407,7 +409,10 @@ class DetailsPanelWidget(QtGui.QWidget):
         Triggers an RV event instructing the mode running as part of
         the SG Review app to trigger RV's native frame capture routine.
         """
-        rv.commands.sendInternalEvent("new_note_screenshot", "")
+        rv.commands.sendInternalEvent(
+            "new_note_screenshot",
+            json.dumps(self._current_entity),
+        )
 
     ##########################################################################
     # version list actions
