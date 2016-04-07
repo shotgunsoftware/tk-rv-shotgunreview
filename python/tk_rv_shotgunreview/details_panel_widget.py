@@ -89,13 +89,6 @@ class DetailsPanelWidget(QtGui.QWidget):
         )
         self._shotgun_field_manager.initialize()
 
-        self.version_delegate = ListItemDelegate(
-            parent=self.ui.entity_version_view,
-            fields=["code", "user","sg_status_list"],
-            shotgun_field_manager=self._shotgun_field_manager,
-            label_exempt_fields=["code"],
-        )
-
         # These are the minimum required fields that we need
         # in order to draw all of our widgets with default settings.
         self._fields = [
@@ -128,6 +121,12 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         self.version_model = shotgun_model.SimpleShotgunModel(self.ui.entity_version_tab)
         self.ui.entity_version_view.setModel(self.version_model)
+        self.version_delegate = ListItemDelegate(
+            view=self.ui.entity_version_view,
+            fields=["code", "user","sg_status_list"],
+            shotgun_field_manager=self._shotgun_field_manager,
+            label_exempt_fields=["code"],
+        )
         self.ui.entity_version_view.setItemDelegate(self.version_delegate)
         self.ui.note_stream_widget.set_bg_task_manager(self._task_manager)
         self.ui.note_stream_widget.show_sg_stream_button = False
@@ -154,7 +153,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.shotgun_nav_button.clicked.connect(
             self.ui.note_stream_widget._load_shotgun_activity_stream
         )
-        self.ui.entity_version_view.clicked.connect(self._select_version_item)
+
         self.ui.entity_version_view.customContextMenuRequested.connect(self._show_version_context_menu)
 
         # The fields menu attached to the "More fields..." button
@@ -304,21 +303,6 @@ class DetailsPanelWidget(QtGui.QWidget):
         selection_model = self.ui.entity_version_view.selectionModel()
         indexes = selection_model.selectedIndexes()
         return [shotgun_model.get_sg_data(i) for i in indexes]
-
-    def _select_version_item(self, index):
-        """
-        Causes the widget at the given index to be treated and repainted
-        as the selected item in the version list.
-
-        :param index:   The QModelIndex to select.
-        """
-        self.ui.entity_version_view.setCurrentIndex(index)
-        self.ui.entity_version_view.selectionModel().select(
-            index,
-            self.ui.entity_version_view.selectionModel().ClearAndSelect,
-        )
-        self.version_delegate._get_painter_widget(index, None).set_selected(True)
-        self.ui.entity_version_view.repaint()
 
     def _set_pinned(self, checked):
         """

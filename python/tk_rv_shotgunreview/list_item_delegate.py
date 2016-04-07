@@ -23,14 +23,14 @@ shotgun_model = tank.platform.import_framework(
     "shotgun_model",
 )
 
-class ListItemDelegate(shotgun_view.WidgetDelegate):
+class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
     def __init__(
-        self, parent, fields=None, show_labels=True, show_borders=True, 
+        self, view, fields=None, show_labels=True, show_borders=True, 
         shotgun_field_manager=None, label_exempt_fields=None, **kwargs):
         """
         Constructs a new ListItemDelegate.
 
-        :param parent:                  The delegate's parent widget.
+        :param view:                    The parent view for this delegate.
         :param fields:                  A list of Shotgun entity fields to be displayed.
         :param show_labels:             Whether to show labels for the fields being displayed.
         :param show_borders:            Whether to draw borders around each item.
@@ -39,7 +39,7 @@ class ListItemDelegate(shotgun_view.WidgetDelegate):
         :param label_exempt_fields:     A list of field names that are exempt from having
                                         labels displayed.
         """
-        shotgun_view.WidgetDelegate.__init__(self, parent, **kwargs)
+        shotgun_view.EditSelectedWidgetDelegate.__init__(self, view)
         
         self._widget_cache = dict()
         self._fields = fields
@@ -51,6 +51,12 @@ class ListItemDelegate(shotgun_view.WidgetDelegate):
     def _create_widget(self, parent):
         """
         Returns the widget to be used when creating items.
+
+        :param parent:  QWidget to parent the widget to
+        :type parent:   :class:`~PySide.QtGui.QWidget`
+        
+        :returns:       QWidget that will be used to paint grid cells in the view.
+        :rtype:         :class:`~PySide.QtGui.QWidget` 
         """
         return ListItemWidget(
             parent=parent,
@@ -67,6 +73,13 @@ class ListItemDelegate(shotgun_view.WidgetDelegate):
         a widget has already been instantiated for this model index, that
         widget will be reused, otherwise a new widget will be instantiated
         and cached.
+
+        :param model_index: The index of the item in the model to return a widget for
+        :type model_index:  :class:`~PySide.QtCore.QModelIndex`
+        :param parent:      The parent view that the widget should be parented to
+        :type parent:       :class:`~PySide.QtGui.QWidget`
+        :returns:           A QWidget to be used for painting the current index
+        :rtype:             :class:`~PySide.QtGui.QWidget`
         """
         if model_index in self._widget_cache:
             return self._widget_cache[model_index]
@@ -79,6 +92,18 @@ class ListItemDelegate(shotgun_view.WidgetDelegate):
     def _create_editor_widget(self, model_index, style_options, parent):
         """
         Called when a cell is being edited.
+
+        :param model_index:     The index of the item in the model to return a widget for
+        :type model_index:      :class:`~PySide.QtCore.QModelIndex`
+        
+        :param style_options:   Specifies the current Qt style options for this index
+        :type style_options:    :class:`~PySide.QtGui.QStyleOptionViewItem`
+        
+        :param parent:          The parent view that the widget should be parented to
+        :type parent:           :class:`~PySide.QtGui.QWidget`
+        
+        :returns:               A QWidget to be used for editing the current index
+        :rtype:                 :class:`~PySide.QtGui.QWidget`
         """
         widget = self._create_widget(parent)
         self._on_before_paint(widget, model_index, style_options)
@@ -87,23 +112,38 @@ class ListItemDelegate(shotgun_view.WidgetDelegate):
     def _on_before_paint(self, widget, model_index, style_options):
         """
         Called when a cell is being painted.
+
+        :param widget: The QWidget (constructed in _create_widget()) which will 
+                       be used to paint the cell. 
+        :type parent:  :class:`~PySide.QtGui.QWidget`
+        
+        :param model_index: QModelIndex object representing the data of the object that is 
+                            about to be drawn.
+        :type model_index:  :class:`~PySide.QtCore.QModelIndex`
+        
+        :param style_options: object containing specifics about the 
+                              view related state of the cell.
+        :type style_options:    :class:`~PySide.QtGui.QStyleOptionViewItem`
         """
-        # get the shotgun query data for this model item     
+        # Get the shotgun query data for this model item.     
         sg_item = shotgun_model.get_sg_data(model_index)
         widget.set_entity(sg_item)
 
-    def _on_before_selection(self, widget, model_index, style_options):
-        """
-        Called when a cell is being selected.
-        """
-        # do std drawing first
-        self._on_before_paint(widget, model_index, style_options)        
-        widget.set_selected(True)        
+        if model_index in self.selection_model.selectedIndexes():
+            widget.set_selected(True)
+        else:
+            widget.set_selected(False)     
 
     def sizeHint(self, style_options, model_index):
         """
         Base the size on the number of entity fields to be displayed. This
         number will affect the height component of the size hint.
+
+        :param style_options:   Specifies the current Qt style options for this index.
+        :type style_options:    :class:`~PySide.QtGui.QStyleOptionViewItem`
+
+        :param model_index:     The index of the item in the model.
+        :type model_index:      :class:`~PySide.QtCore.QModelIndex`
         """
         return ListItemWidget.calculate_size(len(self._fields))
 
