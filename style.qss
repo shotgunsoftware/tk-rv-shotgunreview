@@ -10,32 +10,39 @@ agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
 not expressly granted therein are reserved by Shotgun Software Inc.
 */
 
+QWidget { 
+    font-family: Proxima Nova; 
+    background: rgb(37,38,41); 
+    color: rgb(126,127,129); 
+    border-color: rgb(37,38,41);
+    margin: 0px;
+    padding: 0px;
+}
 
 /* Get rid of borders for main Listing Views */
 QListView, QTableView, QScrollArea {
     border: none;
+    background: rgb(37,38,41);
 }
 
 
 /****************************************************************/
 /* Main tab section                                             */
 
-QTabWidget::tab-bar {
-    alignment: center;
-    border: 2px solid rgb(236,38,41);
-}
-
-QTabWidget::pane {
-    border-top: 2px solid rgb(66,67,69);
-    padding-top: 8px;
-}
-
 /* Style the tab using the tab sub-control. 
    Note that it reads QTabBar _not_ QTabWidget */
-QTabBar::tab {
-    border: 2px solid rgb(36,38,41);
+QTabBar {
+    border: none;
     alignment: center;
-    background: rgb(36,38,41);
+    background: transparent;
+    margin: 4px;
+    color: rgb(126,127,129);
+}
+
+QTabBar::tab {
+    border: none;
+    alignment: center;
+    background: transparent;
     margin: 4px;
     color: rgb(126,127,129);
 }
@@ -53,6 +60,10 @@ QToolButton#more_info_button:hover {
 }
 
 QToolButton#more_fields_button:hover {
+    color: {{SG_HIGHLIGHT_COLOR}};
+}
+
+QToolButton#version_fields_button:hover {
     color: {{SG_HIGHLIGHT_COLOR}};
 }
 

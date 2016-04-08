@@ -944,6 +944,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             #if 'version.Version.sg_path_to_frames' in sg_item:
             f = sg_item['version.Version.sg_path_to_frames']
+            print f
             #else:
             #    f = sg_item['sg_path_to_frames']
             was_black = False

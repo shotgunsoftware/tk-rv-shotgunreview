@@ -1,10 +1,21 @@
-QWidget { 
-    font-family: Proxima Nova; 
-    background: rgb(36,38,41); 
-    color: rgb(126,127,129);
-} 
-QDockWidget::title { 
-    background: rgb(36,38,41); 
-    color: rgb(126,127,129); 
-    padding: 8px; border: 0px;
+
+
+QToolButton {
+    border: none;
+    background: transparent;
 }
+
+QDockWidget {
+    padding: 0px; 
+    margin: 0px;
+    color: rgb(126,127,129); 
+    background: rgb(36,38,41); 
+}
+
+QDockWidget::title {
+    background: rgb(37,38,41); 
+    color: rgb(126,127,129); 
+    text-align: center;
+}
+
+
