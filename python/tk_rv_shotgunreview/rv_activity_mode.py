@@ -65,7 +65,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 print "ERROR: NO PROP NAMED %s" % source_name
         return None
 
-    # RV Evenets
+    # RV Events
 
     def replaceWithSelected(self, event):
         s = copy.copy(event.contents())
@@ -289,8 +289,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     ("_", None)]
                 )],
                 None);
-
-        
+       
     def activate(self):
         rv.rvtypes.MinorMode.activate(self)
 
@@ -353,8 +352,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
         self.details_timer.start(1000)
 
-        self.create_related_cuts_menu(None)
-
+        # self.create_related_cuts_menu(None)
 
     def on_browse_cut(self):
         # forcing a test....
@@ -385,7 +383,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self._app.engine.log_error('no version for id %r' % id)
             return None
         return self.convert_sg_dict(version)
-
 
     def on_id_from_gma(self, event):
         print "on_id_from_gma %r" % event.contents()
@@ -483,7 +480,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     source_name = self.loaded_sources[f]
                 else:
                     source_name = rv.commands.addSourceVerbose([f])
-                    fk = urllib.quote_plus(f)
+                    fk = version['version.Version.id']
+                    #fk = urllib.quote_plus(f)
                     self.loaded_sources[fk] = source_name
                 source_prop_name = ("%s.cut_support.json_sg_data") % source_name
 
@@ -548,7 +546,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.load_data(versions[0])
         self.tray_list.repaint()
 
-
     def load_sequence_with_versions(self, vlist):
         print "load_sequence_with_versions:" #" %r" % vlist
         
@@ -577,7 +574,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             try:
                 if f:
-                    fk = urllib.quote_plus(f)    
+                    fk = sg_item['version.Version.id']
+                    # fk = urllib.quote_plus(f)    
                     if fk in self.loaded_sources:
                         source_name = self.loaded_sources[fk]
                     else:
@@ -667,7 +665,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                         'playlists']
         self.tray_model.load_data(entity_type="Version", filters=plist_filters, fields=plist_fields)
 
-
     def load_tray_with_cut_id(self, cut_id=None):
         if cut_id:
             self.tray_cut_id = cut_id
@@ -693,7 +690,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         
         if self.mini_cut:
             self.on_entire_cut()
-
 
     def request_cuts_from_entity(self, conditions):
         if not self.project_entity:
@@ -766,7 +762,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
  
         self.tray_list.repaint()
 
-
     def on_mini_cut(self):
         if self.no_cut_context:
             return
@@ -793,7 +788,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
 
         self.tray_list.repaint()
-
 
     def on_cache_loaded(self):
         pass
@@ -832,7 +826,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
  
         return s
      
-
     def createText(self, node, key, value, hpos, vpos):
         rv.commands.newProperty('%s.position' % node, rv.commands.FloatType, 2)
         rv.commands.newProperty('%s.color' % node, rv.commands.FloatType, 4)
@@ -853,7 +846,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.commands.setStringProperty("%s.font" % node, [""], True)
         rv.commands.setStringProperty("%s.text" % node, ["%s: %s" % (key, value)], True)
         rv.commands.setIntProperty('%s.debug' % node, [ 0 ], True)
-
 
     def set_session_prop(self, name, item):
         try:
@@ -947,7 +939,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         self.tray_button_browse_cut.setMenu(menu)        
 
-
     # the way data from shotgun gets into the tray
     def on_data_refreshed(self, was_refreshed):
         self.swapped_sources = None
@@ -955,6 +946,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         v_id = -1
         # first see if we have a selection
+
         cur_index = self.tray_list.currentIndex()
         if cur_index:
             sg_item = shotgun_model.get_sg_data(cur_index)
@@ -963,7 +955,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         self.tray_proxyModel.sort(0, QtCore.Qt.AscendingOrder)
         rows = self.tray_proxyModel.rowCount()
-
  
         if rows < 1:
             self._app.engine.log_error('Query returned no rows.')
@@ -980,6 +971,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         tray_seq_name = None
         final_selection = None
+
         cut_items = []
         cutitem_keys = ["cut_item_in", "cut_item_out", "cut_order", "edit_in", "edit_out", "id", "code"]
 
@@ -992,9 +984,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             sg_item = self.convert_sg_dict(sg_item)
             if not self.project_entity:
                 self.project_entity = sg_item['cut.Cut.project']
-            #print "PROJECT: %r" % sg_item['cut.Cut.project']
                        
-            # removing keys we want on the source node
+            # finding keys we want on the source node
             if 'cut_item_in' in sg_item:
                 cutitem_dict = dict ( [(k, sg_item[k]) for k in cutitem_keys])
                 cut_items.append(cutitem_dict)
@@ -1002,26 +993,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             if self.version_swap_out:
                 if cutitem_dict['id'] == self.version_swap_out['cutitem_id']:
                     # update sg_item with new fields.
-                    # crap if version.Version is in there we need to map to that
                     tmp_dict = self.convert_sg_dict(self.version_swap_out)
                     for k in tmp_dict:
                         sg_item[k] = tmp_dict[k]
 
             f = self.get_media_path(sg_item)
-
-            was_black = False
-            if not f:
-                vid = sg_item['version.Version.id']
-                if sg_item['cut.Cut.version']:
-                    vid = sg_item['cut.Cut.version']['id']
-                                  
-                v = self.get_version_from_id(vid)
-                if v['version.Version.sg_path_to_movie']:
-                    f = v['version.Version.sg_path_to_movie']
-
-                f = 'black,start=%d,end=%d.movieproc' % (v['version.Version.sg_first_frame'], v['version.Version.sg_last_frame'])
-                was_black = True
-            fk = urllib.quote_plus(f)
+            #fk = urllib.quote_plus(f)
+            fk = sg_item['version.Version.id']
             if fk in self.loaded_sources:
                     source_name = self.loaded_sources[fk]
             else:
@@ -1034,8 +1012,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 
                 self.loaded_sources[fk] = source_name
 
-            if was_black:
-                was_black = False
             #overlays = rv.extra_commands.associatedNodes("RVOverlay",source_name)
             #self.createText(overlays[0], 'foo', 'bar', 100, 100)
                 
@@ -1083,10 +1059,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self._app.engine.log_error('SG_ITEM is null.')
             return
 
+        # what name should i use here?
         if 'cut.Cut.code' in sg_item:
-            tray_seq_name = sg_item['cut.Cut.code']
-            if sg_item['cut.Cut.revision_numnber'] > 1:
-                tray_seq_name = "%s_%04d" % (sg_item['cut.Cut.code'], sg_item['cut.Cut.revision_numnber'])
+            tray_seq_name = sg_item['cut.Cut.cached_display_name']
+#            if sg_item['cut.Cut.revision_numnber'] > 1:
+#                tray_seq_name = "%s_%04d" % (sg_item['cut.Cut.code'], sg_item['cut.Cut.revision_numnber'])
         
         self.rv_source_nums.append(0)
         self.rv_ins.append(0)
@@ -1132,7 +1109,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if not rv.commands.propertyExists(k):
             rv.commands.newProperty(k, rv.commands.StringType, 1)
         rv.commands.setStringProperty(k, [self._app.tank.shotgun_url], True)
-
                 
         rv.commands.setIntProperty('%s.edl.source' % self.cut_seq_name, self.rv_source_nums, True)
         rv.commands.setIntProperty('%s.edl.frame' % self.cut_seq_name, self.rv_frames, True)
@@ -1151,17 +1127,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             zero_index = self.tray_model.createIndex(0, 0)
             self.tray_list.selectionModel().select(zero_index, self.tray_list.selectionModel().ClearAndSelect)
         
-        # rv.commands.fullScreenMode(True)
-
-        self.tray_list.scrollTo(item, QtGui.QAbstractItemView.EnsureVisible)
+        self.tray_list.scrollTo(self.tray_proxyModel.index(0, 0), QtGui.QAbstractItemView.EnsureVisible)
         self.load_version_id_from_session()
 
         seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
         if not rv.commands.propertyExists(seq_pinned_name):
             rv.commands.newProperty(seq_pinned_name, rv.commands.IntType, 1)
         rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
-        
-    
+           
     def tray_double_clicked(self, index):
         sg_item = shotgun_model.get_sg_data(index)
         single_source = []
@@ -1191,9 +1164,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.commands.setViewNode(self.cut_seq)
         rv.commands.setFrame(1)
         rv.commands.play()
-
-    # def tray_activated(self, index):
-    #     print "Tray Activated! %r" % index
 
     def get_mini_values(self):
         self._mini_before_shots = self.tray_main_frame.mini_left_spinner.value()
@@ -1238,7 +1208,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                         sg[k] = tmp_dict[k]
 
             f = self.get_media_path(sg)
-            fk = urllib.quote_plus(f)
+            # fk = urllib.quote_plus(f)
+            fk = sg['version.Version.id']
             source_name = self.loaded_sources[fk]
 
             (num_plus, _) = source_name.split('_')
@@ -1296,7 +1267,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         #print "\nph: %r" % ph_version
         
         f = self.get_media_path(sg_item)
-        fk = urllib.quote_plus(f)
+        fk = sg_item['version.Version.id']
+        # fk = urllib.quote_plus(f)
         source_name = self.loaded_sources[fk]
         sel_version = self.load_version_id_from_session(source_name)
         #print "sel: %r\n" % sel_version
