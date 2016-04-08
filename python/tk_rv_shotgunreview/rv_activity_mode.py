@@ -260,7 +260,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         self.version_id = -1
         self.entity_from_gma = None
-
+        self.project_entity = None
 
         # models for ad-hoc queries
         self._shot_model = shotgun_model.SimpleShotgunModel(rv.qtutils.sessionWindow())
@@ -339,7 +339,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_model.data_refreshed.connect(self.on_data_refreshed)
         self.tray_model.cache_loaded.connect(self.on_cache_loaded)
         self.tray_list.clicked.connect(self.tray_clicked)
-        self.tray_list.activated.connect(self.tray_activated)
+        
+        #self.tray_list.activated.connect(self.tray_activated)
+        
         self.tray_list.doubleClicked.connect(self.tray_double_clicked)
 
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
@@ -379,7 +381,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         ]
         # get the version info we need
         version  = self._bundle.shotgun.find_one("Version", [["id", "is", id]], v_fields)
-
+        if not version:
+            self._app.engine.log_error('no version for id %r' % id)
+            return None
         return self.convert_sg_dict(version)
 
 
@@ -469,7 +473,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             if 'ui_index' not in ph_version:
                 self._app.engine.log_error('ui_index missing from %r' % ph_version)
 
-            f = version['version.Version.sg_path_to_frames']
+            f = self.get_media_path(version)
 
             try:
                 if not f:
@@ -566,7 +570,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         for sgd in vlist:
             sg = self.convert_sg_dict(sgd)
             sg['pinned'] = 1
-            f = sg['version.Version.sg_path_to_frames']
+            f = self.get_media_path(sg)
 
             if not f:
                 f =  'black,start=%d,end=%d.movieproc' % (sg['sg_first_frame'], sg['sg_last_frame'])
@@ -668,6 +672,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if cut_id:
             self.tray_cut_id = cut_id
         
+        # we need to know the project id to make the menus happen,
+
         tray_filters = [ ['cut','is', {'type':'Cut', 'id': self.tray_cut_id }] ]
 
         tray_fields= ["cut_item_in", "cut_item_out", "cut_order",
@@ -679,7 +685,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 "version.Version.sg_frames_has_slate", "version.Version.image",
                 "version.Version.code",
                 "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
-                "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.Version", "cut.Cut.revision_numnber"]
+                "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.Version", "cut.Cut.revision_numnber",
+                "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project"]
 
         orders = [{'field_name':'cut_order','direction':'asc'}]
         self.tray_model.load_data(entity_type="CutItem", filters=tray_filters, fields=tray_fields, order=orders)
@@ -687,6 +694,42 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if self.mini_cut:
             self.on_entire_cut()
 
+
+    def request_cuts_from_entity(self, conditions):
+        if not self.project_entity:
+            self._app.engine.log_error('project entity does not exist!')
+            return
+
+        cuts = self._bundle.shotgun.find('Cut',
+                        filters=[conditions,['project', 'is', { 'id': self.project_entity['id'], 'type': 'Project' } ]],
+                        fields=['id', 'entity', 'code', 'cached_display_name'],
+                        order=[{'field_name': 'entity', 'direction': 'asc'}, {'field_name': 'code', 'direction': 'asc'}, {'field_name': 'cached_display_name', 'direction': 'asc'}])
+
+        last_entity_group = -1
+        groups = []
+
+        for cut in cuts:
+            cut_id = cut.get('id')
+            cut_code = cut.get('code')
+            cut_name = cut.get('cached_display_name')
+            cut_entity = cut.get('entity')
+
+            if (last_entity_group == -1) or (groups[last_entity_group].get('entity') != cut_entity):
+                last_entity_group = last_entity_group+1
+                last_cut_group = -1
+                groups.append( { 'entity': cut_entity, 'cuts': [] } )
+
+            cuts = groups[last_entity_group].get('cuts')
+
+            if (last_cut_group == -1) or ( cuts[last_cut_group].get('code') != cut_code ):
+                last_cut_group = last_cut_group + 1
+                cuts.append( { 'code': cut_code, 'revisions': [] } )
+
+            revisions = cuts[last_cut_group].get('revisions')
+
+            revisions.append( { 'id': cut_id, 'cached_display_name': cut_name } )
+
+        return groups
 
     def on_entire_cut(self):
         if self.no_cut_context or not self.cut_seq_name:
@@ -757,25 +800,36 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         #print "CACHE LOADED."
 
     def get_media_path(self, sg):
+        if not sg:
+            self._app.engine.log_error("%r passed into get_media_path." % sg)
+            return None
+
         if 'version.Version.sg_path_to_frames' not in sg:
             sg = self.convert_sg_dict(sg)
+        
         # prefer frames
         if sg['version.Version.sg_path_to_frames']:
             return sg['version.Version.sg_path_to_frames']
         if sg['version.Version.sg_path_to_movie']:
             return sg['version.Version.sg_path_to_movie']
+ 
+        # if theres a cut_item_in use that? 
+        if 'cut_item_in' in sg:
+            s = 'black,start=%d,end=%d.movieproc' % (sg['cut_item_in'], sg['cut_item_out'])
+            return s
+
         start = 0
         
-        if sg['sg_first_frame']:
-            start = sg['sg_first_frame']
-        else:
-            start = sg['edit_in']
+        if sg['version.Version.sg_first_frame']:
+            start = sg['version.Version.sg_first_frame']
+ 
         end = 1
-        if sg['sg_last_frame']:
-            end = sg['sg_last_frame']
-        else:
-            end = sg['sg_last_frame']
+ 
+        if sg['version.Version.sg_last_frame']:
+            end = sg['version.Version.sg_last_frame']
+ 
         s = 'black,start=%d,end=%d.movieproc' % (start, end)
+ 
         return s
      
 
@@ -811,21 +865,26 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             print "ERROR: set_session_prop %r" % e
 
     def convert_sg_dict(self, sg_dict):
-        if 'version.Version.sg_path_to_frames' in sg_dict:
+        if not sg_dict:
+            self._app.engine.log_error('EMPTY dict passed to convert_sg_dict.')
             return sg_dict
 
-        f = [   "version.Version.sg_path_to_frames", "version.Version.id",
-                "version.Version.sg_first_frame", "version.Version.sg_last_frame",
-                "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
-                "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
-                "version.Version.sg_frames_has_slate", "version.Version.image", "version.Version.code",
-                "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
-            ]
+        if not 'version.Version.sg_path_to_frames' in sg_dict:
 
-        for k in f:
-            s = k.replace('version.Version.', '')
-            if s in sg_dict:
-                sg_dict[k] = sg_dict[s]
+            f = [   "version.Version.sg_path_to_frames", "version.Version.id",
+                    "version.Version.sg_first_frame", "version.Version.sg_last_frame",
+                    "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
+                    "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
+                    "version.Version.sg_frames_has_slate", "version.Version.image", "version.Version.code",
+                    "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
+                ]
+
+            for k in f:
+                s = k.replace('version.Version.', '')
+                if s in sg_dict:
+                    sg_dict[k] = sg_dict[s]
+
+        # check for missing media
 
         return sg_dict
 
@@ -892,6 +951,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     # the way data from shotgun gets into the tray
     def on_data_refreshed(self, was_refreshed):
         self.swapped_sources = None
+        self.project_entity = None
 
         v_id = -1
         # first see if we have a selection
@@ -904,6 +964,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_proxyModel.sort(0, QtCore.Qt.AscendingOrder)
         rows = self.tray_proxyModel.rowCount()
 
+ 
         if rows < 1:
             self._app.engine.log_error('Query returned no rows.')
             return
@@ -926,9 +987,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             item = self.tray_proxyModel.index(x, 0)
             sg_item = shotgun_model.get_sg_data(item)
             if not sg_item:
-                print "WOW what do I do when there is no data at all for item %d" % item.row()
-            sg_item = self.convert_sg_dict(sg_item)
+                self._app.engine.log_error("What do I do when there is no data at all for item %d" % item.row())
             
+            sg_item = self.convert_sg_dict(sg_item)
+            if not self.project_entity:
+                self.project_entity = sg_item['cut.Cut.project']
+            #print "PROJECT: %r" % sg_item['cut.Cut.project']
+                       
             # removing keys we want on the source node
             if 'cut_item_in' in sg_item:
                 cutitem_dict = dict ( [(k, sg_item[k]) for k in cutitem_keys])
@@ -942,10 +1007,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     for k in tmp_dict:
                         sg_item[k] = tmp_dict[k]
 
-            #if 'version.Version.sg_path_to_frames' in sg_item:
-            f = sg_item['version.Version.sg_path_to_frames']
-            #else:
-            #    f = sg_item['sg_path_to_frames']
+            f = self.get_media_path(sg_item)
+
             was_black = False
             if not f:
                 vid = sg_item['version.Version.id']
@@ -1129,8 +1192,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.commands.setFrame(1)
         rv.commands.play()
 
-    def tray_activated(self, index):
-        print "Tray Activated! %r" % index
+    # def tray_activated(self, index):
+    #     print "Tray Activated! %r" % index
 
     def get_mini_values(self):
         self._mini_before_shots = self.tray_main_frame.mini_left_spinner.value()
@@ -1174,13 +1237,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     for k in tmp_dict:
                         sg[k] = tmp_dict[k]
 
+            f = self.get_media_path(sg)
+            fk = urllib.quote_plus(f)
+            source_name = self.loaded_sources[fk]
 
-            if 'version.Version.sg_path_to_frames' in sg:
-                fk = urllib.quote_plus(sg['version.Version.sg_path_to_frames'])
-                source_name = self.loaded_sources[fk]
-            else:
-                fk = urllib.quote_plus(sg['sg_path_to_frames'])
-                source_name = self.loaded_sources[fk]
             (num_plus, _) = source_name.split('_')
             mini_source_names.append(num_plus)
  
@@ -1235,7 +1295,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         #print "CLICK"
         #print "\nph: %r" % ph_version
         
-        f = sg_item['version.Version.sg_path_to_frames']
+        f = self.get_media_path(sg_item)
         fk = urllib.quote_plus(f)
         source_name = self.loaded_sources[fk]
         sel_version = self.load_version_id_from_session(source_name)

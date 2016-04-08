@@ -65,7 +65,6 @@ class TrayModel(SimpleShotgunModel):
 
         data = item.data(self.SG_ASSOCIATED_FIELD_ROLE)
         field = data["name"]
-        print "SGDATA: %r" % sg_item
         if isinstance(sg_item[field], dict) and "type" in sg_item[field]:
             # This is scenario 1 described above.
             item.setToolTip(
