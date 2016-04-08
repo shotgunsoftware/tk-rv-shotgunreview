@@ -775,13 +775,16 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if self.mini_cut:
             self.on_entire_cut()
 
-    def request_cuts_from_entity(self, conditions):
+    def request_cuts_from_entity(self, entity):
+        print 'request_cuts_from_entity: %r' % entity
+        # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
+        
         if not self.project_entity:
             self._app.engine.log_error('project entity does not exist!')
-            return
+            return None
 
         cuts = self._bundle.shotgun.find('Cut',
-                        filters=[conditions,['project', 'is', { 'id': self.project_entity['id'], 'type': 'Project' } ]],
+                        filters=[ ['entity', 'is', entity], ['project', 'is', { 'id': self.project_entity['id'], 'type': 'Project' } ]],
                         fields=['id', 'entity', 'code', 'cached_display_name'],
                         order=[{'field_name': 'entity', 'direction': 'asc'}, {'field_name': 'code', 'direction': 'asc'}, {'field_name': 'cached_display_name', 'direction': 'asc'}])
 
@@ -970,24 +973,26 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             print "STUFF %r" % action.data() 
 
     def create_related_cuts_menu(self, entity_in):
+        print "create_related_cuts_menu: %r" % entity_in
         # entity would be a cut?
-        entity = {}
-        entity['id'] = 6
-        entity['type'] = 'Cut'
+        # entity = {}
+        # entity['id'] = 6
+        # entity['type'] = 'Cut'
 
-        results = []
-        try:
-            fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cuts.json")
-            f = open(fn, 'r')
-            results = json.load(f)
-            f.close() 
-        except Exception as e:
-            print e
+        results = self.request_cuts_from_entity(entity_in)
+
+        # try:
+        #     fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cuts.json")
+        #     f = open(fn, 'r')
+        #     results = json.load(f)
+        #     f.close() 
+        # except Exception as e:
+        #     print e
 
         menu = QtGui.QMenu(self.tray_button_browse_cut)
         menu.triggered.connect(self.handle_menu)
         action = QtGui.QAction(self.tray_button_browse_cut)
-        action.setText('Cuts for Sequence %s' % results[0]['entity']['name'])
+        action.setText('Related Cuts')
         menu.addAction(action)
         menu.addSeparator()
 
@@ -1218,6 +1223,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if not rv.commands.propertyExists(seq_pinned_name):
             rv.commands.newProperty(seq_pinned_name, rv.commands.IntType, 1)
         rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
+
+        self.create_related_cuts_menu(sg_item['cut.Cut.entity'])
            
     def tray_double_clicked(self, index):
         sg_item = shotgun_model.get_sg_data(index)
