@@ -120,11 +120,20 @@ class DetailsPanelWidget(QtGui.QWidget):
             "entity",
         ]
 
+        # The fields list for the Version list view delegate operate
+        # the same way as the above persistent list. We're simply
+        # keeping track of what we don't allow to be turned off.
+        self._version_list_persistent_fields = [
+            "code",
+            "user",
+            "sg_status_list",
+        ]
+
         self.version_model = shotgun_model.SimpleShotgunModel(self.ui.entity_version_tab)
         self.ui.entity_version_view.setModel(self.version_model)
         self.version_delegate = ListItemDelegate(
             view=self.ui.entity_version_view,
-            fields=["code", "user","sg_status_list"],
+            fields=self._version_list_persistent_fields,
             shotgun_field_manager=self._shotgun_field_manager,
             label_exempt_fields=["code"],
         )
@@ -157,9 +166,11 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         self.ui.entity_version_view.customContextMenuRequested.connect(self._show_version_context_menu)
 
-        # The fields menu attached to the "More fields..." button
-        # when "More info" is active.
+        # The fields menu attached to the "Fields..." buttons
+        # when "More info" is active as well as in the Versions
+        # tab.
         self._setup_fields_menu()
+        self._setup_version_list_fields_menu()
 
     ##########################################################################
     # public methods
@@ -271,6 +282,26 @@ class DetailsPanelWidget(QtGui.QWidget):
             self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
             self._active_fields = self.ui.shot_info_widget.fields
 
+    def _version_list_field_menu_triggered(self, action):
+        """
+        Adds or removes a field when it checked or unchecked
+        via the EntityFieldMenu.
+
+        :param action:  The QMenuAction that was triggered. 
+        """
+        if action:
+            # The MenuAction's data will have a "field" key that was
+            # added by the EntityFieldMenu that contains the name of
+            # the field that was checked or unchecked.
+            field_name = action.data()["field"]
+
+            if action.isChecked():
+                self.version_delegate.add_field(field_name)
+            else:
+                self.version_delegate.remove_field(field_name)
+
+            self.ui.entity_version_view.repaint()
+
     def _more_info_toggled(self, checked):
         """
         Toggled more/less info functionality for the info widget in the
@@ -338,6 +369,19 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._field_menu = menu
         self._field_menu.triggered.connect(self._field_menu_triggered)
         self.ui.more_fields_button.setMenu(menu)
+
+    def _setup_version_list_fields_menu(self):
+        """
+        Sets up the EntityFieldMenu and attaches it as the "More fields"
+        button's menu.
+        """
+        menu = shotgun_menus.EntityFieldMenu("Version")
+        menu.set_field_filter(self._field_filter)
+        menu.set_checked_filter(self._version_list_checked_filter)
+        menu.set_disabled_filter(self._version_list_disabled_filter)
+        self._version_list_field_menu = menu
+        self._version_list_field_menu.triggered.connect(self._version_list_field_menu_triggered)
+        self.ui.version_fields_button.setMenu(menu)
 
     def _show_version_context_menu(self, point):
         """
@@ -476,6 +520,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         """
         return (field in self._active_fields)
 
+    def _version_list_checked_filter(self, field):
+        """
+        Checked filter method for the EntityFieldMenu. Determines whether the
+        given field should be checked in the field menu.
+
+        :param field:   The field name being processed.
+        """
+        return (field in self.version_delegate.fields)
+
     def _disabled_filter(self, field):
         """
         Disabled filter method for the EntityFieldMenu. Determines whether the
@@ -484,6 +537,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param field:   The field name being processed.
         """
         return (field in self._persistent_fields)
+
+    def _version_list_disabled_filter(self, field):
+        """
+        Disabled filter method for the EntityFieldMenu. Determines whether the
+        given field should be active or disabled in the field menu.
+
+        :param field:   The field name being processed.
+        """
+        return (field in self._version_list_persistent_fields)
 
     def _field_filter(self, field):
         """

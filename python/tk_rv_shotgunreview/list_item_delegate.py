@@ -40,13 +40,44 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
                                         labels displayed.
         """
         shotgun_view.EditSelectedWidgetDelegate.__init__(self, view)
-        
+
+        self.fields = fields
+
         self._widget_cache = dict()
-        self._fields = fields
         self._show_labels = show_labels
         self._label_exempt_fields = label_exempt_fields
         self._show_borders = show_borders
         self._shotgun_field_manager = shotgun_field_manager
+        self._current_editor = None
+
+    def add_field(self, field):
+        """
+        Adds the given field to the list of fields to display for the entity.
+        """
+        if field not in self.fields:
+            self.fields.append(field)
+
+        if self._current_editor:
+            # Catching exceptions here in case the editor has been
+            # garbage collected already. It's fine if it has been.
+            try:
+                self._current_editor.add_field(field)
+            except Exception:
+                pass
+
+    def remove_field(self, field):
+        """
+        Removes the given field from the list of fields to display for the entity.
+        """
+        self.fields = [f for f in self.fields if f != field]
+
+        if self._current_editor:
+            # Catching exceptions here in case the editor has been
+            # garbage collected already. It's fine if it has been.
+            try:
+                self._current_editor.remove_field(field)
+            except Exception:
+                pass
 
     def _create_widget(self, parent):
         """
@@ -60,7 +91,7 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         """
         return ListItemWidget(
             parent=parent,
-            fields=self._fields,
+            fields=self.fields,
             show_labels=self._show_labels,
             show_border=self._show_borders,
             shotgun_field_manager=self._shotgun_field_manager,
@@ -82,7 +113,12 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         :rtype:             :class:`~PySide.QtGui.QWidget`
         """
         if model_index in self._widget_cache:
-            return self._widget_cache[model_index]
+            widget = self._widget_cache[model_index]
+
+            if sorted(widget.fields) != sorted(self.fields):
+                widget.fields = self.fields
+                self.sizeHintChanged.emit(model_index)
+            return widget
 
         widget = self._create_widget(parent)
         self._widget_cache[model_index] = widget
@@ -107,6 +143,7 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         """
         widget = self._create_widget(parent)
         self._on_before_paint(widget, model_index, style_options)
+        self._current_editor = widget
         return widget
 
     def _on_before_paint(self, widget, model_index, style_options):
@@ -145,6 +182,5 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         :param model_index:     The index of the item in the model.
         :type model_index:      :class:`~PySide.QtCore.QModelIndex`
         """
-        return ListItemWidget.calculate_size(len(self._fields))
-
+        return ListItemWidget.calculate_size(len(self.fields))
 

@@ -241,7 +241,7 @@
          <item>
           <widget class="QToolButton" name="more_fields_button">
            <property name="text">
-            <string>More fields...</string>
+            <string>Fields...</string>
            </property>
            <property name="popupMode">
             <enum>QToolButton::InstantPopup</enum>
@@ -312,6 +312,9 @@
            <widget class="QToolButton" name="version_fields_button">
             <property name="text">
              <string>Fields...</string>
+            </property>
+            <property name="popupMode">
+             <enum>QToolButton::InstantPopup</enum>
             </property>
            </widget>
           </item>

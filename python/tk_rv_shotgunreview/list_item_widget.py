@@ -83,6 +83,7 @@ class ListItemWidget(QtGui.QWidget):
             self.label_exempt_fields = label_exempt_fields
 
         self.set_selected(False)
+        self.setMinimumHeight(self.calculate_size(len(self.fields)).height())
 
     ##########################################################################
     # properties
@@ -127,10 +128,11 @@ class ListItemWidget(QtGui.QWidget):
 
         :param fields:  List of Shotgun field names as strings.
         """
+        label_exempt = self.label_exempt_fields
         self.clear_fields()
 
         for field_name in fields:
-            self.add_field(field_name)
+            self.add_field(field_name, label_exempt=(field_name in label_exempt))
 
     fields = property(_get_fields, _set_fields)
 
@@ -217,6 +219,8 @@ class ListItemWidget(QtGui.QWidget):
             label=None,
             label_exempt=label_exempt,
         )
+
+        self.setMinimumHeight(self.calculate_size(len(self.fields)).height())
 
         # If we've not yet loaded an entity, then we don't need to
         # do any widget work.
@@ -310,6 +314,7 @@ class ListItemWidget(QtGui.QWidget):
 
         # Remove the field from the list of stuff we're tracking.
         del self._fields[field_name]
+        self.setMinimumHeight(self.calculate_size(len(self.fields)).height())
 
     def set_entity(self, entity):
         """

@@ -55,19 +55,11 @@ QTabBar::tab:selected {
     color: {{SG_HIGHLIGHT_COLOR}};
 }
 
-QToolButton#more_info_button:hover {
+QToolButton#more_info_button:hover, QToolButton#more_fields_button:hover, QToolButton#version_fields_button:hover {
     color: {{SG_HIGHLIGHT_COLOR}};
 }
 
-QToolButton#more_fields_button:hover {
-    color: {{SG_HIGHLIGHT_COLOR}};
-}
-
-QToolButton#version_fields_button:hover {
-    color: {{SG_HIGHLIGHT_COLOR}};
-}
-
-QToolButton#more_fields_button:menu-indicator {
+QToolButton#more_fields_button:menu-indicator, QToolButton#version_fields_button:menu-indicator {
     image:none;
 }
 
