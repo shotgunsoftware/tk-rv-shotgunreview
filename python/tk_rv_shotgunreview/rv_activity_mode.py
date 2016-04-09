@@ -37,14 +37,16 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if self.details_dirty:
             self.load_version_id_from_session()
  
-    def load_version_id_from_session(self, source_name=None):
-        if not source_name:
+    def load_version_id_from_session(self, group_name=None):
+        
+        if not group_name:
             saf = rv.commands.sourcesAtFrame(rv.commands.frame())
             if saf:
                 source_name = str(saf[0])
-
-        if source_name:
-            source_prop_name = ("%s.cut_support.json_sg_data") % source_name
+                group_name = rv.commands.nodeGroup(source_name)
+                
+        if group_name:
+            source_prop_name = ("%s.cut_support.json_sg_data") % group_name
             if rv.commands.propertyExists(source_prop_name):
                 j_data = rv.commands.getStringProperty(source_prop_name)
                 if j_data:
@@ -64,10 +66,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                         print "ERROR: load_version_id_from_session JSON EXCEPTION %r" % e
                         #self.details_dirty = True
                         print "JDATA: %r" % j_data
-                        print "source_name: %r" % source_name
+                        print "group_name: %r" % group_name
                         print "entity: %r" % entity
             else:
-                print "ERROR: NO PROP NAMED %s" % source_name
+                self._app.engine.log_error("load_version_id_from_session: NO PROP NAMED %s" % group_name)
         return None
 
     # RV Events
@@ -558,24 +560,22 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             f = self.get_media_path(version)
 
             try:
-                if not f:
-                    f =  'black,start=%d,end=%d.movieproc' % (version['version.Version.sg_first_frame'],
-                                                              version['version.Version.sg_last_frame'])            
-                if f in self.loaded_sources:
-                    source_name = self.loaded_sources[f]
+                #if not f:
+                #    f =  'black,start=%d,end=%d.movieproc' % (version['version.Version.sg_first_frame'],
+                #        version['version.Version.sg_last_frame'])  
+                
+                source_obj = {}                                                        
+                if version['version.Version.id'] in self.loaded_sources:
+                    source_obj = self.loaded_sources[version['version.Version.id']]
                 else:
                     source_name = rv.commands.addSourceVerbose([f])
                     fk = version['version.Version.id']
-                    #fk = urllib.quote_plus(f)
-                    self.loaded_sources[fk] = source_name
-                source_prop_name = ("%s.cut_support.json_sg_data") % source_name
-
-                group_name = rv.commands.nodeGroup(source_name)
+                    source_obj['group_name'] = rv.commands.nodeGroup(source_name)
+                    self.loaded_sources[fk] = source_obj
+                source_prop_name = ("%s.cut_support.json_sg_data") % source_obj['group_name']
 
                 if version['version.Version.code']:
-                    rv.extra_commands.setUIName(source_name, version['version.Version.code'])
-                    if group_name:
-                        rv.extra_commands.setUIName(group_name, version['version.Version.code'])
+                    rv.extra_commands.setUIName(source_obj['group_name'], version['version.Version.code'])
                 
 
                 if not rv.commands.propertyExists(source_prop_name):
@@ -659,15 +659,15 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             try:
                 if f:
-                    fk = sg_item['version.Version.id']
+                    fk = sg['version.Version.id']
+                    source_obj = {}   
                     if fk in self.loaded_sources:
-                        source_name = self.loaded_sources[fk]
+                        source_obj = self.loaded_sources[fk]
                     else:
-                        source_name = rv.commands.addSourceVerbose([f])
-                        self.loaded_sources[fk] = source_name
-                    group_name = rv.commands.nodeGroup(source_name)
-                    rv.extra_commands.setUIName(source_name, sg['version.Version.code'])
-                    rv.extra_commands.setUIName(group_name, sg['version.Version.code'])
+                        source_obj['source_name'] = rv.commands.addSourceVerbose([f])
+                        source_obj['group_name'] = rv.commands.nodeGroup(source_obj['source_name'])
+                        self.loaded_sources[fk] = source_obj
+                    rv.extra_commands.setUIName(source_obj['group_name'], sg['version.Version.code'])
                 
                 else:
                     print "ERROR: f is %r" % f
@@ -675,7 +675,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             except Exception as e:
                 print "%r" % e
 
-            source_prop_name = ("%s.cut_support.json_sg_data") % source_name
+            source_prop_name = ("%s.cut_support.json_sg_data") % source_obj['group_name']
             try:
                 if not rv.commands.propertyExists(source_prop_name):
                     rv.commands.newProperty(source_prop_name, rv.commands.StringType, 1)
@@ -685,8 +685,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 print "ERROR: load_sequence_with_versions %r" % e
                 print "%r" % sg
 
-            (num_plus, _) = source_name.split('_')
-            v_source_names.append(num_plus)
+            #(num_plus, _) = source_name.split('_')
+            v_source_names.append(source_obj['group_name'])
  
             v_sources.append(w)
             self.pinned_items.append(w)
@@ -764,9 +764,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
                 "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
                 "version.Version.sg_frames_has_slate", "version.Version.image",
-                "version.Version.code",
+                "version.Version.code", "version.Version.sg_status_list",
                 "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
-                "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.Version", "cut.Cut.revision_numnber",
+                "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.revision_numnber",
                 "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project"]
 
         orders = [{'field_name':'cut_order','direction':'asc'}]
@@ -893,8 +893,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             return sg['version.Version.sg_path_to_frames']
         if sg['version.Version.sg_path_to_movie']:
             return sg['version.Version.sg_path_to_movie']
+
+        # MARK
  
-        # if theres a cut_item_in use that? 
+        # if theres a cut_item_in use that?
         if 'cut_item_in' in sg:
             s = 'black,start=%d,end=%d.movieproc' % (sg['cut_item_in'], sg['cut_item_out'])
             return s
@@ -913,7 +915,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
  
         return s
      
-    def createText(self, node, key, value, hpos, vpos):
+    def createText(self, node, text, hpos, vpos):
+
         rv.commands.newProperty('%s.position' % node, rv.commands.FloatType, 2)
         rv.commands.newProperty('%s.color' % node, rv.commands.FloatType, 4)
         rv.commands.newProperty('%s.spacing' % node, rv.commands.FloatType, 1)
@@ -925,13 +928,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.commands.newProperty('%s.debug' % node, rv.commands.IntType, 1)
 
         rv.commands.setFloatProperty('%s.position' % node, [ float(hpos), float(vpos) ], True)
-        rv.commands.setFloatProperty('%s.color' % node, [ 1.0, 1.0, 0.0, 1.0 ], True)
+        rv.commands.setFloatProperty('%s.color' % node, [ 1.0, 1.0, 1.0, 1.0 ], True)
         rv.commands.setFloatProperty('%s.spacing' % node, [ 1.0 ], True)
-        rv.commands.setFloatProperty('%s.size' % node, [ 0.003 ], True)
+        rv.commands.setFloatProperty('%s.size' % node, [ 0.004 ], True)
         rv.commands.setFloatProperty('%s.scale' % node, [ 1.0 ], True)
         rv.commands.setFloatProperty('%s.rotation' % node, [ 0.0 ], True)
         rv.commands.setStringProperty("%s.font" % node, [""], True)
-        rv.commands.setStringProperty("%s.text" % node, ["%s: %s" % (key, value)], True)
+        rv.commands.setStringProperty("%s.text" % node, [text], True)
         rv.commands.setIntProperty('%s.debug' % node, [ 0 ], True)
 
     def set_session_prop(self, name, item):
@@ -1028,25 +1031,36 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         self.tray_button_browse_cut.setMenu(menu)        
 
+    def find_base_version_for_cut(self, entity):
+        self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED!')
+        pass
+
     # the way data from shotgun gets into the tray
     def on_data_refreshed(self, was_refreshed):
+        # tray is cleared by ShotgunModel _load_data
+
         self.swapped_sources = None
         self.project_entity = None
 
         v_id = -1
-        # first see if we have a selection
 
+        # first see if we have a selection
+        # this was an attempt to make sure we end up in the same place
         cur_index = self.tray_list.currentIndex()
         if cur_index:
             sg_item = shotgun_model.get_sg_data(cur_index)
             if sg_item:
                 v_id = sg_item['version.Version.id']
 
+        # tray proxy model sorting in cut order
         self.tray_proxyModel.sort(0, QtCore.Qt.AscendingOrder)
         rows = self.tray_proxyModel.rowCount()
  
+        # this should be impossible since all id's are fed in...?
         if rows < 1:
             self._app.engine.log_error('Query returned no rows.')
+            # clear tray and draw something on screen
+            # label into tray saying 'no cut items'
             return
  
         self.rv_source_nums = []
@@ -1055,12 +1069,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.rv_outs = []
         self.tray_sources = []
 
-        n = 0
-        t = 1
+        source_incr = 0
+        timeline_incr = 1
 
         tray_seq_name = None
         final_selection = None
 
+        # keys and array to hold values detrived from result set into sequence level node.
         cut_items = []
         cutitem_keys = ["cut_item_in", "cut_item_out", "cut_order", "edit_in", "edit_out", "id", "code"]
 
@@ -1068,9 +1083,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             item = self.tray_proxyModel.index(x, 0)
             sg_item = shotgun_model.get_sg_data(item)
             if not sg_item:
+                # put an error message into the tray for that item
                 self._app.engine.log_error("What do I do when there is no data at all for item %d" % item.row())
-            
+
+            # adapting pure version queries to match key naming in results from cut queries.
             sg_item = self.convert_sg_dict(sg_item)
+
+            # needed for the related cuts menu.
             if not self.project_entity:
                 self.project_entity = sg_item['cut.Cut.project']
                        
@@ -1079,35 +1098,54 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 cutitem_dict = dict ( [(k, sg_item[k]) for k in cutitem_keys])
                 cut_items.append(cutitem_dict)
 
+            # this is used for a currently disabled feature:
+            # when a version is viewed, lookup the latest cut and 
+            # swap that version into it.
             if self.version_swap_out:
                 if cutitem_dict['id'] == self.version_swap_out['cutitem_id']:
                     # update sg_item with new fields.
                     tmp_dict = self.convert_sg_dict(self.version_swap_out)
                     for k in tmp_dict:
                         sg_item[k] = tmp_dict[k]
+            
+            # if version id is none then lookup base version id with
+            # cut.Cut.version entity
+            if not sg_item['version.Version.id']:
+                sg_item = self.find_base_version_for_cut(sg_item['cut.Cut.version'])
 
-            f = self.get_media_path(sg_item)
-            #fk = urllib.quote_plus(f)
             fk = sg_item['version.Version.id']
             if fk in self.loaded_sources:
-                    source_name = self.loaded_sources[fk]
+                # make this return an object instead of a string that contains its input index
+                group_name = self.loaded_sources[fk]['group_name']
             else:
+                f = self.get_media_path(sg_item)
                 source_name = rv.commands.addSourceVerbose([f])
                 group_name = rv.commands.nodeGroup(source_name)
                 
                 if sg_item['version.Version.code']:
-                    rv.extra_commands.setUIName(source_name, sg_item['version.Version.code'])
+                    # this one doesnt really do anything
+                    # rv.extra_commands.setUIName(source_name, sg_item['version.Version.code'])
+                    # this is the right way
                     rv.extra_commands.setUIName(group_name, sg_item['version.Version.code'])
                 
-                self.loaded_sources[fk] = source_name
+                # look into changing source_name to group_name
+                self.loaded_sources[fk] = {}
+                self.loaded_sources[fk]['group_name'] = group_name
+                self.loaded_sources[fk]['source_name'] = source_name
 
-            #overlays = rv.extra_commands.associatedNodes("RVOverlay",source_name)
-            #self.createText(overlays[0], 'foo', 'bar', 100, 100)
+                if 'movieproc' in f:
+                    # group_name returned an empty list here. source name works.
+                    overlays = rv.extra_commands.associatedNodes("RVOverlay",source_name)
+                    # node need to be a component name ...
+                    self.createText(overlays[0] + '.text:mytext', sg_item['version.Version.code'] + '\nis missing.', -0.5, 0.0)
                 
-            source_prop_name = ("%s.cut_support.json_sg_data") % source_name
+            source_prop_name = ("%s.cut_support.json_sg_data") % group_name
+            
             try:
-                sg_item['ui_index'] = n
-                sg_item['tl_index'] = t
+                # these should be at the cut item (sequence) level
+                # this should also move into the 'only if new source' block
+                sg_item['ui_index'] = source_incr
+                sg_item['tl_index'] = timeline_incr
                 if not rv.commands.propertyExists(source_prop_name):
                     rv.commands.newProperty(source_prop_name, rv.commands.StringType, 1)
                 json_sg_item = json.dumps(sg_item)
@@ -1116,16 +1154,24 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 print "ERROR: on_data_refreshed %r" % e
 
             # get the source id number...
-            (num_plus, _) = source_name.split('_')
-            self.tray_sources.append(num_plus)
-            
+            # CHANGE num_plus to group_name . . .
+            # move to already created, otherwise use existing index
+            # (num_plus, _) = source_name.split('_')
+            # self.tray_sources.append(num_plus)
+            self.tray_sources.append(group_name)
             # ( _, nu) = num_plus.split('p')
             # it does not appear that the source array is anyting but sequential from zero
             # n = int(nu)
 
-            self.rv_source_nums.append(n)
-            n = n + 1
+            # need to remember source numbers so that we can reuse a version if it appears multiple times
+            # source numbers are the index into the inputs array, being created as we move thru this loop
+            self.rv_source_nums.append(source_incr)
+            # would be looked up instead of icremented if source exists
+            source_incr = source_incr + 1
 
+            # playlist code? 
+            # address difference between playlist versions and cutitem with no version (use base version)
+            # in base layer case we use edit_in and edit_out instead of cut_item_in, etc.
             if 'cut_item_in' not in sg_item:
                 sg_item['cut_item_in'] = sg_item['sg_first_frame']
                 sg_item['cut_item_out'] = sg_item['sg_last_frame']
@@ -1136,33 +1182,38 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             self.rv_ins.append( sg_item['cut_item_in'] )
             self.rv_outs.append( sg_item['cut_item_out'] )
-            self.rv_frames.append(t)
+            self.rv_frames.append(timeline_incr)
             
-            t = sg_item['cut_item_out'] - sg_item['cut_item_in'] + 1 + t
+            timeline_incr = sg_item['cut_item_out'] - sg_item['cut_item_in'] + 1 + timeline_incr
+
+            # if we had a version selected before the query we try to select it again when this cut is loaded
             if 'version.Version.id' in sg_item:
                 if sg_item['version.Version.id'] == v_id:
                     final_selection = item
         
         tray_seq_name = 'unknown'
+
+        # draw something in the tray
         if not sg_item:
             self._app.engine.log_error('SG_ITEM is null.')
             return
 
-        # what name should i use here?
+        # cached_display_name has the _002 suffix to indicate cut revision...
         if 'cut.Cut.code' in sg_item:
             tray_seq_name = sg_item['cut.Cut.cached_display_name']
-#            if sg_item['cut.Cut.revision_numnber'] > 1:
-#                tray_seq_name = "%s_%04d" % (sg_item['cut.Cut.code'], sg_item['cut.Cut.revision_numnber'])
         
+        # these zeros ( and a 1 ) initialize the arrays for RV
         self.rv_source_nums.append(0)
         self.rv_ins.append(0)
         self.rv_outs.append(0)
-        self.rv_frames.append(t)
+        self.rv_frames.append(timeline_incr)
 
-        #if not self.cut_seq_node:
+        # newNode for everything except sources
+        # this lets us store multiple cuts in a session file later
+        # and lets you flip between cuts via session browser
         self.cut_seq_node = rv.commands.newNode("RVSequenceGroup")
 
-        # create a cut level dict from sg_item
+        # create a sequence level dict from sg_item
         cut_keys = ["cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps"]
         cut_dict = None
         if 'cut.Cut.code' in sg_item:
@@ -1189,9 +1240,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_main_frame.tray_button_browse_cut.setText(tray_seq_name)
         rv.extra_commands.setUIName(self.cut_seq_node, tray_seq_name)
 
-        k = "%s.mode.autoEDL" % str(self.cut_seq_name)
-        if not rv.commands.propertyExists(k):
-            rv.commands.newProperty(k, rv.commands.IntType, 1)
+        #k = "%s.mode.autoEDL" % str(self.cut_seq_name)
+        #if not rv.commands.propertyExists(k):
+        #    rv.commands.newProperty(k, rv.commands.IntType, 1)
 
         # self._app.tank.shotgun_url
         k = "%s.cut_support.shotgun_url" % str(self.cut_seq_name)
@@ -1210,6 +1261,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.commands.setNodeInputs(self.cut_seq_node, self.tray_sources)
         rv.commands.setViewNode(self.cut_seq_node)
 
+        # if we had a selection coming in, we move to that
+        # not sure if these even works EXAMINE
         if final_selection:
             self.tray_list.selectionModel().select(final_selection, self.tray_list.selectionModel().ClearAndSelect)
         else:            
@@ -1217,6 +1270,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self.tray_list.selectionModel().select(zero_index, self.tray_list.selectionModel().ClearAndSelect)
         
         self.tray_list.scrollTo(self.tray_proxyModel.index(0, 0), QtGui.QAbstractItemView.EnsureVisible)
+        # triggers the details pane
         self.load_version_id_from_session()
 
         seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
@@ -1299,12 +1353,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                         sg[k] = tmp_dict[k]
 
             f = self.get_media_path(sg)
-            # fk = urllib.quote_plus(f)
             fk = sg['version.Version.id']
-            source_name = self.loaded_sources[fk]
+            source_obj = self.loaded_sources[fk]
 
-            (num_plus, _) = source_name.split('_')
-            mini_source_names.append(num_plus)
+            #(num_plus, _) = source_name.split('_')
+            mini_source_names.append(source_obj['group_name'])
  
             mini_sources.append(w)
             w = w + 1
@@ -1360,8 +1413,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         f = self.get_media_path(sg_item)
         fk = sg_item['version.Version.id']
         # fk = urllib.quote_plus(f)
-        source_name = self.loaded_sources[fk]
-        sel_version = self.load_version_id_from_session(source_name)
+        source_obj = self.loaded_sources[fk]
+        sel_version = self.load_version_id_from_session(source_obj['group_name'])
         #print "sel: %r\n" % sel_version
         if sel_version:
             if sel_version['version.Version.id'] != ph_version['version.Version.id']:
