@@ -337,13 +337,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_button_mini_cut = self.tray_main_frame.tray_button_mini_cut
         self.tray_button_browse_cut = self.tray_main_frame.tray_button_browse_cut
         
+        # CONNECTIONS
         self.tray_model.data_refreshed.connect(self.on_data_refreshed)
         self.tray_model.cache_loaded.connect(self.on_cache_loaded)
-        self.tray_list.clicked.connect(self.tray_clicked)
-        
-        #self.tray_list.activated.connect(self.tray_activated)
-        
+        self.tray_list.clicked.connect(self.tray_clicked)        
         self.tray_list.doubleClicked.connect(self.tray_double_clicked)
+
+        # self.tray_button_browse_cut.clicked.connect(self.on_browse_cut)
 
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
@@ -355,12 +355,17 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.details_timer.start(1000)
 
         # self.create_related_cuts_menu(None)
+        # stuff = None
+        # self.popup_test(stuff)
 
     def on_browse_cut(self):
+        sg_data = self.load_version_id_from_session()
+
+        # self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
         # forcing a test....
-        entity = {}
-        entity['id'] = 6
-        entity['type'] = 'Cut'
+        # entity = {}
+        # entity['id'] = 6
+        # entity['type'] = 'Cut'
 
         # version
         # entity['id'] = 7406
@@ -368,7 +373,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         # entity['id'] = 62
         # entity['type'] = "Playlist"
-        rv.commands.sendInternalEvent('id_from_gma', json.dumps(entity))        
+        # rv.commands.sendInternalEvent('id_from_gma', json.dumps(entity))        
 
     def get_version_from_id(self, id):
         v_fields = [
@@ -569,8 +574,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             sg['pinned'] = 1
             f = self.get_media_path(sg)
 
-            if not f:
-                f =  'black,start=%d,end=%d.movieproc' % (sg['sg_first_frame'], sg['sg_last_frame'])
+            # if not f:
+            #     f =  'black,start=%d,end=%d.movieproc' % (sg['sg_first_frame'], sg['sg_last_frame'])
 
             try:
                 if f:
@@ -680,7 +685,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
                 "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
                 "version.Version.sg_frames_has_slate", "version.Version.image",
-                "version.Version.code", "version.Version.sg_status_list",
+                "version.Version.code", "version.Version.sg_status_list", "version.Version.entity",
                 "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
                 "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.revision_numnber",
                 "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project"]
@@ -691,6 +696,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if self.mini_cut:
             self.on_entire_cut()
 
+    # used by the related cuts menu
     def request_cuts_from_entity(self, entity):
         print 'request_cuts_from_entity: %r' % entity
         # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
@@ -887,41 +893,26 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         return sg_dict
 
     def handle_menu(self, action=None):
+        print "HANDLE MENU"
         if action:
             self.load_tray_with_cut_id(action.data()['id'])
             print "STUFF %r" % action.data() 
 
-    def create_related_cuts_menu(self, entity_in):
-        print "create_related_cuts_menu: %r" % entity_in
-        # entity would be a cut?
-        # entity = {}
-        # entity['id'] = 6
-        # entity['type'] = 'Cut'
+    def create_related_cuts_menu(self, entity_in, shot_entity=None):
+        print "create_related_cuts_menu: %r %r" % (entity_in, shot_entity)
 
         results = self.request_cuts_from_entity(entity_in)
 
-        # try:
-        #     fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cuts.json")
-        #     f = open(fn, 'r')
-        #     results = json.load(f)
-        #     f.close() 
-        # except Exception as e:
-        #     print e
-
         menu = QtGui.QMenu(self.tray_button_browse_cut)
+        menu.aboutToShow.connect(self.on_browse_cut)
         menu.triggered.connect(self.handle_menu)
         action = QtGui.QAction(self.tray_button_browse_cut)
         action.setText('Related Cuts')
         menu.addAction(action)
         menu.addSeparator()
 
-        #print results[0]['entity']
-        #print '=============='
-        #print results[0]['cuts']
         last_menu = menu
         for x in results[0]['cuts']:
-            #print x
-            #print '-------------'
             action = QtGui.QAction(self.tray_button_browse_cut)
             action.setText(x['code'])
             en = {}
@@ -943,6 +934,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 last_menu = menu
                 last_menu.addAction(action)
 
+        if shot_entity:
+            # pass
+            # look up related shots
+            shot_results = self.request_cuts_from_entity(['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }])
+            print "shot_results: %r" % shot_results
 
 
         self.tray_button_browse_cut.setMenu(menu)        
@@ -950,6 +946,34 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     def find_base_version_for_cut(self, entity):
         self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED!')
         pass
+
+    def create_source_from_version(self, sg_item, source_incr):
+        """
+        creates a new source and returns True if we havent seen it before
+        """
+        fk = sg_item['version.Version.id']
+        if fk in self.loaded_sources:
+            group_name = self.loaded_sources[fk]['group_name']
+            return False
+        else:
+            f = self.get_media_path(sg_item)
+            source_name = rv.commands.addSourceVerbose([f])
+            group_name = rv.commands.nodeGroup(source_name)
+            
+            if sg_item['version.Version.code']:
+                rv.extra_commands.setUIName(group_name, sg_item['version.Version.code'])
+            
+            self.loaded_sources[fk] = {}
+            self.loaded_sources[fk]['group_name'] = group_name
+            self.loaded_sources[fk]['source_name'] = source_name
+            self.loaded_sources[fk]['source_index'] = source_incr
+
+            if 'movieproc' in f:
+                # group_name returned an empty list here. source name works.
+                overlays = rv.extra_commands.associatedNodes("RVOverlay",source_name)
+                # node need to be a component name ...
+                self.createText(overlays[0] + '.text:mytext', sg_item['version.Version.code'] + '\nis missing.', -0.5, 0.0)
+            return True
 
     # the way data from shotgun gets into the tray
     def on_data_refreshed(self, was_refreshed):
@@ -1029,33 +1053,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             if not sg_item['version.Version.id']:
                 sg_item = self.find_base_version_for_cut(sg_item['cut.Cut.version'])
 
-            fk = sg_item['version.Version.id']
-            if fk in self.loaded_sources:
-                # make this return an object instead of a string that contains its input index
-                group_name = self.loaded_sources[fk]['group_name']
-            else:
-                f = self.get_media_path(sg_item)
-                source_name = rv.commands.addSourceVerbose([f])
-                group_name = rv.commands.nodeGroup(source_name)
-                
-                if sg_item['version.Version.code']:
-                    # this one doesnt really do anything
-                    # rv.extra_commands.setUIName(source_name, sg_item['version.Version.code'])
-                    # this is the right way
-                    rv.extra_commands.setUIName(group_name, sg_item['version.Version.code'])
-                
-                # look into changing source_name to group_name
-                self.loaded_sources[fk] = {}
-                self.loaded_sources[fk]['group_name'] = group_name
-                self.loaded_sources[fk]['source_name'] = source_name
+            
+            if self.create_source_from_version(sg_item, source_incr):
+                source_incr = source_incr + 1
 
-                if 'movieproc' in f:
-                    # group_name returned an empty list here. source name works.
-                    overlays = rv.extra_commands.associatedNodes("RVOverlay",source_name)
-                    # node need to be a component name ...
-                    self.createText(overlays[0] + '.text:mytext', sg_item['version.Version.code'] + '\nis missing.', -0.5, 0.0)
-                
-            source_prop_name = ("%s.cut_support.json_sg_data") % group_name
+            fk = sg_item['version.Version.id']
+                 
+            source_prop_name = ("%s.cut_support.json_sg_data") % self.loaded_sources[fk]['group_name']
             
             try:
                 # these should be at the cut item (sequence) level
@@ -1069,21 +1073,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             except Exception as e:
                 print "ERROR: on_data_refreshed %r" % e
 
-            # get the source id number...
-            # CHANGE num_plus to group_name . . .
-            # move to already created, otherwise use existing index
-            # (num_plus, _) = source_name.split('_')
-            # self.tray_sources.append(num_plus)
-            self.tray_sources.append(group_name)
-            # ( _, nu) = num_plus.split('p')
-            # it does not appear that the source array is anyting but sequential from zero
-            # n = int(nu)
-
+            self.tray_sources.append(self.loaded_sources[fk]['group_name'])
+ 
             # need to remember source numbers so that we can reuse a version if it appears multiple times
             # source numbers are the index into the inputs array, being created as we move thru this loop
-            self.rv_source_nums.append(source_incr)
+            self.rv_source_nums.append(self.loaded_sources[fk]['source_index'])
             # would be looked up instead of icremented if source exists
-            source_incr = source_incr + 1
+            
 
             # playlist code? 
             # address difference between playlist versions and cutitem with no version (use base version)
@@ -1349,5 +1345,237 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
 
+    # popup right side menu stuff from eric ... tested but not integrated yet.
 
+    ##########################################################
+    # the following came from cuts_helpers.js
+    ##########################################################
+    def get_default_version_entity_for_cut_item(self, cut_item, parent_cut):
+        version = cut_item.get('version')
+        if ( version == None ):
+            if ( parent_cut and parent_cut.type == 'Cut' ):
+                # If there is a cut, let's see if it has a version
+                version = parent_cut.get('version')
+                if version != None:
+                    # for some reason the javascript code already has the status set in the entity hash!
+                    # but in python we don't :-(
+                    # The following will probably not work since we didnt query for that field on the parent cut!
+                    # version['status'] = parent_cut.get('version.Version.sg_status_list')
+                    version['status'] = 'Unknown'
+        else:
+            # for some reason the javascript code already has the status set in the entity hash!
+            # but in python we don't :-(
+            version['status'] = cut_item.get('version.Version.sg_status_list')
+
+        return version
+
+
+    # I dont really use this one but...
+    def get_version_image_for_record(self, record, parent_record):
+        # If no valid version is in record, return -1
+        image = None
+
+        if ( record.get('type') == 'Version' ):
+            image = record.get('image')
+        elif ( record.get('type') == 'CutItem' ):
+            # the version image is in the version field
+            version = record.get('version')
+            if ( version ):
+                image = record.get('version.Version.image')
+            elif ( parent_record ):
+                version = parent_record.get('version')
+                if ( version ):
+                    #hum not sure this will work if we didnt query for that field while doing the query for the cut
+                    image = parent_record.get('version.Version.image')
+        return image
+
+    def find_filter(self, shot_filters, filter_path):
+        for filter in shot_filters:
+            if filter[0] == filter_path:
+                if len(filter)>2:
+                    return filter[2]
+                else:
+                    return None
+        return None
+
+    def show_menus(self, shot_filters):
+        sg = self._bundle.shotgun
+        project_id = 76
+        print 'Status Menu:'
+        print ''
+        print '[ ] Any Status'
+        print '-------------------'
+
+        schema = sg.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
+
+        schema = schema.get('sg_status_list')
+        schema = schema.get('properties')
+
+        values = schema.get('valid_values').get('value')
+        display_values = schema.get('display_values').get('value')
+
+        filter = self.find_filter(shot_filters, 'sg_status_list')
+
+        for value in values:
+            display_value = display_values.get(value)
+            if filter and value in filter:
+                print '[x] %s (%s)' %(display_value, value)
+            else:
+                print '[ ] %s (%s)' %(display_value, value)
+
+        print ''
+
+        print 'Step Menu:'
+        print ''
+        print 'PIPELINE STEP PRIORITY'
+        print '---------------------------'
+
+        filter = self.find_filter(shot_filters, 'sg_task.Task.step')
+
+        if len(filter) == 0:
+            print '[x] Latest in Pipeline'
+        else:
+            print '[ ] Latest in Pipeline'
+
+        shot_steps = sg.find('Step', filters=[['entity_type', 'is', 'Shot' ]], fields=['code', 'list_order', 'short_name', 'id'], order=[{'field_name': 'list_order', 'direction': 'desc'}])
+
+        for step in shot_steps:
+            found = False
+            if filter:
+                for current_step in filter:
+                    if current_step.get('id') == step.get('id'):
+                        found = True
+                        break
+            if found:
+                print '[x] %s' %step.get('code')
+            else:
+                print '[ ] %s' %step.get('code')
+
+        print ''
+
+    def request_data(self, shot_filters):
+
+        print 'Here are the default versions used by that cut in the cut order:'
+        print 'They should all be the ANIM ones, 15, 14, ..., 2, 1'
+        print ''
+
+
+        sg = self._bundle.shotgun
+        cut_id = 6
+        cut = sg.find_one('Cut', [['id', 'is', cut_id]], fields=['code', 'cached_display_name', 'entity'])
+
+        cut_items = sg.find('CutItem',
+                            filters=[['cut', 'is', [{ 'id': cut_id, 'type': 'Cut' }]]],
+                            # there might be too many fields requested here but that will do for now
+                            fields=['code', 'cut_item_in', 'cut_item_out', 'cut_order', 'shot', 'version', 'version.Version.sg_status_list', 'version.Version.image'],
+                            order=[{'field_name': 'cut_order', 'direction': 'asc'}])
+
+        map = {}
+
+        if shot_filters != None:
+
+            # project_entity = { 'id': project_id, 'type': 'Project' }
+
+            shots = []
+
+            for cut_item in cut_items:
+                shot = cut_item.get('shot')
+                if shot != None:
+                    shots.append( { 'id': shot.get('id'), 'type': 'Shot' } )
+
+            full_filters = self.build_version_filters( self.project_entity, shot_filters, shots)
+
+            versions = sg.find('Version',
+                                filters=full_filters,
+                                fields=['id', 'code', 'image', 'sg_status_list', 'entity'],
+                                additional_filter_presets = [
+                                    {"preset_name": "LATEST", "latest_by": "BY_PIPELINE_STEP_NUMBER_AND_ENTITIES_CREATED_AT" }
+                                ]
+                                )
+
+            for version in versions:
+                shot = version.get('entity')
+                if shot != None:
+                    map[shot.get('id')] = version
+
+        for cut_item in cut_items:
+            shot = cut_item.get('shot')
+            shot_id = None
+            if shot != None:
+                shot_id = shot.get('id')
+
+            if shot_id in map:
+                version = map[shot_id]
+                version_entity = { 'id': version.get('id'), 'name': version.get('code'), 'type': 'Version', 'status': version.get('sg_status_list') }
+                version_image = version.get('image')
+            else:
+                version_entity = self.get_default_version_entity_for_cut_item(cut_item, cut)
+                version_image = self.get_version_image_for_record(cut_item, cut)
+
+            status = version_entity.get('status')
+            if status == None:
+                status = "unknown"
+
+            print 'version: name=%s, id=%s, status=%s' %(version_entity.get('name'), version_entity.get('id'), status )
+
+
+    ##########################################################
+    # the following came from review_app_data_manager.js
+    ##########################################################
+    def build_version_filters(self, project, shot_version_filters, shots):
+        conditions = []
+        # this.shot_version_filters is always defined when we get here but let's check anyway
+        if ( shot_version_filters ):
+            # let's use this.shot_version_filters but first let's remove the "ANY" filter
+
+            for filter in shot_version_filters:
+                # filter is like [ 'sg_task.Task.step', 'in', [ { 'id': 6, 'name': 'FX', 'type': 'Step' } ]
+
+                # By convention an empty array for sub-array means ANY like "any status" or "latest in pipeline" etc
+                # so let's just ignore this filter since it's any!
+                if len(filter) > 2 and len(filter[2]) > 0:
+                    conditions.append(filter)
+
+        conditions.append(['entity', 'in', shots])
+
+        if ( project ):
+            conditions.append( [ 'project', 'is', [ { 'id': project.get('id'), 'type': 'Project' } ] ] )
+
+        return conditions
+
+
+    def popup_test(self, shot_filters):
+
+        self.request_data(shot_filters)
+
+        print ''
+        print 'Now we will use the following shot filters:'
+        print ''
+
+        shot_filters = [ [ 'sg_task.Task.step', 'in', [ { 'id': 7, 'name': 'Light', 'type': 'Step' } ] ],
+                         [ 'sg_status_list', 'in', ['rev'] ] ]
+
+
+        self.show_menus(shot_filters)
+
+        print 'Here are shot versions found in the cut order: '
+        print 'Only a few LIGHT (aka TD) ones will be found because we also check for status=reviewed!'
+        print 'when the query does not find anything we use the default version'
+
+        print ''
+
+        self.request_data(shot_filters)
+
+        print ''
+        print 'Finally we will use the latest-in-pipeline step:'
+        print ''
+
+        shot_filters = [ [ 'sg_task.Task.step', 'in', [] ],
+                         [ 'sg_status_list', 'in', ['rev'] ] ]
+
+        self.show_menus(shot_filters)
+
+        print ''
+
+        self.request_data(shot_filters)
 
