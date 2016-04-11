@@ -4,12 +4,17 @@ from PySide import QtGui, QtCore
 import copy
 import types
 import os
+import shutil
 import math
 import rv
-import rv.qtutils
+import pymu
+import subprocess
 import tank
+import tempfile
 import json
 import urllib
+import time
+
 
 shotgun_view = tank.platform.import_framework("tk-framework-qtwidgets", "views")
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
@@ -166,7 +171,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         except Exception as e:
             print "ERROR: RV frameChanged EXCEPTION %r" % e
 
-    def sourcePath(self, event):        
+    def sourcePath(self, event):
         print "################### sourcePath %r" % event
         # print event.contents()
         event.reject()
@@ -224,6 +229,82 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 shotgun_review_app.theMode().internalLaunchSubmitTool();
             }
             """, [])
+
+    def getUnstoredFrameProps(self):
+        unstoredFrames = {}
+        frames = rv.extra_commands.findAnnotatedFrames()
+        pnodes = rv.commands.nodesOfType("RVPaint")
+        for pnode in pnodes:
+            for frame in frames:
+                sframe = rv.extra_commands.sourceFrame(frame)
+                orderProp = pnode + '.frame:%d.order' % sframe
+                if rv.commands.propertyExists(orderProp):
+                    pcmds = rv.commands.getStringProperty(orderProp)
+                    for pcmd in pcmds:
+                        savedProp = pnode + '.%s.sgtk_stored' % pcmd
+                        if rv.commands.propertyExists(savedProp):
+                            continue
+                        unstoredFrames.setdefault(frame, []).append(savedProp)
+        return unstoredFrames
+
+    def getUnstoredFrames(self):
+        return self.getUnstoredFrameProps().keys()
+
+    def makeNoteAttachments(self, event):
+        # not sure if anyone else wants to use this,
+        # but might as well let them
+        event.reject() 
+
+        props = self.getUnstoredFrameProps()
+        if len(props) <= 0:
+            return
+
+        tempdir = tempfile.mkdtemp()
+	rv.commands.rvioSetup()
+        rvio = os.environ.get("RV_APP_RVIO", None)
+        args = [rvio, "-v", "-err-to-out"]
+
+        setDisp = pymu.MuSymbol("export_utils.setExportDisplayConvert")
+        setDisp("default")
+        session = os.path.join(tempdir, "export.rv")
+        print(session)
+        rv.commands.saveSession(session)
+        args += [session]
+
+        tempfiles = os.path.join(tempdir,"sequence.@.jpg")
+        args += ["-o", tempfiles]
+
+        frames = [ str(f) for f in props.keys() ]
+        framesStr = ','.join(frames)
+        args += ["-t", framesStr]
+
+        lic = os.environ.get("RV_APP_USE_LICENSE_FILE", None)
+        if (lic != None):
+            args += ["-lic", lic]
+        print(args)
+        rvioExec = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        print(rvioExec.stderr.read(), rvioExec.stdout.read())
+
+        attachments = []
+        for frame,props in props.items():
+            src = "%s/sequence.%d.jpg" % (tempdir,frame)
+
+            if not (os.path.isfile(src)):
+                print("ERROR: Can't find annotation for frame: %d at '%s'" % (frame, src))
+                continue
+
+            sframe = rv.extra_commands.sourceFrame(frame)
+            tgt = "%s/source.%d.jpg" % (tempdir,sframe)
+            shutil.move(src, tgt)
+            attachments.append(tgt)
+
+            for prop in props:
+                rv.commands.newProperty(prop, rv.commands.IntType, 1)
+                rv.commands.setIntProperty(prop, [1234], True) # should be note id
+
+        os.remove(session)
+#         shutil.rmtree(os.path.dirname(session))
+        self.submit_note_attachments(attachments)
 
     def __init__(self, app):
         rv.rvtypes.MinorMode.__init__(self)
@@ -283,6 +364,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 ("graph-state-change", self.graphStateChange, ""),
                 ('id_from_gma', self.on_id_from_gma, ""),
                 ('view-size-changed', self.on_view_size_changed, ''),
+                ('new_note_screenshot', self.makeNoteAttachments, ''),
                 ],
                 [("SG Review", [
                     ("Submit Tool", self.launchSubmitTool, None, lambda: rv.commands.UncheckedMenuState),
@@ -299,6 +381,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
               
 
     ################################################################################### qt stuff down here. 
+
+    def submit_note_attachments (self, attachments):
+        self.details_panel.add_note_attachments(attachments)
 
     def load_data(self, entity):
         print "LOAD_DATA with %r" % entity
@@ -344,7 +429,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
-                
+        
         self.tray_main_frame.tray_button_latest_pipeline.clicked.connect(self.load_sequence_with_versions)
 
         self.details_timer = QTimer(rv.qtutils.sessionWindow())
@@ -572,7 +657,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 f =  'black,start=%d,end=%d.movieproc' % (sg['sg_first_frame'], sg['sg_last_frame'])
 
             try:
-                if f:
+                if f:    
                     fk = urllib.quote_plus(f)    
                     if fk in self.loaded_sources:
                         source_name = self.loaded_sources[fk]
