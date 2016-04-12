@@ -461,6 +461,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # rv.commands.sendInternalEvent('id_from_gma', json.dumps(entity))        
 
     def get_version_from_id(self, id):
+        self._app.engine.log_info('get_version_from_id %r' % QtCore.QThread.currentThread() )
         v_fields = [
             "sg_path_to_frames", "id",
             "sg_first_frame", "sg_last_frame",
@@ -477,7 +478,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         return self.convert_sg_dict(version)
 
     def on_id_from_gma(self, event):
-        print "on_id_from_gma %r" % event.contents()
+        self._app.engine.log_info("on_id_from_gma  %r" % (QtCore.QThread.currentThread() ) )
         self.pinned_items = []
         self.version_swap_out = None
         self.no_cut_context = False
@@ -550,13 +551,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             print "ERROR: on_id_from_gma %r" % e
 
     def replace_version_in_sequence(self, versions):
-        #print "VERSIONS: %r" % versions
-        #version = versions[0]
+        self._app.engine.log_info('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
+        
         fno = rv.commands.frame()    
         for version in versions:
             version = self.convert_sg_dict(version)
-            # print "replace_version_in_sequence %r %d" % (version, fno)
-
+ 
             # ok, selected cutitem in tray is destination for this version
             ph_version = self.load_version_id_from_session()
             if 'ui_index' not in ph_version:
@@ -565,9 +565,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             f = self.get_media_path(version)
 
             try:
-                #if not f:
-                #    f =  'black,start=%d,end=%d.movieproc' % (version['version.Version.sg_first_frame'],
-                #        version['version.Version.sg_last_frame'])  
                 
                 source_obj = {}                                                        
                 if version['version.Version.id'] in self.loaded_sources:
@@ -637,7 +634,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_list.repaint()
 
     def load_sequence_with_versions(self, vlist):
-        print "load_sequence_with_versions:" #" %r" % vlist
+        self._app.engine.log_info('load_sequence_with_versions %r' % QtCore.QThread.currentThread() )
+        
         
         v_sources = []
         v_frames = []
@@ -755,6 +753,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_model.load_data(entity_type="Version", filters=plist_filters, fields=plist_fields)
 
     def load_tray_with_cut_id(self, cut_id=None):
+        self._app.engine.log_info('load_tray_with_cut_id %r' % QtCore.QThread.currentThread() )
+        
         if cut_id:
             self.tray_cut_id = cut_id
         
@@ -763,7 +763,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         tray_filters = [ ['cut','is', {'type':'Cut', 'id': self.tray_cut_id }] ]
 
         tray_fields= ["cut_item_in", "cut_item_out", "cut_order",
-                "edit_in", "edit_out", "code",
+                "edit_in", "edit_out", "code", "entity",
                 "version.Version.sg_path_to_frames", "version.Version.id",
                 "version.Version.sg_first_frame", "version.Version.sg_last_frame",
                 "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
@@ -772,7 +772,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 "version.Version.code", "version.Version.sg_status_list", "version.Version.entity",
                 "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
                 "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.revision_numnber",
-                "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project"]
+                "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project" ]
 
         orders = [{'field_name':'cut_order','direction':'asc'}]
         self.tray_model.load_data(entity_type="CutItem", filters=tray_filters, fields=tray_fields, order=orders)
@@ -782,7 +782,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     # used by the related cuts menu
     def request_cuts_from_entity(self, entity):
-        print 'request_cuts_from_entity: %r' % entity
+        self._app.engine.log_info('request_cuts_from_entity %r' % QtCore.QThread.currentThread() )
+        
         # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
         
         if not self.project_entity:
@@ -792,11 +793,16 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         cuts = self._bundle.shotgun.find('Cut',
                         filters=[ ['entity', 'is', entity], ['project', 'is', { 'id': self.project_entity['id'], 'type': 'Project' } ]],
                         fields=['id', 'entity', 'code', 'cached_display_name'],
-                        order=[{'field_name': 'entity', 'direction': 'asc'}, {'field_name': 'code', 'direction': 'asc'}, {'field_name': 'cached_display_name', 'direction': 'asc'}])
+                        order=[
+                            # {'field_name': 'entity', 'direction': 'asc'}, 
+                            {'field_name': 'code', 'direction': 'asc'}, 
+                            {'field_name': 'cached_display_name', 'direction': 'asc'}
+                            ])
 
         last_entity_group = -1
         groups = []
 
+        # cuts and cuts inside loop  - fix dat.
         for cut in cuts:
             cut_id = cut.get('id')
             cut_code = cut.get('code')
@@ -886,7 +892,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         pass
         #print "CACHE LOADED."
 
-    def get_media_path(self, sg):
+    def get_media_path(self, sg, preferred_type=None):
+        # sg is a dict that represents a row
+        # preferred_type is movie or frames
+        # refactor to pick that one first
+        # if theres no frame play movie and vice versa
+
         if not sg:
             self._app.engine.log_error("%r passed into get_media_path." % sg)
             return None
@@ -907,12 +918,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             s = 'black,start=%d,end=%d.movieproc' % (sg['cut_item_in'], sg['cut_item_out'])
             return s
 
-        start = 0
+        start = 1
         
         if sg['version.Version.sg_first_frame']:
             start = sg['version.Version.sg_first_frame']
  
-        end = 1
+        end = 100
  
         if sg['version.Version.sg_last_frame']:
             end = sg['version.Version.sg_last_frame']
@@ -944,6 +955,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.commands.setIntProperty('%s.debug' % node, [ 0 ], True)
 
     def set_session_prop(self, name, item):
+        self._app.engine.log_info('set_session_prop %r' % QtCore.QThread.currentThread() )
+        
         try:
             if not rv.commands.propertyExists(name):
                 rv.commands.newProperty(name, rv.commands.StringType, 1)
@@ -983,9 +996,18 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             print "STUFF %r" % action.data() 
 
     def create_related_cuts_menu(self, entity_in, shot_entity=None):
+        # entity_in is in most cases as Sequence entity, currently whatever is in cut.Cut.entity
         print "create_related_cuts_menu: %r %r" % (entity_in, shot_entity)
 
         results = self.request_cuts_from_entity(entity_in)
+
+        # merge the shots stuff into results
+        if shot_entity:
+            pass
+            # look up related shots
+            # shot_results = self.request_cuts_from_entity(['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }])
+            # print "shot_results: %r" % shot_results
+
 
         menu = QtGui.QMenu(self.tray_button_browse_cut)
         menu.aboutToShow.connect(self.on_browse_cut)
@@ -1008,21 +1030,15 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 for n in x['revisions']:
                     action = QtGui.QAction(self.tray_button_browse_cut)
                     action.setText(n['cached_display_name'])
-                    en = {}
-                    en['id'] = n['id']
-                    en['type'] = 'Cut'
-                    action.setData(en)
+                    sub_en = {}
+                    sub_en['id'] = n['id']
+                    sub_en['type'] = 'Cut'
+                    action.setData(sub_en)
                     last_menu.addAction(action)
                 last_menu = menu
             else:
                 last_menu = menu
                 last_menu.addAction(action)
-
-        if shot_entity:
-            # pass
-            # look up related shots
-            shot_results = self.request_cuts_from_entity(['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }])
-            print "shot_results: %r" % shot_results
 
 
         self.tray_button_browse_cut.setMenu(menu)        
@@ -1061,6 +1077,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     # the way data from shotgun gets into the tray
     def on_data_refreshed(self, was_refreshed):
+        self._app.engine.log_info('on_data_refreshed: %r' % str(QtCore.QThread.currentThread()))
         # tray is cleared by ShotgunModel _load_data
 
         self.swapped_sources = None
@@ -1521,7 +1538,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         else:
             print '[ ] Latest in Pipeline'
 
-        shot_steps = sg.find('Step', filters=[['entity_type', 'is', 'Shot' ]], fields=['code', 'list_order', 'short_name', 'id'], order=[{'field_name': 'list_order', 'direction': 'desc'}])
+        shot_steps = sg.find('Step', 
+            filters=[['entity_type', 'is', 'Shot' ]], 
+            fields=['code', 'list_order', 'short_name', 'id'], 
+            order=[{'field_name': 'list_order', 'direction': 'desc'}])
 
         for step in shot_steps:
             found = False
