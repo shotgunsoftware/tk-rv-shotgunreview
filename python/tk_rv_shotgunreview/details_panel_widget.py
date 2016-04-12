@@ -184,10 +184,19 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param cleanup_after_upload:    If True, after the files are uploaded
                                         to Shotgun they will be removed from disk.
         """
-        self.ui.note_stream_widget.note_widget.add_files_to_attachments(
-            file_paths,
-            cleanup_after_upload,
-        )
+        if self.ui.note_stream_widget.reply_dialog:
+            self.ui.note_stream_widget.reply_dialog.ui.note_widget.add_files_to_attachments(
+                file_paths,
+                cleanup_after_upload,
+                apply_attachments=True,
+            )
+
+        else:
+            self.ui.note_stream_widget.ui.note_widget.add_files_to_attachments(
+                file_paths,
+                cleanup_after_upload,
+                apply_attachments=True,
+            )
 
     def load_data(self, entity):
         """
@@ -273,13 +282,6 @@ class DetailsPanelWidget(QtGui.QWidget):
             else:
                 self.ui.shot_info_widget.remove_field(field_name)
 
-            # The processEvents() call will ensure that the widget
-            # and layout changes have all been processed and any
-            # new widgets have been shown. This is important,
-            # because the sizeHint call below is dependent upon
-            # field widget visibility.
-            QtGui.QApplication.processEvents()
-            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
             self._active_fields = self.ui.shot_info_widget.fields
 
     def _version_list_field_menu_triggered(self, action):
@@ -300,6 +302,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             else:
                 self.version_delegate.remove_field(field_name)
 
+            # self.version_delegate.force_view_relayout()
             self.ui.entity_version_view.repaint()
 
     def _more_info_toggled(self, checked):
@@ -315,8 +318,6 @@ class DetailsPanelWidget(QtGui.QWidget):
 
             for field_name in self._active_fields:
                 self.ui.shot_info_widget.set_field_visibility(field_name, True)
-
-            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
         else:
             self.ui.more_info_button.setText("More info")
             self.ui.more_fields_button.hide()
@@ -325,8 +326,7 @@ class DetailsPanelWidget(QtGui.QWidget):
                 if field_name not in self._persistent_fields:
                     self.ui.shot_info_widget.set_field_visibility(field_name, False)
 
-            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
-
+        # self.ui.shot_info_widget.updateGeometry()
         self.ui.info_layout.update()
 
     def _selected_version_entities(self):

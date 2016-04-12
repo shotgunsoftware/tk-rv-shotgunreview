@@ -83,10 +83,17 @@ class ListItemWidget(QtGui.QWidget):
             self.label_exempt_fields = label_exempt_fields
 
         self.set_selected(False)
-        self.setMinimumHeight(self.calculate_size(len(self.fields)).height())
 
     ##########################################################################
     # properties
+
+    @property
+    def field_widgets(self):
+        """
+        Returns a list of field widget objects that are present in
+        the item widget.
+        """
+        return [self._fields[n].get("widget") for n in self.fields if "widget" in self._fields[n]]
 
     def _get_field_manager(self):
         """
@@ -129,10 +136,16 @@ class ListItemWidget(QtGui.QWidget):
         :param fields:  List of Shotgun field names as strings.
         """
         label_exempt = self.label_exempt_fields
-        self.clear_fields()
+        self.clear_fields(update_geometry=False)
 
         for field_name in fields:
-            self.add_field(field_name, label_exempt=(field_name in label_exempt))
+            self.add_field(
+                field_name,
+                label_exempt=(field_name in label_exempt),
+                update_geometry=False,
+            )
+
+        # self.updateGeometry()
 
     fields = property(_get_fields, _set_fields)
 
@@ -199,7 +212,7 @@ class ListItemWidget(QtGui.QWidget):
     ##########################################################################
     # public methods
 
-    def add_field(self, field_name, label_exempt=False):
+    def add_field(self, field_name, label_exempt=False, update_geometry=True):
         """
         Adds the given field to the list of Shotgun entity fields displayed
         by the widget.
@@ -207,6 +220,8 @@ class ListItemWidget(QtGui.QWidget):
         :param field_name:      The Shotgun entity field name to add.
         :param label_exempt:    Whether to exempt the field from having a label
                                 in the item layout. Defaults to False.
+        :param update_geometry: If True, an updateGeometry call will be executed
+                                after the field is added to the widget.
         """
         if not self.field_manager:
             raise RuntimeError("No ShotgunFieldManager has been set, unable to add fields.")
@@ -219,8 +234,6 @@ class ListItemWidget(QtGui.QWidget):
             label=None,
             label_exempt=label_exempt,
         )
-
-        self.setMinimumHeight(self.calculate_size(len(self.fields)).height())
 
         # If we've not yet loaded an entity, then we don't need to
         # do any widget work.
@@ -262,14 +275,25 @@ class ListItemWidget(QtGui.QWidget):
             # single column.
             self.ui.field_grid_layout.addWidget(field_widget, len(self.fields), 0)
 
-    def clear_fields(self):
+        # self.setMinimumHeight(self.sizeHint().height())
+
+        # if update_geometry:
+        #     self.updateGeometry()
+
+    def clear_fields(self, update_geometry=True):
         """
         Removes all field widgets from the item.
+
+        :param update_geometry: If True, an updateGeometry call will be executed
+                                after all fields have been cleared.
         """
         field_names = self.fields
 
         for field_name in field_names:
-            self.remove_field(field_name)
+            self.remove_field(field_name, update_geometry=False)
+
+        # if update_geometry:
+        #     self.updateGeometry()
 
     def get_visible_fields(self):
         """
@@ -282,12 +306,14 @@ class ListItemWidget(QtGui.QWidget):
 
         return [f for f, d in self._fields.iteritems() if d["widget"].isVisible()]
 
-    def remove_field(self, field_name):
+    def remove_field(self, field_name, update_geometry=True):
         """
         Removes the field widget and its label (when present) for the
         given field name.
 
         :param field_name:  The Shotgun field name to remove.
+        :param update_geometry: If True, an updateGeometry call will be executed
+                                after the field is removed from the widget.
         """
         if field_name not in self.fields:
             return
@@ -314,7 +340,11 @@ class ListItemWidget(QtGui.QWidget):
 
         # Remove the field from the list of stuff we're tracking.
         del self._fields[field_name]
-        self.setMinimumHeight(self.calculate_size(len(self.fields)).height())
+
+        # self.setMinimumHeight(self.sizeHint().height())
+
+        # if update_geometry:
+        #     self.updateGeometry()
 
     def set_entity(self, entity):
         """
@@ -357,17 +387,6 @@ class ListItemWidget(QtGui.QWidget):
             # layout toward the thumbnail on the left.
             self.ui.box_layout.setStretchFactor(self.ui.right_layout, 15)
             self.ui.box_layout.setStretchFactor(self.ui.left_layout, 7)
-
-            # Setting the size policy for the thumbnail ensures that it
-            # doesn't get completely crowded out somehow. It will fill its
-            # layout horizontally, taking up a total share of space dictated
-            # by the stretch factors above.
-            size_policy = QtGui.QSizePolicy(
-                QtGui.QSizePolicy.Preferred,
-                QtGui.QSizePolicy.MinimumExpanding,
-            )
-
-            self.thumbnail.setSizePolicy(size_policy)
             self.ui.left_layout.insertWidget(0, self.thumbnail)
 
             # Visually, this will just cause column 1 of the grid layout
@@ -428,6 +447,9 @@ class ListItemWidget(QtGui.QWidget):
 
         if field_label:
             field_label.setVisible(bool(state))
+
+        # self.setMinimumHeight(self.sizeHint().height())
+        # self.updateGeometry()
                    
     def set_selected(self, selected):
         """
@@ -480,12 +502,7 @@ class ListItemWidget(QtGui.QWidget):
         Tells Qt what the sizeHint for the widget is, based on
         the number of visible field widgets.
         """
-        if self._entity:
-            fields = self.get_visible_fields()
-        else:
-            fields = self.fields
-
-        return ListItemWidget.calculate_size(len(fields))
+        return QtCore.QSize(300, self.ui.field_grid_layout.sizeHint().height() + 4)
 
     def minimumSizeHint(self):
         """
@@ -494,18 +511,4 @@ class ListItemWidget(QtGui.QWidget):
         """
         return self.sizeHint()
 
-    @staticmethod
-    def calculate_size(field_count=2):
-        """
-        Calculates and returns a suitable size for this widget.
-
-        :param field_count: The integer number of fields to account for
-                            when determining the vertical size of the
-                            widget. The default assumption is the display
-                            of two fields.
-        """
-        # 0, 1, or 2 fields will all be the same, then we increase
-        # as we go above that number of fields.
-        height = max((40 + (15 * field_count)), 70)
-        return QtCore.QSize(300, height)
 

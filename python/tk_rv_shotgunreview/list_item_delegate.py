@@ -9,7 +9,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 import tank
-from tank.platform.qt import QtCore
+from tank.platform.qt import QtCore, QtGui
 
 from .list_item_widget import ListItemWidget
 
@@ -49,6 +49,7 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         self._show_borders = show_borders
         self._shotgun_field_manager = shotgun_field_manager
         self._current_editor = None
+        self._fields_changed = False
 
     def add_field(self, field):
         """
@@ -65,6 +66,14 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
             except Exception:
                 pass
 
+        self._fields_changed = True
+
+    def force_view_relayout(self):
+        for model_index, widget in self._widget_cache.iteritems():
+            if widget:
+                widget.setMinimumSize(widget.sizeHint())
+                self.sizeHintChanged.emit(model_index)
+
     def remove_field(self, field):
         """
         Removes the given field from the list of fields to display for the entity.
@@ -78,6 +87,8 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
                 self._current_editor.remove_field(field)
             except Exception:
                 pass
+
+        self._fields_changed = True
 
     def _create_widget(self, parent):
         """
@@ -115,13 +126,15 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         if model_index in self._widget_cache:
             widget = self._widget_cache[model_index]
 
-            if sorted(widget.fields) != sorted(self.fields):
+            if sorted(self.fields) != sorted(widget.fields):
                 widget.fields = self.fields
                 self.sizeHintChanged.emit(model_index)
+
             return widget
 
         widget = self._create_widget(parent)
         self._widget_cache[model_index] = widget
+        self.sizeHintChanged.emit(model_index)
 
         return widget
 
@@ -169,7 +182,7 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         if model_index in self.selection_model.selectedIndexes():
             widget.set_selected(True)
         else:
-            widget.set_selected(False)     
+            widget.set_selected(False)
 
     def sizeHint(self, style_options, model_index):
         """
@@ -182,5 +195,11 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         :param model_index:     The index of the item in the model.
         :type model_index:      :class:`~PySide.QtCore.QModelIndex`
         """
-        return ListItemWidget.calculate_size(len(self.fields))
+        # We have to do this ourselves instead of calling
+        # _get_painter_widget because that itself emits
+        # the sizeHintChanged signal, which would put us
+        # into an infinite loop.
+        widget = self._widget_cache.get(model_index) or self._create_widget(self.view)
+        return widget.sizeHint()
+
 
