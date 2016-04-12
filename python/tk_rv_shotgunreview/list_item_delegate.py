@@ -58,21 +58,17 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         if field not in self.fields:
             self.fields.append(field)
 
+        # If it appears that we have a editor live at the moment
+        # then we need to force a reselection to rebuild that
+        # editor at the correct size, taking into account the
+        # change in fields.
         if self._current_editor:
-            # Catching exceptions here in case the editor has been
-            # garbage collected already. It's fine if it has been.
-            try:
-                self._current_editor.add_field(field)
-            except Exception:
-                pass
+            selection = self.view.selectionModel().selection()
+            self.view.selectionModel().clearSelection()
+            QtGui.QApplication.processEvents()
+            self.view.selectionModel().select(selection, QtGui.QItemSelectionModel.Select)
 
         self._fields_changed = True
-
-    def force_view_relayout(self):
-        for model_index, widget in self._widget_cache.iteritems():
-            if widget:
-                widget.setMinimumSize(widget.sizeHint())
-                self.sizeHintChanged.emit(model_index)
 
     def remove_field(self, field):
         """
@@ -80,13 +76,15 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         """
         self.fields = [f for f in self.fields if f != field]
 
+        # If it appears that we have a editor live at the moment
+        # then we need to force a reselection to rebuild that
+        # editor at the correct size, taking into account the
+        # change in fields.
         if self._current_editor:
-            # Catching exceptions here in case the editor has been
-            # garbage collected already. It's fine if it has been.
-            try:
-                self._current_editor.remove_field(field)
-            except Exception:
-                pass
+            selection = self.view.selectionModel().selection()
+            self.view.selectionModel().clearSelection()
+            QtGui.QApplication.processEvents()
+            self.view.selectionModel().select(selection, QtGui.QItemSelectionModel.Select)
 
         self._fields_changed = True
 
@@ -156,7 +154,7 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         """
         widget = self._create_widget(parent)
         self._on_before_paint(widget, model_index, style_options)
-        self._current_editor = widget
+        self._current_editor = (model_index, widget)
         return widget
 
     def _on_before_paint(self, widget, model_index, style_options):

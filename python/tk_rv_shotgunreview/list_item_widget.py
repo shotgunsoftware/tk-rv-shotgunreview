@@ -136,16 +136,13 @@ class ListItemWidget(QtGui.QWidget):
         :param fields:  List of Shotgun field names as strings.
         """
         label_exempt = self.label_exempt_fields
-        self.clear_fields(update_geometry=False)
+        self.clear_fields()
 
         for field_name in fields:
             self.add_field(
                 field_name,
                 label_exempt=(field_name in label_exempt),
-                update_geometry=False,
             )
-
-        # self.updateGeometry()
 
     fields = property(_get_fields, _set_fields)
 
@@ -212,7 +209,7 @@ class ListItemWidget(QtGui.QWidget):
     ##########################################################################
     # public methods
 
-    def add_field(self, field_name, label_exempt=False, update_geometry=True):
+    def add_field(self, field_name, label_exempt=False):
         """
         Adds the given field to the list of Shotgun entity fields displayed
         by the widget.
@@ -220,8 +217,6 @@ class ListItemWidget(QtGui.QWidget):
         :param field_name:      The Shotgun entity field name to add.
         :param label_exempt:    Whether to exempt the field from having a label
                                 in the item layout. Defaults to False.
-        :param update_geometry: If True, an updateGeometry call will be executed
-                                after the field is added to the widget.
         """
         if not self.field_manager:
             raise RuntimeError("No ShotgunFieldManager has been set, unable to add fields.")
@@ -266,7 +261,7 @@ class ListItemWidget(QtGui.QWidget):
                     field_name,
                 )
                 self._fields[field_name]["label"] = field_label
-                self.ui.field_grid_layout.addWidget(field_label, len(self.fields), 0)
+                self.ui.field_grid_layout.addWidget(field_label, len(self.fields), 0, QtCore.Qt.AlignRight)
                 self.ui.field_grid_layout.addWidget(field_widget, len(self.fields), 1)
         else:
             # Nothing at all will have labels, so we can just put the
@@ -275,25 +270,14 @@ class ListItemWidget(QtGui.QWidget):
             # single column.
             self.ui.field_grid_layout.addWidget(field_widget, len(self.fields), 0)
 
-        # self.setMinimumHeight(self.sizeHint().height())
-
-        # if update_geometry:
-        #     self.updateGeometry()
-
-    def clear_fields(self, update_geometry=True):
+    def clear_fields(self):
         """
         Removes all field widgets from the item.
-
-        :param update_geometry: If True, an updateGeometry call will be executed
-                                after all fields have been cleared.
         """
         field_names = self.fields
 
         for field_name in field_names:
-            self.remove_field(field_name, update_geometry=False)
-
-        # if update_geometry:
-        #     self.updateGeometry()
+            self.remove_field(field_name)
 
     def get_visible_fields(self):
         """
@@ -306,14 +290,12 @@ class ListItemWidget(QtGui.QWidget):
 
         return [f for f, d in self._fields.iteritems() if d["widget"].isVisible()]
 
-    def remove_field(self, field_name, update_geometry=True):
+    def remove_field(self, field_name):
         """
         Removes the field widget and its label (when present) for the
         given field name.
 
         :param field_name:  The Shotgun field name to remove.
-        :param update_geometry: If True, an updateGeometry call will be executed
-                                after the field is removed from the widget.
         """
         if field_name not in self.fields:
             return
@@ -340,11 +322,6 @@ class ListItemWidget(QtGui.QWidget):
 
         # Remove the field from the list of stuff we're tracking.
         del self._fields[field_name]
-
-        # self.setMinimumHeight(self.sizeHint().height())
-
-        # if update_geometry:
-        #     self.updateGeometry()
 
     def set_entity(self, entity):
         """
@@ -418,7 +395,7 @@ class ListItemWidget(QtGui.QWidget):
                             field,
                         )
 
-                        field_grid_layout.addWidget(field_label, i, 0)
+                        field_grid_layout.addWidget(field_label, i, 0, QtCore.Qt.AlignRight)
                         self._fields[field]["label"] = field_label
                         field_grid_layout.addWidget(field_widget, i, 1)
                 else:
@@ -447,9 +424,6 @@ class ListItemWidget(QtGui.QWidget):
 
         if field_label:
             field_label.setVisible(bool(state))
-
-        # self.setMinimumHeight(self.sizeHint().height())
-        # self.updateGeometry()
                    
     def set_selected(self, selected):
         """
@@ -502,7 +476,7 @@ class ListItemWidget(QtGui.QWidget):
         Tells Qt what the sizeHint for the widget is, based on
         the number of visible field widgets.
         """
-        return QtCore.QSize(300, self.ui.field_grid_layout.sizeHint().height() + 4)
+        return QtCore.QSize(300, self.ui.field_grid_layout.sizeHint().height() + 8)
 
     def minimumSizeHint(self):
         """

@@ -158,7 +158,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._task_manager.task_group_finished.connect(
             self._task_group_finished
         )
-        self.ui.pin_button.toggled.connect(self._set_pinned)
+        self.ui.pin_button.toggled.connect(self.set_pinned)
         self.ui.more_info_button.toggled.connect(self._more_info_toggled)
         self.ui.shotgun_nav_button.clicked.connect(
             self.ui.note_stream_widget._load_shotgun_activity_stream
@@ -261,6 +261,26 @@ class DetailsPanelWidget(QtGui.QWidget):
             QtGui.QPixmap(image_path),
         )
 
+    def set_pinned(self, checked):
+        """
+        Sets the "pinned" state of the details panel. When the panel is
+        pinned it will not accept updates. It will, however, record the
+        most recent entity passed to load_data that was not accepted. If
+        the panel is unpinned at a later time, the most recent rejected
+        entity update will be executed at that time.
+
+        :param checked: True or False
+        """
+        self._pinned = checked
+
+        if checked:
+            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_hover.png"))
+        else:
+            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_up.png"))
+            if self._requested_entity:
+                self.load_data(self._requested_entity)
+                self._requested_entity = None
+
     ##########################################################################
     # internal utilities
 
@@ -302,7 +322,6 @@ class DetailsPanelWidget(QtGui.QWidget):
             else:
                 self.version_delegate.remove_field(field_name)
 
-            # self.version_delegate.force_view_relayout()
             self.ui.entity_version_view.repaint()
 
     def _more_info_toggled(self, checked):
@@ -326,9 +345,6 @@ class DetailsPanelWidget(QtGui.QWidget):
                 if field_name not in self._persistent_fields:
                     self.ui.shot_info_widget.set_field_visibility(field_name, False)
 
-        # self.ui.shot_info_widget.updateGeometry()
-        self.ui.info_layout.update()
-
     def _selected_version_entities(self):
         """
         Returns a list of Version entities that are currently selected.
@@ -336,26 +352,6 @@ class DetailsPanelWidget(QtGui.QWidget):
         selection_model = self.ui.entity_version_view.selectionModel()
         indexes = selection_model.selectedIndexes()
         return [shotgun_model.get_sg_data(i) for i in indexes]
-
-    def _set_pinned(self, checked):
-        """
-        Sets the "pinned" state of the details panel. When the panel is
-        pinned it will not accept updates. It will, however, record the
-        most recent entity passed to load_data that was not accepted. If
-        the panel is unpinned at a later time, the most recent rejected
-        entity update will be executed at that time.
-
-        :param checked: True or False
-        """
-        self._pinned = checked
-
-        if checked:
-            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_hover.png"))
-        else:
-            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_up.png"))
-            if self._requested_entity:
-                self.load_data(self._requested_entity)
-                self._requested_entity = None
 
     def _setup_fields_menu(self):
         """
