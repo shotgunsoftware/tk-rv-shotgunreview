@@ -70,6 +70,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                         print "entity: %r" % entity
             else:
                 self._app.engine.log_error("load_version_id_from_session: NO PROP NAMED %s" % group_name)
+
         return None
 
     # RV Events
@@ -303,7 +304,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 continue # restrict to current source for now
 
             # load_version_id_from_source expects a group name
-            group_name = rv.commands.nodeGroup(source_name)
+            group_name = rv.commands.nodeGroup(source)
             info = self.load_version_id_from_session(group_name)
             sframe = rv.extra_commands.sourceFrame(frame)
 
@@ -1068,7 +1069,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         """
         fk = sg_item['version.Version.id']
         if fk in self.loaded_sources:
-            group_name = self.loaded_sources[fk]['group_name']
+            # group_name = self.loaded_sources[fk]['group_name']
             return False
         else:
             f = self.get_media_path(sg_item)
@@ -1180,7 +1181,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             try:
                 # these should be at the cut item (sequence) level
                 # this should also move into the 'only if new source' block
-                sg_item['ui_index'] = source_incr
+                sg_item['ui_index'] = self.loaded_sources[fk]['source_index']
                 sg_item['tl_index'] = timeline_incr
                 if not rv.commands.propertyExists(source_prop_name):
                     rv.commands.newProperty(source_prop_name, rv.commands.StringType, 1)
