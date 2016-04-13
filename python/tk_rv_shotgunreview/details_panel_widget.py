@@ -120,11 +120,20 @@ class DetailsPanelWidget(QtGui.QWidget):
             "entity",
         ]
 
+        # The fields list for the Version list view delegate operate
+        # the same way as the above persistent list. We're simply
+        # keeping track of what we don't allow to be turned off.
+        self._version_list_persistent_fields = [
+            "code",
+            "user",
+            "sg_status_list",
+        ]
+
         self.version_model = shotgun_model.SimpleShotgunModel(self.ui.entity_version_tab)
         self.ui.entity_version_view.setModel(self.version_model)
         self.version_delegate = ListItemDelegate(
             view=self.ui.entity_version_view,
-            fields=["code", "user","sg_status_list"],
+            fields=self._version_list_persistent_fields,
             shotgun_field_manager=self._shotgun_field_manager,
             label_exempt_fields=["code"],
         )
@@ -149,7 +158,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._task_manager.task_group_finished.connect(
             self._task_group_finished
         )
-        self.ui.pin_button.toggled.connect(self._set_pinned)
+        self.ui.pin_button.toggled.connect(self.set_pinned)
         self.ui.more_info_button.toggled.connect(self._more_info_toggled)
         self.ui.shotgun_nav_button.clicked.connect(
             self.ui.note_stream_widget._load_shotgun_activity_stream
@@ -157,9 +166,11 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         self.ui.entity_version_view.customContextMenuRequested.connect(self._show_version_context_menu)
 
-        # The fields menu attached to the "More fields..." button
-        # when "More info" is active.
+        # The fields menu attached to the "Fields..." buttons
+        # when "More info" is active as well as in the Versions
+        # tab.
         self._setup_fields_menu()
+        self._setup_version_list_fields_menu()
 
     ##########################################################################
     # public methods
@@ -173,10 +184,19 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param cleanup_after_upload:    If True, after the files are uploaded
                                         to Shotgun they will be removed from disk.
         """
-        self.ui.note_stream_widget.note_widget.add_files_to_attachments(
-            file_paths,
-            cleanup_after_upload,
-        )
+        if self.ui.note_stream_widget.reply_dialog:
+            self.ui.note_stream_widget.reply_dialog.ui.note_widget.add_files_to_attachments(
+                file_paths,
+                cleanup_after_upload,
+                apply_attachments=True,
+            )
+
+        else:
+            self.ui.note_stream_widget.ui.note_widget.add_files_to_attachments(
+                file_paths,
+                cleanup_after_upload,
+                apply_attachments=True,
+            )
 
     def load_data(self, entity):
         """
@@ -241,6 +261,26 @@ class DetailsPanelWidget(QtGui.QWidget):
             QtGui.QPixmap(image_path),
         )
 
+    def set_pinned(self, checked):
+        """
+        Sets the "pinned" state of the details panel. When the panel is
+        pinned it will not accept updates. It will, however, record the
+        most recent entity passed to load_data that was not accepted. If
+        the panel is unpinned at a later time, the most recent rejected
+        entity update will be executed at that time.
+
+        :param checked: True or False
+        """
+        self._pinned = checked
+
+        if checked:
+            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_hover.png"))
+        else:
+            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_up.png"))
+            if self._requested_entity:
+                self.load_data(self._requested_entity)
+                self._requested_entity = None
+
     ##########################################################################
     # internal utilities
 
@@ -262,14 +302,27 @@ class DetailsPanelWidget(QtGui.QWidget):
             else:
                 self.ui.shot_info_widget.remove_field(field_name)
 
-            # The processEvents() call will ensure that the widget
-            # and layout changes have all been processed and any
-            # new widgets have been shown. This is important,
-            # because the sizeHint call below is dependent upon
-            # field widget visibility.
-            QtGui.QApplication.processEvents()
-            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
             self._active_fields = self.ui.shot_info_widget.fields
+
+    def _version_list_field_menu_triggered(self, action):
+        """
+        Adds or removes a field when it checked or unchecked
+        via the EntityFieldMenu.
+
+        :param action:  The QMenuAction that was triggered. 
+        """
+        if action:
+            # The MenuAction's data will have a "field" key that was
+            # added by the EntityFieldMenu that contains the name of
+            # the field that was checked or unchecked.
+            field_name = action.data()["field"]
+
+            if action.isChecked():
+                self.version_delegate.add_field(field_name)
+            else:
+                self.version_delegate.remove_field(field_name)
+
+            self.ui.entity_version_view.repaint()
 
     def _more_info_toggled(self, checked):
         """
@@ -284,8 +337,6 @@ class DetailsPanelWidget(QtGui.QWidget):
 
             for field_name in self._active_fields:
                 self.ui.shot_info_widget.set_field_visibility(field_name, True)
-
-            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
         else:
             self.ui.more_info_button.setText("More info")
             self.ui.more_fields_button.hide()
@@ -294,10 +345,6 @@ class DetailsPanelWidget(QtGui.QWidget):
                 if field_name not in self._persistent_fields:
                     self.ui.shot_info_widget.set_field_visibility(field_name, False)
 
-            self.ui.shot_info_widget.setFixedSize(self.ui.shot_info_widget.sizeHint())
-
-        self.ui.info_layout.update()
-
     def _selected_version_entities(self):
         """
         Returns a list of Version entities that are currently selected.
@@ -305,26 +352,6 @@ class DetailsPanelWidget(QtGui.QWidget):
         selection_model = self.ui.entity_version_view.selectionModel()
         indexes = selection_model.selectedIndexes()
         return [shotgun_model.get_sg_data(i) for i in indexes]
-
-    def _set_pinned(self, checked):
-        """
-        Sets the "pinned" state of the details panel. When the panel is
-        pinned it will not accept updates. It will, however, record the
-        most recent entity passed to load_data that was not accepted. If
-        the panel is unpinned at a later time, the most recent rejected
-        entity update will be executed at that time.
-
-        :param checked: True or False
-        """
-        self._pinned = checked
-
-        if checked:
-            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_hover.png"))
-        else:
-            self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_up.png"))
-            if self._requested_entity:
-                self.load_data(self._requested_entity)
-                self._requested_entity = None
 
     def _setup_fields_menu(self):
         """
@@ -338,6 +365,19 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._field_menu = menu
         self._field_menu.triggered.connect(self._field_menu_triggered)
         self.ui.more_fields_button.setMenu(menu)
+
+    def _setup_version_list_fields_menu(self):
+        """
+        Sets up the EntityFieldMenu and attaches it as the "More fields"
+        button's menu.
+        """
+        menu = shotgun_menus.EntityFieldMenu("Version")
+        menu.set_field_filter(self._field_filter)
+        menu.set_checked_filter(self._version_list_checked_filter)
+        menu.set_disabled_filter(self._version_list_disabled_filter)
+        self._version_list_field_menu = menu
+        self._version_list_field_menu.triggered.connect(self._version_list_field_menu_triggered)
+        self.ui.version_fields_button.setMenu(menu)
 
     def _show_version_context_menu(self, point):
         """
@@ -476,6 +516,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         """
         return (field in self._active_fields)
 
+    def _version_list_checked_filter(self, field):
+        """
+        Checked filter method for the EntityFieldMenu. Determines whether the
+        given field should be checked in the field menu.
+
+        :param field:   The field name being processed.
+        """
+        return (field in self.version_delegate.fields)
+
     def _disabled_filter(self, field):
         """
         Disabled filter method for the EntityFieldMenu. Determines whether the
@@ -484,6 +533,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param field:   The field name being processed.
         """
         return (field in self._persistent_fields)
+
+    def _version_list_disabled_filter(self, field):
+        """
+        Disabled filter method for the EntityFieldMenu. Determines whether the
+        given field should be active or disabled in the field menu.
+
+        :param field:   The field name being processed.
+        """
+        return (field in self._version_list_persistent_fields)
 
     def _field_filter(self, field):
         """

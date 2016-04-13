@@ -87,6 +87,14 @@ class ListItemWidget(QtGui.QWidget):
     ##########################################################################
     # properties
 
+    @property
+    def field_widgets(self):
+        """
+        Returns a list of field widget objects that are present in
+        the item widget.
+        """
+        return [self._fields[n].get("widget") for n in self.fields if "widget" in self._fields[n]]
+
     def _get_field_manager(self):
         """
         Returns the ShotgunFieldManager.
@@ -127,10 +135,14 @@ class ListItemWidget(QtGui.QWidget):
 
         :param fields:  List of Shotgun field names as strings.
         """
+        label_exempt = self.label_exempt_fields
         self.clear_fields()
 
         for field_name in fields:
-            self.add_field(field_name)
+            self.add_field(
+                field_name,
+                label_exempt=(field_name in label_exempt),
+            )
 
     fields = property(_get_fields, _set_fields)
 
@@ -249,7 +261,7 @@ class ListItemWidget(QtGui.QWidget):
                     field_name,
                 )
                 self._fields[field_name]["label"] = field_label
-                self.ui.field_grid_layout.addWidget(field_label, len(self.fields), 0)
+                self.ui.field_grid_layout.addWidget(field_label, len(self.fields), 0, QtCore.Qt.AlignRight)
                 self.ui.field_grid_layout.addWidget(field_widget, len(self.fields), 1)
         else:
             # Nothing at all will have labels, so we can just put the
@@ -352,17 +364,6 @@ class ListItemWidget(QtGui.QWidget):
             # layout toward the thumbnail on the left.
             self.ui.box_layout.setStretchFactor(self.ui.right_layout, 15)
             self.ui.box_layout.setStretchFactor(self.ui.left_layout, 7)
-
-            # Setting the size policy for the thumbnail ensures that it
-            # doesn't get completely crowded out somehow. It will fill its
-            # layout horizontally, taking up a total share of space dictated
-            # by the stretch factors above.
-            size_policy = QtGui.QSizePolicy(
-                QtGui.QSizePolicy.Preferred,
-                QtGui.QSizePolicy.MinimumExpanding,
-            )
-
-            self.thumbnail.setSizePolicy(size_policy)
             self.ui.left_layout.insertWidget(0, self.thumbnail)
 
             # Visually, this will just cause column 1 of the grid layout
@@ -394,7 +395,7 @@ class ListItemWidget(QtGui.QWidget):
                             field,
                         )
 
-                        field_grid_layout.addWidget(field_label, i, 0)
+                        field_grid_layout.addWidget(field_label, i, 0, QtCore.Qt.AlignRight)
                         self._fields[field]["label"] = field_label
                         field_grid_layout.addWidget(field_widget, i, 1)
                 else:
@@ -475,12 +476,7 @@ class ListItemWidget(QtGui.QWidget):
         Tells Qt what the sizeHint for the widget is, based on
         the number of visible field widgets.
         """
-        if self._entity:
-            fields = self.get_visible_fields()
-        else:
-            fields = self.fields
-
-        return ListItemWidget.calculate_size(len(fields))
+        return QtCore.QSize(300, self.ui.field_grid_layout.sizeHint().height() + 8)
 
     def minimumSizeHint(self):
         """
@@ -489,18 +485,4 @@ class ListItemWidget(QtGui.QWidget):
         """
         return self.sizeHint()
 
-    @staticmethod
-    def calculate_size(field_count=2):
-        """
-        Calculates and returns a suitable size for this widget.
-
-        :param field_count: The integer number of fields to account for
-                            when determining the vertical size of the
-                            widget. The default assumption is the display
-                            of two fields.
-        """
-        # 0, 1, or 2 fields will all be the same, then we increase
-        # as we go above that number of fields.
-        height = max((40 + (15 * field_count)), 70)
-        return QtCore.QSize(300, height)
 
