@@ -288,6 +288,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         print(rvioExec.stderr.read(), rvioExec.stdout.read())
 
         attachments = []
+        current = rv.commands.sourcesAtFrame(rv.commands.frame())[0] # will be replaced with event contents
         for frame,props in props.items():
             src = "%s/sequence.%d.jpg" % (tempdir,frame)
 
@@ -295,8 +296,16 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 print("ERROR: Can't find annotation for frame: %d at '%s'" % (frame, src))
                 continue
 
+            source = None
+            sources = rv.commands.sourcesAtFrame(frame)
+            if len(sources) > 0:
+                source = sources[0]
+            if source != current:
+                continue # restrict to current source for now
+
+            info = self.load_version_id_from_session(source)
             sframe = rv.extra_commands.sourceFrame(frame)
-            tgt = "%s/source.%d.jpg" % (tempdir,sframe)
+            tgt = "%s/annotation_ver_%d.%d.jpg" % (tempdir, info['version.Version.id'], sframe)
             shutil.move(src, tgt)
             attachments.append(tgt)
 
