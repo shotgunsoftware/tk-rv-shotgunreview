@@ -302,7 +302,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             if source != current:
                 continue # restrict to current source for now
 
-            info = self.load_version_id_from_session(source)
+            # load_version_id_from_source expects a group name
+            group_name = rv.commands.nodeGroup(source_name)
+            info = self.load_version_id_from_session(group_name)
             sframe = rv.extra_commands.sourceFrame(frame)
 
             if info:
