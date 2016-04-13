@@ -49,11 +49,12 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         self._show_borders = show_borders
         self._shotgun_field_manager = shotgun_field_manager
         self._current_editor = None
-        self._fields_changed = False
 
     def add_field(self, field):
         """
         Adds the given field to the list of fields to display for the entity.
+
+        :param field:   The name of the Shotgun field to add to the delegate.
         """
         if field not in self.fields:
             self.fields.append(field)
@@ -63,16 +64,13 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         # editor at the correct size, taking into account the
         # change in fields.
         if self._current_editor:
-            selection = self.view.selectionModel().selection()
-            self.view.selectionModel().clearSelection()
-            QtGui.QApplication.processEvents()
-            self.view.selectionModel().select(selection, QtGui.QItemSelectionModel.Select)
-
-        self._fields_changed = True
+            self._force_reselection()
 
     def remove_field(self, field):
         """
         Removes the given field from the list of fields to display for the entity.
+
+        :param field:   The name of the Shotgun field to remove from the delegate.
         """
         self.fields = [f for f in self.fields if f != field]
 
@@ -81,12 +79,7 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         # editor at the correct size, taking into account the
         # change in fields.
         if self._current_editor:
-            selection = self.view.selectionModel().selection()
-            self.view.selectionModel().clearSelection()
-            QtGui.QApplication.processEvents()
-            self.view.selectionModel().select(selection, QtGui.QItemSelectionModel.Select)
-
-        self._fields_changed = True
+            self._force_reselection()
 
     def _create_widget(self, parent):
         """
@@ -107,6 +100,16 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
             label_exempt_fields=self._label_exempt_fields,
         )
 
+    def _force_reselection(self):
+        """
+        Forces a reselection of all currently-selected indexes. This serves
+        the purpose of forcing a refresh of any active edit widgets.
+        """
+        selection = self.view.selectionModel().selection()
+        self.view.selectionModel().clearSelection()
+        QtGui.QApplication.processEvents()
+        self.view.selectionModel().select(selection, QtGui.QItemSelectionModel.Select)
+
     def _get_painter_widget(self, model_index, parent):
         """
         Constructs a widget to act as the basis for the paint event. If
@@ -124,7 +127,7 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         if model_index in self._widget_cache:
             widget = self._widget_cache[model_index]
 
-            if sorted(self.fields) != sorted(widget.fields):
+            if self.fields != widget.fields:
                 widget.fields = self.fields
                 self.sizeHintChanged.emit(model_index)
 

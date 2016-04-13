@@ -173,6 +173,17 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._setup_version_list_fields_menu()
 
     ##########################################################################
+    # properties
+
+    @property
+    def is_pinned(self):
+        """
+        Returns True if the panel is pinned and not processing entity
+        updates, and False if it is not pinned.
+        """
+        return self._pinned
+
+    ##########################################################################
     # public methods
 
     def add_note_attachments(self, file_paths, cleanup_after_upload=True):
@@ -185,14 +196,14 @@ class DetailsPanelWidget(QtGui.QWidget):
                                         to Shotgun they will be removed from disk.
         """
         if self.ui.note_stream_widget.reply_dialog:
-            self.ui.note_stream_widget.reply_dialog.ui.note_widget.add_files_to_attachments(
+            self.ui.note_stream_widget.reply_dialog.note_widget.add_files_to_attachments(
                 file_paths,
                 cleanup_after_upload,
                 apply_attachments=True,
             )
 
         else:
-            self.ui.note_stream_widget.ui.note_widget.add_files_to_attachments(
+            self.ui.note_stream_widget.note_widget.add_files_to_attachments(
                 file_paths,
                 cleanup_after_upload,
                 apply_attachments=True,

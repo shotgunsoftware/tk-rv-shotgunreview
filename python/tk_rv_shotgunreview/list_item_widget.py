@@ -28,6 +28,9 @@ class ListItemWidget(QtGui.QWidget):
     :ivar field_manager:    The accompanying ShotgunFieldManager object
                             used to construct all Shotgun field widgets.
     """
+    WIDTH_HINT = 300
+    HEIGHT_HINT_PADDING = 8
+
     def __init__(
         self, parent, fields=None, show_labels=True, show_border=False,
         shotgun_field_manager=None, label_exempt_fields=None
@@ -476,7 +479,10 @@ class ListItemWidget(QtGui.QWidget):
         Tells Qt what the sizeHint for the widget is, based on
         the number of visible field widgets.
         """
-        return QtCore.QSize(300, self.ui.field_grid_layout.sizeHint().height() + 8)
+        return QtCore.QSize(
+            ListItemWidget.WIDTH_HINT,
+            self.ui.field_grid_layout.sizeHint().height() + ListItemWidget.HEIGHT_HINT_PADDING,
+        )
 
     def minimumSizeHint(self):
         """
