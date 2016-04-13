@@ -262,14 +262,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             return
 
         tempdir = tempfile.mkdtemp()
-	rv.commands.rvioSetup()
+        rv.commands.rvioSetup()
         rvio = os.environ.get("RV_APP_RVIO", None)
         args = [rvio, "-v", "-err-to-out"]
 
         setDisp = pymu.MuSymbol("export_utils.setExportDisplayConvert")
         setDisp("default")
         session = os.path.join(tempdir, "export.rv")
-        print(session)
         rv.commands.saveSession(session)
         args += [session]
 
@@ -305,7 +304,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             info = self.load_version_id_from_session(source)
             sframe = rv.extra_commands.sourceFrame(frame)
-            tgt = "%s/annotation_ver_%d.%d.jpg" % (tempdir, info['version.Version.id'], sframe)
+
+            if info:
+                tgt = "%s/annotation_ver_%d.%d.jpg" % (tempdir, info['version.Version.id'], sframe)
+            else:
+                tgt = "%s/annotation.%d.jpg" % (tempdir, sframe)
+
             shutil.move(src, tgt)
             attachments.append(tgt)
 
