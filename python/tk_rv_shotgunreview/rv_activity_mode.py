@@ -195,6 +195,28 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             print args[1]
             print event.contents()
 
+    def on_play_state_change(self, event):
+
+        # Auto-pin the DetailsPanel during playback, so that updating it does
+        # not cause a hiccup.
+        # XXX auto-pinning should be controlled by a preference (default on)
+
+        # Ignore the event if no DetailsPanel built yet, or if we are
+        # "buffering" (ie playback paused to fill cache) or in "turn-around"
+        # (ie looping)
+        cont = event.contents()
+        if (self.details_panel and cont != "buffering" and cont != "turn-around"):
+            # We only auto-pin the details if they are not already pinned
+            # XXX _pinned should be publicly accessible
+            if   (event.name() == "play-start" and not self.details_panel._pinned):
+                self.details_panel.set_pinned(True)
+                self.details_pinned_for_playback = True
+            # We only auto-unpin the details on stop if we auto-pinned them in
+            # the first place.
+            elif (event.name() == "play-stop" and self.details_pinned_for_playback):
+                self.details_panel.set_pinned(False)
+                self.details_pinned_for_playback = False
+
     def on_view_size_changed(self, event):
         event.reject()
         traysize = self.tray_dock.size().width()
@@ -342,6 +364,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self._mini_cut_seq_name = None
         self.mini_cut_seq_node = None
 
+        self.details_panel = None
+        self.details_pinned_for_playback = False
         self.details_dirty = False
 
         self.pinned_items = []
@@ -381,6 +405,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 ("replace_with_selected", self.replaceWithSelected, ""),
                 ("graph-state-change", self.graphStateChange, ""),
                 ('id_from_gma', self.on_id_from_gma, ""),
+                ('play-start', self.on_play_state_change, ""),
+                ('play-stop', self.on_play_state_change, ""),
                 ('view-size-changed', self.on_view_size_changed, ''),
                 ('new_note_screenshot', self.makeNoteAttachments, ''),
                 ],
@@ -1178,10 +1204,19 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                  
             source_prop_name = ("%s.cut_support.json_sg_data") % self.loaded_sources[fk]['group_name']
             
+            # Add source/version to list of future inputs for this sequence
+            # node
+            self.tray_sources.append(self.loaded_sources[fk]['group_name'])
+ 
             try:
                 # these should be at the cut item (sequence) level
                 # this should also move into the 'only if new source' block
-                sg_item['ui_index'] = self.loaded_sources[fk]['source_index']
+
+                # XXX ui_index is the index of this source/version in the list
+                # of inputs for this sequence.
+                # sg_item['ui_index'] = self.loaded_sources[fk]['source_index']
+                sg_item['ui_index'] = len(self.tray_sources) - 1
+
                 sg_item['tl_index'] = timeline_incr
                 if not rv.commands.propertyExists(source_prop_name):
                     rv.commands.newProperty(source_prop_name, rv.commands.StringType, 1)
@@ -1190,11 +1225,21 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             except Exception as e:
                 print "ERROR: on_data_refreshed %r" % e
 
-            self.tray_sources.append(self.loaded_sources[fk]['group_name'])
- 
             # need to remember source numbers so that we can reuse a version if it appears multiple times
             # source numbers are the index into the inputs array, being created as we move thru this loop
-            self.rv_source_nums.append(self.loaded_sources[fk]['source_index'])
+
+            # XXX  The line above that is modifying tray_sources is adding what
+            # will become an input for every CutItem.  That means that the
+            # edl.sources array (which contains indices into the inputs array)
+            # will just be 1-to-1 with those indices.  IE be 0,1,2...n where
+            # n-1 is size of inputs array.  It's only if we re-use inputs that
+            # there will be more than one of the same index in the edl.sources
+            # array. For example if we have 4 cut items, and #1 and #3 refer to
+            # the same version/input, we could have edl.sources == 0,1,2,1.
+            #
+            # self.rv_source_nums.append(self.loaded_sources[fk]['source_index'])
+            self.rv_source_nums.append(len(self.tray_sources) - 1)
+
             # would be looked up instead of icremented if source exists
             
 
