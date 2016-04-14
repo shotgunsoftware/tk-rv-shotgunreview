@@ -385,6 +385,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.entity_from_gma = None
         self.project_entity = None
 
+        # related cuts menu
+        self.related_cuts_entity = None
+        self.related_cuts = None
+
         # models for ad-hoc queries
         self._shot_model = shotgun_model.SimpleShotgunModel(rv.qtutils.sessionWindow())
         self._cuts_model = shotgun_model.SimpleShotgunModel(rv.qtutils.sessionWindow())
@@ -470,8 +474,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_list.clicked.connect(self.tray_clicked)        
         self.tray_list.doubleClicked.connect(self.tray_double_clicked)
 
-        # self.tray_button_browse_cut.clicked.connect(self.on_browse_cut)
-
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
         
@@ -485,22 +487,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # stuff = None
         # self.popup_test(stuff)
 
-    def on_browse_cut(self):
-        sg_data = self.load_version_id_from_session()
-
-        # self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
-        # forcing a test....
-        # entity = {}
-        # entity['id'] = 6
-        # entity['type'] = 'Cut'
-
-        # version
-        # entity['id'] = 7406
-        # entity['type'] = 'Version'
-
-        # entity['id'] = 62
-        # entity['type'] = "Playlist"
-        # rv.commands.sendInternalEvent('id_from_gma', json.dumps(entity))        
 
     def get_version_from_id(self, id):
         self._app.engine.log_info('get_version_from_id %r' % QtCore.QThread.currentThread() )
@@ -822,51 +808,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if self.mini_cut:
             self.on_entire_cut()
 
-    # used by the related cuts menu
-    def request_cuts_from_entity(self, entity):
-        self._app.engine.log_info('request_cuts_from_entity %r' % QtCore.QThread.currentThread() )
-        
-        # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
-        
-        if not self.project_entity:
-            self._app.engine.log_error('project entity does not exist!')
-            return None
-
-        cuts = self._bundle.shotgun.find('Cut',
-                        filters=[ ['entity', 'is', entity], ['project', 'is', { 'id': self.project_entity['id'], 'type': 'Project' } ]],
-                        fields=['id', 'entity', 'code', 'cached_display_name'],
-                        order=[
-                            # {'field_name': 'entity', 'direction': 'asc'}, 
-                            {'field_name': 'code', 'direction': 'asc'}, 
-                            {'field_name': 'cached_display_name', 'direction': 'asc'}
-                            ])
-
-        last_entity_group = -1
-        groups = []
-
-        # cuts and cuts inside loop  - fix dat.
-        for cut in cuts:
-            cut_id = cut.get('id')
-            cut_code = cut.get('code')
-            cut_name = cut.get('cached_display_name')
-            cut_entity = cut.get('entity')
-
-            if (last_entity_group == -1) or (groups[last_entity_group].get('entity') != cut_entity):
-                last_entity_group = last_entity_group+1
-                last_cut_group = -1
-                groups.append( { 'entity': cut_entity, 'cuts': [] } )
-
-            cuts = groups[last_entity_group].get('cuts')
-
-            if (last_cut_group == -1) or ( cuts[last_cut_group].get('code') != cut_code ):
-                last_cut_group = last_cut_group + 1
-                cuts.append( { 'code': cut_code, 'revisions': [] } )
-
-            revisions = cuts[last_cut_group].get('revisions')
-
-            revisions.append( { 'id': cut_id, 'cached_display_name': cut_name } )
-
-        return groups
 
     def on_entire_cut(self):
         if self.no_cut_context or not self.cut_seq_name:
@@ -1031,6 +972,70 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         return sg_dict
 
+    # used by the related cuts menu
+    def request_cuts_from_entity(self, conditions):
+        self._app.engine.log_info('request_cuts_from_entity %r %r' % ( QtCore.QThread.currentThread(), conditions) )
+        
+        # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
+        
+        if not self.project_entity:
+            self._app.engine.log_error('project entity does not exist!')
+            return None
+
+        cuts = self._bundle.shotgun.find('Cut',
+                        filters=[ conditions, ['project', 'is', { 'id': self.project_entity['id'], 'type': 'Project' } ]],
+                        fields=['id', 'entity', 'code', 'cached_display_name'],
+                        order=[
+                            # {'field_name': 'entity', 'direction': 'asc'}, 
+                            {'field_name': 'code', 'direction': 'asc'}, 
+                            {'field_name': 'cached_display_name', 'direction': 'asc'}
+                            ])
+
+        last_entity_group = -1
+        groups = []
+
+        for cut in cuts:
+
+            if (last_entity_group == -1) or (groups[last_entity_group]['entity'] != cut['entity']):
+                last_entity_group = last_entity_group+1
+                last_cut_group = -1
+                groups.append( { 'entity': cut['entity'], 'cuts': [] } )
+
+            rev_cuts = groups[last_entity_group]['cuts']
+            if (last_cut_group == -1) or ( rev_cuts[last_cut_group]['code'] != cut['code'] ):
+                last_cut_group = last_cut_group + 1
+                rev_cuts.append( { 'code': cut['code'], 'revisions': [] } )
+
+            revisions = rev_cuts[last_cut_group]['revisions']
+
+            revisions.append( { 'id': cut['id'], 'cached_display_name': cut['cached_display_name'] } )
+
+        return groups
+
+    def on_browse_cut(self):
+        sg_data = self.load_version_id_from_session()
+
+        # are we stopped? on a selected item? mix in second related shots
+        print "on_browse_cut: %r %r" % (sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
+
+        if sg_data['version.Version.entity']['type'] == "Shot":
+            self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
+
+        # self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
+        # forcing a test....
+        # entity = {}
+        # entity['id'] = 6
+        # entity['type'] = 'Cut'
+
+        # version
+        # entity['id'] = 7406
+        # entity['type'] = 'Version'
+
+        # entity['id'] = 62
+        # entity['type'] = "Playlist"
+        # rv.commands.sendInternalEvent('id_from_gma', json.dumps(entity))        
+
+
     def handle_menu(self, action=None):
         print "HANDLE MENU"
         if action:
@@ -1040,16 +1045,52 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     def create_related_cuts_menu(self, entity_in, shot_entity=None):
         # entity_in is in most cases as Sequence entity, currently whatever is in cut.Cut.entity
         print "create_related_cuts_menu: %r %r" % (entity_in, shot_entity)
+        # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
+        conditions = ['entity', 'is', entity_in]
 
-        results = self.request_cuts_from_entity(entity_in)
-
+        # to know if we need to refresh
+        if self.related_cuts_entity:
+            if self.related_cuts_entity['id'] != entity_in['id']:
+                self.related_cuts_entity = entity_in
+                # hang on to the answer
+                self.related_cuts = self.request_cuts_from_entity(conditions)
+        else:
+                self.related_cuts_entity = entity_in
+                # hang on to the answer
+                self.related_cuts = self.request_cuts_from_entity(conditions)
+            
+        # make a working copy
+        results = copy.copy(self.related_cuts)
         # merge the shots stuff into results
+        cut_map = {}
         if shot_entity:
-            pass
             # look up related shots
-            # shot_results = self.request_cuts_from_entity(['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }])
-            # print "shot_results: %r" % shot_results
+            shot_id = shot_entity['id']
+            shot_results = self.request_cuts_from_entity(['cut_items.CutItem.shot', 'is', { 'id': shot_id, 'type': 'Shot' }])
 
+            shot_cut_ids = []
+            for x in shot_results[0]['cuts']:
+                for c in x['revisions']:
+                    cut_map[c['id']] = c
+                    shot_cut_ids.append(c['id'])
+            # print "cut_map: %r" % cut_map
+
+            cut_ids = []
+            for x in results[0]['cuts']:
+                for c in x['revisions']:
+                    cut_ids.append(c['id'])
+
+            # print "cut_ids: %r" % cut_ids
+            # print "shot_cut_ids: %r" % shot_cut_ids
+            for n in shot_cut_ids:
+                if n not in cut_ids:
+                    print "WE FOUND A CUT TO INSERT %r" % cut_map[n]
+                    for x in results[0]['cuts']:
+                        for c in x['revisions']:
+                            if cut_map[n]['cached_display_name'] <= c['cached_display_name']:
+                                # insert this cut_map into the revisions array
+                                x['revisions'].append(cut_map[n])
+                                break
 
         menu = QtGui.QMenu(self.tray_button_browse_cut)
         menu.aboutToShow.connect(self.on_browse_cut)
@@ -1086,22 +1127,37 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_button_browse_cut.setMenu(menu)        
 
     def find_base_version_for_cut(self, entity):
-        self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED!')
+        self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED! %r' % entity)
+        # cut.Cut.version
         pass
 
     def create_source_from_version(self, sg_item, source_incr):
         """
         creates a new source and returns True if we havent seen it before
         """
+        if not sg_item:
+            self._app.engine.log_error("create_source_from_version: %r" % sg_item)
+
+        sg_item = self.convert_sg_dict(sg_item)
+
         fk = sg_item['version.Version.id']
         if fk in self.loaded_sources:
             # group_name = self.loaded_sources[fk]['group_name']
             return False
         else:
             f = self.get_media_path(sg_item)
-            source_name = rv.commands.addSourceVerbose([f])
+            source_name = None
+            try:
+                source_name = rv.commands.addSourceVerbose([f])
+            except Exception as e:
+                self._app.engine.log_error('cant create %r ( %r )' % ( f, e) )
+
+                s = 'black,start=%d,end=%d.movieproc' % (sg_item['version.Version.sg_first_frame'], sg_item['version.Version.sg_last_frame'])
+                self._app.engine.log_info("trying: %r instead" % s)
+                source_name = rv.commands.addSourceVerbose([s])
+
             group_name = rv.commands.nodeGroup(source_name)
-            
+
             if sg_item['version.Version.code']:
                 rv.extra_commands.setUIName(group_name, sg_item['version.Version.code'])
             
