@@ -1,3 +1,15 @@
+/*
+Copyright (c) 2016 Shotgun Software Inc.
+ 
+CONFIDENTIAL AND PROPRIETARY
+
+This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit 
+Source Code License included in this distribution package. See LICENSE.
+By accessing, using, copying or modifying this work you indicate your 
+agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
+not expressly granted therein are reserved by Shotgun Software Inc.
+
+*/
 
 QWidget { 
     font-family: Proxima Nova; 
@@ -44,24 +56,46 @@ QMenu::down-arrow {
 
 
 QMenu::item:disabled {
-background: transparent;
-color: rgb(120,120,120);
-selection-background-color: rgb(50, 50, 50);
+    background: transparent;
+    color: rgb(120,120,120);
+    selection-background-color: rgb(50, 50, 50);
 }
 
-
-
-QDockWidget {
-    padding: 0px; 
-    margin: 0px;
-    color: rgb(126,127,129); 
-    background: rgb(36,38,41); 
+QDockWidget { 
+    background: rgb(36,38,41);
+    titlebar-close-icon: url(:tk-rv-shotgunreview/blank.png);
+    titlebar-normal-icon: url(:tk-rv-shotgunreview/blank.png);
 }
 
 QDockWidget::title {
-    background: rgb(37,38,41); 
-    color: rgb(126,127,129); 
+    background: transparent; 
+    color: transparent; 
     text-align: center;
+    border: none;
+    margin-right: 10px;
+}
+
+QDockWidget::close-button, QDockWidget::float-button {
+    border: none;
+    background: transparent;
+    icon-size: 12px;
+    padding: 1px;
+}
+
+QDockWidget::float-button {
+    image: url(:tk-rv-shotgunreview/undock.png);
+}
+
+QDockWidget::close-button {
+    image: url(:tk-rv-shotgunreview/close.png);
+}
+
+QDockWidget::float-button:hover {
+    image: url(:tk-rv-shotgunreview/undock_hover.png);
+}
+
+QDockWidget::close-button:hover {
+    image: url(:tk-rv-shotgunreview/close_hover.png);
 }
 
 QTreeView {

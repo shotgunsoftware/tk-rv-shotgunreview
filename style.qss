@@ -25,7 +25,6 @@ QListView, QTableView, QScrollArea {
     background: rgb(37,38,41);
 }
 
-
 /****************************************************************/
 /* Main tab section                                             */
 
