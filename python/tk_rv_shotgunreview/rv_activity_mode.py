@@ -433,12 +433,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.details_panel.add_note_attachments(attachments)
 
     def load_data(self, entity):
-        print "LOAD_DATA with %r" % entity
+        self._app.engine.log_info( "load_data with %r" % entity )
         self.version_id = entity['id']
         try:
             self.details_panel.load_data(entity)
         except Exception as e:
-            print "DETAILS PANEL: sent %r got %r" % (entity, e)
+            self._app.engine.log_error("DETAILS PANEL: sent %r got %r" % (entity, e))
         # saw False even if we fail? endless loop? delay?
         self.details_dirty = False
  
@@ -701,10 +701,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     rv.extra_commands.setUIName(source_obj['group_name'], sg['version.Version.code'])
                 
                 else:
-                    print "ERROR: f is %r" % f
+                    self._app.engine.log_info("load_sequence_with_versions: f is %r" % f)
                     continue
             except Exception as e:
-                print "%r" % e
+                self._app.engine.log_error( "load_sequence_with_versions: %r" % e )
 
             source_prop_name = ("%s.cut_support.json_sg_data") % source_obj['group_name']
             try:
@@ -713,8 +713,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 json_sg_item = json.dumps(sg)
                 rv.commands.setStringProperty(source_prop_name, [json_sg_item], True)
             except Exception as e:
-                print "ERROR: load_sequence_with_versions %r" % e
-                print "%r" % sg
+                self._app.engine.log_error("load_sequence_with_versions %r" % e)
+                # print "%r" % sg
 
             #(num_plus, _) = source_name.split('_')
             v_source_names.append(source_obj['group_name'])
@@ -800,7 +800,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 "version.Version.code", "version.Version.sg_status_list", "version.Version.entity",
                 "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
                 "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.revision_numnber",
-                "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project" ]
+                "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project", "cut.Cut.version.Version.id", 
+                "cut.Cut.version.Version.sg_first_frame", "cut.Cut.version.Version.sg_last_frame",
+                "cut.Cut.version.Version.sg_path_to_movie", "cut.Cut.version.Version.sg_path_to_frames"]
 
         orders = [{'field_name':'cut_order','direction':'asc'}]
         self.tray_model.load_data(entity_type="CutItem", filters=tray_filters, fields=tray_fields, order=orders)
@@ -888,13 +890,18 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if 'version.Version.sg_path_to_frames' not in sg:
             sg = self.convert_sg_dict(sg)
         
-        # prefer frames
-        if sg['version.Version.sg_path_to_frames']:
-            return sg['version.Version.sg_path_to_frames']
-        if sg['version.Version.sg_path_to_movie']:
-            return sg['version.Version.sg_path_to_movie']
-
-        # MARK
+        if not sg['version.Version.id']:
+            #sub in the base version
+            if sg['cut.Cut.version.Version.sg_path_to_frames']:
+                return sg['cut.Cut.version.Version.sg_path_to_frames']
+            if sg['cut.Cut.version.Version.sg_path_to_movie']:
+                return sg['cut.Cut.version.Version.sg_path_to_movie']
+        else:
+            # prefer frames
+            if sg['version.Version.sg_path_to_frames']:
+                return sg['version.Version.sg_path_to_frames']
+            if sg['version.Version.sg_path_to_movie']:
+                return sg['version.Version.sg_path_to_movie']
  
         # if theres a cut_item_in use that?
         if 'cut_item_in' in sg:
@@ -902,14 +909,20 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             return s
 
         start = 1
-        
-        if sg['version.Version.sg_first_frame']:
-            start = sg['version.Version.sg_first_frame']
- 
         end = 100
- 
-        if sg['version.Version.sg_last_frame']:
-            end = sg['version.Version.sg_last_frame']
+        
+        if not sg['version.Version.id']:
+            if sg['cut.Cut.version.Version.sg_first_frame']:
+                start = sg['cut.Cut.version.Version.sg_first_frame']
+      
+            if sg['cut.Cut.version.Version.sg_last_frame']:
+                end = sg['cut.Cut.version.Version.sg_last_frame']
+        else:
+            if sg['version.Version.sg_first_frame']:
+                start = sg['version.Version.sg_first_frame']
+      
+            if sg['version.Version.sg_last_frame']:
+                end = sg['version.Version.sg_last_frame']
  
         s = 'black,start=%d,end=%d.movieproc' % (start, end)
  
@@ -1017,7 +1030,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         sg_data = self.load_version_id_from_session()
 
         # are we stopped? on a selected item? mix in second related shots
-        print "on_browse_cut: %r %r" % (sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
+        # print "on_browse_cut: %r %r" % (sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
         if sg_data['version.Version.entity']:
             if sg_data['version.Version.entity']['type'] == "Shot":
                 self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
@@ -1043,14 +1056,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
     def handle_menu(self, action=None):
-        print "HANDLE MENU"
+        self._app.engine.log_info("handle_menu called with action %r" % action)
         if action:
             self.load_tray_with_cut_id(action.data()['id'])
-            print "STUFF %r" % action.data() 
+            self._app.engine.log_info("action.data: %r" % action.data()) 
 
     def create_related_cuts_menu(self, entity_in, shot_entity=None):
         # entity_in is in most cases as Sequence entity, currently whatever is in cut.Cut.entity
-        print "create_related_cuts_menu: %r %r" % (entity_in, shot_entity)
+        self._app.engine.log_info( "create_related_cuts_menu: %r %r" % (entity_in, shot_entity))
         # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
         conditions = ['entity', 'is', entity_in]
 
@@ -1109,7 +1122,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         last_menu = menu
         for x in results[0]['cuts']:
             if 'code' not in x:
-                print "%r" % x
+                # print "%r" % x
                 x['code'] = x['name']
             action = QtGui.QAction(self.tray_button_browse_cut)
             action.setText(x['code'])
@@ -1137,11 +1150,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def find_base_version_for_cut(self, entity):
         self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED! %r' % entity)
-        # pass
+        pass
         # cut.Cut.version
-        sg_data = self.get_version_from_id(entity['id'])
-        print "BASE Version: %r" % sg_data
-        return sg_data
+        #sg_data = self.get_version_from_id(entity['id'])
+        #print "BASE Version: %r" % sg_data
+        #return sg_data
 
     def create_source_from_version(self, sg_item, source_incr):
         """
@@ -1155,6 +1168,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
         fk = sg_item['version.Version.id']
+        if not fk:
+            # if there's no version, see if we've loaded the base version already
+            if sg_item['cut.Cut.version.Version.id'] in self.loaded_sources:
+                return False
+            
         if fk in self.loaded_sources:
             # group_name = self.loaded_sources[fk]['group_name']
             return False
@@ -1164,11 +1182,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             try:
                 source_name = rv.commands.addSourceVerbose([f])
             except Exception as e:
-                self._app.engine.log_error('cant create %r ( %r )' % ( f, e) )
+                self._app.engine.log_error( '%r' %  e )
                 self._app.engine.log_info('trying to create black with data from version: %r' % sg_item['version.Version.id'])
                 if sg_item['version.Version.sg_first_frame'] and sg_item['version.Version.sg_last_frame']:
                     s = 'black,start=%d,end=%d.movieproc' % (sg_item['version.Version.sg_first_frame'], sg_item['version.Version.sg_last_frame'])
                 else:
+                    self._app.engine.log_info('First and last frame not found for version: %r. using 1-100.' % sg_item['version.Version.id'])
                     s = 'black,start=%d,end=%d.movieproc' % (1, 100)
                     sg_item['version.Version.sg_first_frame'] = 1
                     sg_item['version.Version.sg_last_frame'] = 100
@@ -1241,7 +1260,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         for x in range(0, rows):
             item = self.tray_proxyModel.index(x, 0)
             sg_item_orig = shotgun_model.get_sg_data(item)
-            print "%d is %r" % (x, sg_item_orig)
+            # print "%d is %r %r %r " % (x, sg_item_orig['cut.Cut.version'], sg_item_orig['cut.Cut.version.Version.id'], sg_item_orig['cut.Cut.version.Version.sg_first_frame'])
             if not sg_item_orig:
                 # put an error message into the tray for that item
                 self._app.engine.log_error("What do I do when there is no data at all for item %d" % item.row())
@@ -1252,12 +1271,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             # adapting pure version queries to match key naming in results from cut queries.
             sg_item = self.convert_sg_dict(sg_item_orig)
-            print "%d is %r" % (x, sg_item)
+            #print "%d is %r" % (x, sg_item)
             
             # needed for the related cuts menu.
             if not self.project_entity:
-                print "PROJECT: %r" % sg_item
-                print "tray cut id %d" % self.tray_cut_id 
+                #print "PROJECT: %r" % sg_item
+                #print "tray cut id %d" % self.tray_cut_id 
                 self.project_entity = sg_item['cut.Cut.project']
                        
             # finding keys we want on the source node
@@ -1277,9 +1296,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             
             # if version id is none then lookup base version id with
             # cut.Cut.version entity
-            if not sg_item['version.Version.id']:
-                self._app.engine.log_info("finding base version with cut.Cut.version: %r" % sg_item['cut.Cut.version'])
-                sg_item = self.find_base_version_for_cut(sg_item['cut.Cut.version'])
+            
+            # moving to create source
+            #if not sg_item['version.Version.id']:
+            #    self._app.engine.log_info("finding base version with cut.Cut.version: %r" % sg_item['cut.Cut.version'])
+            #    sg_item = self.find_base_version_for_cut(sg_item['cut.Cut.version'])
 
             
             if self.create_source_from_version(sg_item, source_incr):
