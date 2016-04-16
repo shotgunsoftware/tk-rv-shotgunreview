@@ -31,6 +31,10 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         try:
             f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "review_app_pinned.png")
             self.pin_pixmap = QtGui.QPixmap(f)
+
+            f2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ae.jpeg")
+            self.missing_pixmap = QtGui.QPixmap(f2)
+
         except Exception as e:
             print "ERROR: cant load pin %r" % e
         # alpha_data = []
@@ -171,7 +175,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         :param style_options:   The style options to use when painting
         :param model_index:     The index in the data model that needs to be painted
         """
-        # sg_item = shotgun_model.get_sg_data(model_index)  
+        sg_item = shotgun_model.get_sg_data(model_index)  
 
         # for performance reasons, we are not creating a widget every time
         # but merely moving the same widget around. 
@@ -205,6 +209,14 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                 painter.drawPixmap(paint_widget.width() - self.pin_pixmap.width(), 0, self.pin_pixmap)
                 #painter.fillRect( self._alpha_size.width() - 10, 0, 10, 10, QtGui.QColor(240,200,50,127) )
 
+            if not sg_item['version.Version.id']:
+                #painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(255,0,0,227) )
+                target = QtCore.QRectF(0.0, 0.0, paint_widget.width(), paint_widget.height() )
+                source = QtCore.QRectF(0, 0, self.missing_pixmap.width(), self.missing_pixmap.height())
+                # painter.drawPixmap(paint_widget.width() - self.missing_pixmap.width(), 0, self.missing_pixmap)
+                painter.drawPixmap(target, self.missing_pixmap, source)
+                painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(10,0,0,184) )
+                painter.drawText(0,5,100,100, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignCenter, 'MISSING')
 
             if self.tray_view.rv_mode.mini_cut and painter:
                 if self.tray_view.rv_mode.last_mini_center:
