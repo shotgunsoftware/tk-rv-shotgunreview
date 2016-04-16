@@ -45,6 +45,36 @@ class TrayMainFrame(QtGui.QFrame):
         self._rv_mode = rv_mode
         self.tray_list.rv_mode = rv_mode
 
+    def toggle_floating(self):
+        """
+        Toggles the parent dock widget's floating status.
+        """
+        if self.tray_dock.isFloating():
+            self.tray_dock.setFloating(False)
+            self.dock_location_changed()
+        else:
+            self.close_button.hide()
+            self.float_button.hide()
+            self.tray_dock.setTitleBarWidget(None)
+            self.tray_dock.setFloating(True)
+
+    def hide_dock(self):
+        """
+        Hides the parent dock widget.
+        """
+        self.tray_dock.hide()
+
+    def dock_location_changed(self):
+        """
+        Handles the dock being redocked in some location. This will
+        trigger removing the default title bar and forcing a show of
+        the replacement buttons that this frame provides to handle
+        the title bar's typical responsibilities.
+        """
+        self.tray_dock.setTitleBarWidget(QtGui.QWidget(self.tray_dock.parent()))
+        self.close_button.show()
+        self.float_button.show()
+
     def init_ui(self):
         # self.setMinimumSize(QtCore.QSize(1255,140))
         self.setObjectName('tray_frame')
@@ -53,6 +83,10 @@ class TrayMainFrame(QtGui.QFrame):
         # tray button bar
         # self.tray_button_bar = QtGui.QFrame(self.tray_dock)
         self.tray_button_bar = QtGui.QFrame()
+        self.tray_button_bar_grid = QtGui.QGridLayout(self.tray_button_bar)
+        self.tray_button_bar_grid.setContentsMargins(0, 0, 0, 0)
+        self.tray_button_bar_grid.setHorizontalSpacing(8)
+        self.tray_button_bar_grid.setVerticalSpacing(0)
         
         # self.tray_button_bar.setStyleSheet('QFrame { background: rgb(0,200,0);}')
         self.tray_button_bar.setObjectName('tray_button_bar')
@@ -63,7 +97,8 @@ class TrayMainFrame(QtGui.QFrame):
 
         self.tray_button_bar.setSizePolicy(sizePolicy)
 
-        self.tray_button_bar_hlayout = QtGui.QHBoxLayout(self.tray_button_bar)
+        self.tray_button_bar_hlayout = QtGui.QHBoxLayout()
+        self.tray_button_bar_grid.addLayout(self.tray_button_bar_hlayout, 0, 0)
         self.tray_button_bar_hlayout.setContentsMargins(0, 0, 0, 0)
         
         self.tray_button_browse_cut = QtGui.QPushButton()
@@ -114,6 +149,73 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_approved = QtGui.QPushButton()
         self.tray_button_approved.setText('Approved')
         self.tray_button_bar_hlayout.addWidget(self.tray_button_approved)
+
+        self.close_button = QtGui.QToolButton()
+        self.float_button = QtGui.QToolButton()
+        self.close_button.setObjectName("tray_close_button")
+        self.float_button.setObjectName("tray_float_button")
+        self.close_button.setAutoRaise(True)
+        self.float_button.setAutoRaise(True)
+
+        # For whatever reason, defining this style in the tray_dock.qss
+        # file doesn't work here. Doing it directly onto the buttons as
+        # a result.
+        self.close_button.setStyleSheet("min-width: 8px; min-height: 8px")
+        self.float_button.setStyleSheet("min-width: 8px; min-height: 8px")
+        self.close_button.setIconSize(QtCore.QSize(8,8))
+        self.float_button.setIconSize(QtCore.QSize(8,8))
+
+        # We're taking over the responsibility of handling the title bar's
+        # typical responsibilities of closing the dock and managing float
+        # and unfloat behavior. We need to hook up to the dockLocationChanged
+        # signal because a floating DockWidget can be redocked with a
+        # double click of the window, which won't go through our button.
+        self.float_button.clicked.connect(self.toggle_floating)
+        self.close_button.clicked.connect(self.hide_dock)
+        self.tray_dock.dockLocationChanged.connect(self.dock_location_changed)
+
+        self.close_icon = QtGui.QIcon()
+        self.float_icon = QtGui.QIcon()
+
+        self.close_icon.addPixmap(
+            QtGui.QPixmap(":/tk-rv-shotgunreview/close_hover.png"),
+            QtGui.QIcon.Active,
+            QtGui.QIcon.On,
+        )
+        self.close_icon.addPixmap(
+            QtGui.QPixmap(":/tk-rv-shotgunreview/close.png"),
+            QtGui.QIcon.Normal,
+            QtGui.QIcon.On,
+        )
+        self.close_icon.addPixmap(
+            QtGui.QPixmap(":/tk-rv-shotgunreview/close_hover.png"),
+            QtGui.QIcon.Selected,
+            QtGui.QIcon.On,
+        )
+        self.float_icon.addPixmap(
+            QtGui.QPixmap(":/tk-rv-shotgunreview/undock_hover.png"),
+            QtGui.QIcon.Active,
+            QtGui.QIcon.On,
+        )
+        self.float_icon.addPixmap(
+            QtGui.QPixmap(":/tk-rv-shotgunreview/undock.png"),
+            QtGui.QIcon.Normal,
+            QtGui.QIcon.On,
+        )
+        self.float_icon.addPixmap(
+            QtGui.QPixmap(":/tk-rv-shotgunreview/undock_hover.png"),
+            QtGui.QIcon.Selected,
+            QtGui.QIcon.On,
+        )
+
+        self.close_button.setIcon(self.close_icon)
+        self.float_button.setIcon(self.float_icon)
+
+        # The buttons will be stacked vertically, with the close button
+        # even with the button bar at the top of the tray, and the float
+        # button immediately below it.
+        self.tray_button_bar_grid.addWidget(self.close_button, 0, 1)
+        self.tray_button_bar_grid.addWidget(self.float_button, 1, 1)
 
         self.tray_frame_vlayout.addWidget(self.tray_button_bar)
         self.tray_frame_vlayout.setStretchFactor(self.tray_button_bar, 1)

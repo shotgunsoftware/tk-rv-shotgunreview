@@ -36,7 +36,7 @@ QDockWidget::title {
 QDockWidget::close-button, QDockWidget::float-button {
     border: none;
     background: transparent;
-    icon-size: 12px;
+    icon-size: 10px;
     padding: 1px;
 }
 

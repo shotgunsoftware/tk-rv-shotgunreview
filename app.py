@@ -34,6 +34,7 @@ class RVShotgunReviewApp(Application):
 
         notes_dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea | QtCore.Qt.RightDockWidgetArea)
         tray_dock.setAllowedAreas(QtCore.Qt.BottomDockWidgetArea)
+        tray_dock.setTitleBarWidget(QtGui.QWidget(parent_widget))
 
         self._rv_activity_stream = tk_rv_shotgunreview.RvActivityMode(app=self)
         self._rv_activity_stream.init_ui(notes_dock, tray_dock, 8)
@@ -53,7 +54,7 @@ class RVShotgunReviewApp(Application):
             f.close()
 
         try:
-            fn = os.path.join(self.disk_location, "tray_dock.qss")          
+            fn = os.path.join(self.disk_location, "tray_dock.qss")
             f = open(fn, 'r')
             s = f.read()
             tray_dock.setStyleSheet(s)
@@ -69,8 +70,6 @@ class RVShotgunReviewApp(Application):
         # it works well enough. Even though it sucks.
         notes_dock.setFloating(True)
         notes_dock.setFloating(False)
-        tray_dock.setFloating(True)
-        tray_dock.setFloating(False)
 
     #####################################################################################
     # Properties
