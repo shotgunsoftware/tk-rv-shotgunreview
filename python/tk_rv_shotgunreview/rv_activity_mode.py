@@ -495,7 +495,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             "sg_first_frame", "sg_last_frame",
             "sg_path_to_movie", "sg_movie_aspect_ratio",
             "sg_movie_as_slate", "sg_frames_aspect_ratio",
-            "sg_frames_has_slate", "image", "code"
+            "sg_frames_has_slate", "image", "code",
             "sg_uploaded_movie_frame_rate", "sg_uploaded_movie_mp4", 
         ]
         # get the version info we need
@@ -791,7 +791,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         tray_filters = [ ['cut','is', {'type':'Cut', 'id': self.tray_cut_id }] ]
 
         tray_fields= ["cut_item_in", "cut_item_out", "cut_order",
-                "edit_in", "edit_out", "code", "entity",
+                "edit_in", "edit_out", "code", "entity", "shot",
                 "version.Version.sg_path_to_frames", "version.Version.id",
                 "version.Version.sg_first_frame", "version.Version.sg_last_frame",
                 "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
@@ -953,24 +953,25 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self._app.engine.log_error('EMPTY dict passed to convert_sg_dict.')
             return sg_dict
 
-        if not 'version.Version.sg_path_to_frames' in sg_dict:
+        sg_dict_new = copy.copy(sg_dict)
+        #if not 'version.Version.sg_path_to_frames' in sg_dict:
 
-            f = [   "version.Version.sg_path_to_frames", "version.Version.id",
-                    "version.Version.sg_first_frame", "version.Version.sg_last_frame",
-                    "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
-                    "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
-                    "version.Version.sg_frames_has_slate", "version.Version.image", "version.Version.code",
-                    "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
-                ]
+        f = [   "version.Version.sg_path_to_frames", "version.Version.id",
+                "version.Version.sg_first_frame", "version.Version.sg_last_frame",
+                "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
+                "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
+                "version.Version.sg_frames_has_slate", "version.Version.image", "version.Version.code",
+                "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
+            ]
 
-            for k in f:
-                s = k.replace('version.Version.', '')
-                if s in sg_dict:
-                    sg_dict[k] = sg_dict[s]
+        for k in f:
+            s = k.replace('version.Version.', '')
+            if s in sg_dict:
+                sg_dict_new[k] = sg_dict[s]
 
         # check for missing media
 
-        return sg_dict
+        return sg_dict_new
 
     # used by the related cuts menu
     def request_cuts_from_entity(self, conditions):
@@ -1017,9 +1018,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         # are we stopped? on a selected item? mix in second related shots
         print "on_browse_cut: %r %r" % (sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
+        if sg_data['version.Version.entity']:
+            if sg_data['version.Version.entity']['type'] == "Shot":
+                self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
+                return
 
-        if sg_data['version.Version.entity']['type'] == "Shot":
-            self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
+        if sg_data['cut.Cut.entity']['type'] == "Scene":
+            self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['shot'])
+            return
 
         # self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
         # forcing a test....
@@ -1067,7 +1073,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             # look up related shots
             shot_id = shot_entity['id']
             shot_results = self.request_cuts_from_entity(['cut_items.CutItem.shot', 'is', { 'id': shot_id, 'type': 'Shot' }])
-
+            print "shot_results: %r" % shot_results
             shot_cut_ids = []
             for x in shot_results[0]['cuts']:
                 for c in x['revisions']:
@@ -1102,6 +1108,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         last_menu = menu
         for x in results[0]['cuts']:
+            if 'code' not in x:
+                print "%r" % x
+                x['code'] = x['name']
             action = QtGui.QAction(self.tray_button_browse_cut)
             action.setText(x['code'])
             en = {}
@@ -1128,8 +1137,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def find_base_version_for_cut(self, entity):
         self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED! %r' % entity)
+        # pass
         # cut.Cut.version
-        pass
+        sg_data = self.get_version_from_id(entity['id'])
+        print "BASE Version: %r" % sg_data
+        return sg_data
 
     def create_source_from_version(self, sg_item, source_incr):
         """
@@ -1137,8 +1149,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         """
         if not sg_item:
             self._app.engine.log_error("create_source_from_version: %r" % sg_item)
+            return False
 
         sg_item = self.convert_sg_dict(sg_item)
+
 
         fk = sg_item['version.Version.id']
         if fk in self.loaded_sources:
@@ -1151,8 +1165,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 source_name = rv.commands.addSourceVerbose([f])
             except Exception as e:
                 self._app.engine.log_error('cant create %r ( %r )' % ( f, e) )
+                self._app.engine.log_info('trying to create black with data from version: %r' % sg_item['version.Version.id'])
+                if sg_item['version.Version.sg_first_frame'] and sg_item['version.Version.sg_last_frame']:
+                    s = 'black,start=%d,end=%d.movieproc' % (sg_item['version.Version.sg_first_frame'], sg_item['version.Version.sg_last_frame'])
+                else:
+                    s = 'black,start=%d,end=%d.movieproc' % (1, 100)
+                    sg_item['version.Version.sg_first_frame'] = 1
+                    sg_item['version.Version.sg_last_frame'] = 100
 
-                s = 'black,start=%d,end=%d.movieproc' % (sg_item['version.Version.sg_first_frame'], sg_item['version.Version.sg_last_frame'])
                 self._app.engine.log_info("trying: %r instead" % s)
                 source_name = rv.commands.addSourceVerbose([s])
 
@@ -1220,16 +1240,24 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         for x in range(0, rows):
             item = self.tray_proxyModel.index(x, 0)
-            sg_item = shotgun_model.get_sg_data(item)
-            if not sg_item:
+            sg_item_orig = shotgun_model.get_sg_data(item)
+            print "%d is %r" % (x, sg_item_orig)
+            if not sg_item_orig:
                 # put an error message into the tray for that item
                 self._app.engine.log_error("What do I do when there is no data at all for item %d" % item.row())
+                sg_item_orig = {}
+                sg_item_orig['sg_first_frame'] = 1
+                sg_item_orig['sg_last_frame'] = 100
+                sg_item_orig['sg_path_to_movie'] = '/tmp/foodles.mov'
 
             # adapting pure version queries to match key naming in results from cut queries.
-            sg_item = self.convert_sg_dict(sg_item)
-
+            sg_item = self.convert_sg_dict(sg_item_orig)
+            print "%d is %r" % (x, sg_item)
+            
             # needed for the related cuts menu.
             if not self.project_entity:
+                print "PROJECT: %r" % sg_item
+                print "tray cut id %d" % self.tray_cut_id 
                 self.project_entity = sg_item['cut.Cut.project']
                        
             # finding keys we want on the source node
@@ -1250,11 +1278,16 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             # if version id is none then lookup base version id with
             # cut.Cut.version entity
             if not sg_item['version.Version.id']:
+                self._app.engine.log_info("finding base version with cut.Cut.version: %r" % sg_item['cut.Cut.version'])
                 sg_item = self.find_base_version_for_cut(sg_item['cut.Cut.version'])
 
             
             if self.create_source_from_version(sg_item, source_incr):
                 source_incr = source_incr + 1
+
+            if not sg_item:
+                self._app.engine.log_error('sg_item is null for item %d' % x)
+                continue
 
             fk = sg_item['version.Version.id']
                  
@@ -1302,13 +1335,23 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             # playlist code? 
             # address difference between playlist versions and cutitem with no version (use base version)
             # in base layer case we use edit_in and edit_out instead of cut_item_in, etc.
+            #print "WTF: %r" % sg_item
+            # print sg_item['code']
             if 'cut_item_in' not in sg_item:
-                sg_item['cut_item_in'] = sg_item['sg_first_frame']
-                sg_item['cut_item_out'] = sg_item['sg_last_frame']
+                sg_item['cut_item_in'] = sg_item['version.Version.sg_first_frame']
+                sg_item['cut_item_out'] = sg_item['version.Version.sg_last_frame']
+                print "HERE: %d %d" % (sg_item['version.Version.sg_first_frame'], sg_item['version.Version.sg_last_frame'])
 
-            if not sg_item['cut_item_in']:
-                sg_item['cut_item_in'] = sg_item['edit_in']
-                sg_item['cut_item_out'] = sg_item['edit_out']
+            if not sg_item['cut_item_in'] or not sg_item['cut_item_out']:
+                print "THERE?"
+                # this logic was added to make certain incomplete cuts work...
+                if 'edit_in' and 'edit_out' in sg_item:
+                    if sg_item['edit_in'] and sg_item['edit_out']:
+                        sg_item['cut_item_in'] = sg_item['edit_in']
+                        sg_item['cut_item_out'] = sg_item['edit_out']
+                else: 
+                    sg_item['cut_item_in'] = sg_item['version.Version.sg_first_frame']
+                    sg_item['cut_item_out'] = sg_item['version.Version.sg_last_frame']
 
             self.rv_ins.append( sg_item['cut_item_in'] )
             self.rv_outs.append( sg_item['cut_item_out'] )

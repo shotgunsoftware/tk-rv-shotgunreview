@@ -3,8 +3,8 @@ import tank
 from tank.platform.qt import QtCore, QtGui
 
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
-SimpleShotgunModel = shotgun_model.SimpleShotgunModel
-ShotgunModel = shotgun_model.ShotgunModel
+#SimpleShotgunModel = shotgun_model.SimpleShotgunModel
+#ShotgunModel = shotgun_model.ShotgunModel
 
 class TraySortFilter(QtGui.QSortFilterProxyModel):
 
