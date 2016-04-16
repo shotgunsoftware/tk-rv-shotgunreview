@@ -129,7 +129,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         """
         # do std drawing first
         # this never happens ....
-        print "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&_on_before_selection"
+        # print "&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&_on_before_selection"
         self._on_before_paint(widget, model_index, style_options, selected=True)        
         widget.set_selected(True)  
         widget.setStyleSheet("{border: 2px solid #ff0000;}")
@@ -156,17 +156,6 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                     
         indexes = selected.indexes()
          
-        # for i in indexes:
-        #     print "_on_selection_changed %r" % i
-        #     (_, item, model) = self._source_for_index(i)
-        
-        #     d = { 'rv_cut_selected': item.row() }
-        #     item.setData(d, self._RV_DATA_ROLE)
-       
-        # for s in indexes:
-        #         print "sel: %r" % s.row()
-        #         sg_item = shotgun_model.get_sg_data(s)
-        #         print "sg: %r" % sg_item
 
     # works but not useful?
     def _on_current_changed(self, current_index, previous_index):
