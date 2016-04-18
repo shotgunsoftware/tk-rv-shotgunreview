@@ -19,18 +19,11 @@ QWidget {
     padding: 0px;
 }
 
-/* Get rid of borders for main Listing Views */
 QListView, QTableView, QScrollArea {
     border: none;
     background: rgb(37,38,41);
 }
 
-
-/****************************************************************/
-/* Main tab section                                             */
-
-/* Style the tab using the tab sub-control. 
-   Note that it reads QTabBar _not_ QTabWidget */
 QTabBar {
     border: none;
     alignment: center;
@@ -61,57 +54,4 @@ QToolButton#more_info_button:hover, QToolButton#more_fields_button:hover, QToolB
 
 QToolButton#more_fields_button:menu-indicator, QToolButton#version_fields_button:menu-indicator {
     image:none;
-}
-
-/****************************************************************/
-/* Info tab showing all shotgun fields 							*/
-
-
-FieldNameLabel {
-    
-    padding: 8px;
-    /* there seems to be an odd bug where border-bottom isn't evaluated
-       unless there is a border top, so add a transparent line... */
-    border-top: 1px dotted rgba(0,0,0,0%);
-    color: rgba(200, 200, 200, 40%);
-    border-bottom: 1px dotted rgba(200, 200, 200, 18%);
-}
-
-FieldValueLabel {
-    padding: 8px;
-    /* there seems to be an odd bug where border-bottom isn't evaluated
-       unless there is a border top, so add a transparent line... */
-    border-top: 1px dotted rgba(0,0,0,0%);
-    border-bottom: 1px dotted rgba(200, 200, 200, 18%);
-}
-
-/****************************************************************/
-/* Top details area  				 							*/
-
-
-#details_text_header {
-    padding-left: 2px;
-    font-size: 16px;
-}
-
-#details_text_middle {
-    padding-left: 0px;
-    padding-left: 8px;
-}
-
-QWidget#top_group {
-    background-color: rgba(255, 255, 255, 10%);
-    border-radius: 3px;
-}
-
-QFrame#line {
-    border-top: 1px dotted #888;
-}
-
-QPushButton#current_user {
-    border: none;
-}
-
-#list_item_top_right {
-    color: rgba(200, 200, 200, 40%);
 }

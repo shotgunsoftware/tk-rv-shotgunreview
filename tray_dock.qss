@@ -1,3 +1,15 @@
+/*
+Copyright (c) 2016 Shotgun Software Inc.
+ 
+CONFIDENTIAL AND PROPRIETARY
+
+This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit 
+Source Code License included in this distribution package. See LICENSE.
+By accessing, using, copying or modifying this work you indicate your 
+agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
+not expressly granted therein are reserved by Shotgun Software Inc.
+
+*/
 
 QWidget { 
     font-family: Proxima Nova; 
@@ -44,24 +56,9 @@ QMenu::down-arrow {
 
 
 QMenu::item:disabled {
-background: transparent;
-color: rgb(120,120,120);
-selection-background-color: rgb(50, 50, 50);
-}
-
-
-
-QDockWidget {
-    padding: 0px; 
-    margin: 0px;
-    color: rgb(126,127,129); 
-    background: rgb(36,38,41); 
-}
-
-QDockWidget::title {
-    background: rgb(37,38,41); 
-    color: rgb(126,127,129); 
-    text-align: center;
+    background: transparent;
+    color: rgb(120,120,120);
+    selection-background-color: rgb(50, 50, 50);
 }
 
 QTreeView {
@@ -75,10 +72,10 @@ QFrame {
 }
 
 QFrame#tray_frame {
-    margin-top: 25px;
+    margin-top: 0px;
     padding-top: 0px;
     border: 0px solid rgb(200,100,50);
-    min-height: 140px;
+    min-height: 165px;
     min-width: 720px;
 }
 
@@ -180,7 +177,6 @@ QPushButton:default {
     color: rgb(255,155,155);
     border: 1px solid rgb(30,30,55);
 }
-
 
 QSpinBox  {
     padding: 0px;

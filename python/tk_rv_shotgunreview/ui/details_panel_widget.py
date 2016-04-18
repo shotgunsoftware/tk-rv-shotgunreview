@@ -53,7 +53,7 @@ class Ui_DetailsPanelWidget(object):
         self.verticalLayout_4.setContentsMargins(-1, -1, 0, 0)
         self.verticalLayout_4.setObjectName("verticalLayout_4")
         self.horizontalLayout = QtGui.QHBoxLayout()
-        self.horizontalLayout.setSpacing(0)
+        self.horizontalLayout.setSpacing(4)
         self.horizontalLayout.setContentsMargins(-1, 0, -1, -1)
         self.horizontalLayout.setObjectName("horizontalLayout")
         self.shotgun_nav_button = QtGui.QToolButton(self.widget)
