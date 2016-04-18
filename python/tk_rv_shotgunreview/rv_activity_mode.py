@@ -476,6 +476,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_list.doubleClicked.connect(self.tray_double_clicked)
 
         self.tray_main_frame.mini_right_spinner.valueChanged.connect(self.right_spinner_clicked)
+        self.tray_main_frame.mini_left_spinner.valueChanged.connect(self.left_spinner_clicked)
 
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
@@ -491,7 +492,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # self.popup_test(stuff)
 
     def right_spinner_clicked(self, event):
-        print "RIGHT SPINNER YEAH! %r" % event
+        self.get_mini_values()
+        self.load_mini_cut(self.last_mini_center)
+
+    def left_spinner_clicked(self, event):
+        self.get_mini_values()
+        self.load_mini_cut(self.last_mini_center)
 
     def get_version_from_id(self, id):
         self._app.engine.log_info('get_version_from_id %r' % QtCore.QThread.currentThread() )
@@ -817,7 +823,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if self.mini_cut:
             self.on_entire_cut()
 
-
     def on_entire_cut(self):
         if self.no_cut_context or not self.cut_seq_name:
             return
@@ -1060,7 +1065,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # entity['id'] = 62
         # entity['type'] = "Playlist"
         # rv.commands.sendInternalEvent('id_from_gma', json.dumps(entity))        
-
 
     def handle_menu(self, action=None):
         self._app.engine.log_info("handle_menu called with action %r" % action)
@@ -1514,9 +1518,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     def get_mini_values(self):
         self._mini_before_shots = self.tray_main_frame.mini_left_spinner.value()
         self._mini_after_shots = self.tray_main_frame.mini_right_spinner.value()
-        print "MINI vals: %d %d" % (self._mini_before_shots, self._mini_after_shots)
-
+ 
     def load_mini_cut(self, index, shot_offset=0):
+        if not index:
+            s = self.tray_list.selectionModel().selectedIndexes()
+            index = s[0]
         print "load_mini_cut: %d %d" % ( index.row(), shot_offset )
         
         # whatever we are looking at right now is the center
@@ -1598,6 +1604,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.commands.setNodeInputs(self.mini_cut_seq_node, mini_source_names)
         rv.commands.setViewNode(self.mini_cut_seq_node)
         rv.commands.setFrame(shot_start + shot_offset)
+        self.tray_list.repaint()
 
     def tray_clicked(self, index):
 
