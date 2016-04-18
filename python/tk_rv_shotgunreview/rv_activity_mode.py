@@ -801,8 +801,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 "version.Version.code", "version.Version.sg_status_list", "version.Version.entity",
                 "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
                 "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.revision_numnber",
-                "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project", 
-                "cut.Cut.version.Version.id", 
+                "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project", "cut.Cut.image",
+                "cut.Cut.version.Version.id", "cut.Cut.version.Version.image",
                 "cut.Cut.version.Version.sg_first_frame", "cut.Cut.version.Version.sg_last_frame",
                 "cut.Cut.version.Version.sg_path_to_movie", "cut.Cut.version.Version.sg_path_to_frames"
                 ]
