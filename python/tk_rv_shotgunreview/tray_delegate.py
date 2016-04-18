@@ -73,7 +73,6 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         # model.changePersistentIndex(action, action)
         # model.layoutChanged.emit()
 
-
     def _handle_clicked(self, action=None):
             
         # figure out current index when it gets more complixated....
@@ -210,10 +209,8 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                 #painter.fillRect( self._alpha_size.width() - 10, 0, 10, 10, QtGui.QColor(240,200,50,127) )
 
             if not sg_item['version.Version.id']:
-                #painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(255,0,0,227) )
                 target = QtCore.QRectF(0.0, 0.0, paint_widget.width(), paint_widget.height() )
                 source = QtCore.QRectF(0, 0, self.missing_pixmap.width(), self.missing_pixmap.height())
-                # painter.drawPixmap(paint_widget.width() - self.missing_pixmap.width(), 0, self.missing_pixmap)
                 painter.drawPixmap(target, self.missing_pixmap, source)
                 painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(10,0,0,184) )
                 painter.drawText(0,5,100,100, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignCenter, 'MISSING')

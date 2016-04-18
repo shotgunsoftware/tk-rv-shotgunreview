@@ -436,6 +436,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self._app.engine.log_info( "load_data with %r" % entity )
         self.version_id = entity['id']
         try:
+            self._app.engine.log_info( "loading details panel with %r" % entity )
             self.details_panel.load_data(entity)
         except Exception as e:
             self._app.engine.log_error("DETAILS PANEL: sent %r got %r" % (entity, e))
@@ -800,9 +801,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 "version.Version.code", "version.Version.sg_status_list", "version.Version.entity",
                 "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
                 "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.revision_numnber",
-                "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project", "cut.Cut.version.Version.id", 
+                "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project", 
+                "cut.Cut.version.Version.id", 
                 "cut.Cut.version.Version.sg_first_frame", "cut.Cut.version.Version.sg_last_frame",
-                "cut.Cut.version.Version.sg_path_to_movie", "cut.Cut.version.Version.sg_path_to_frames"]
+                "cut.Cut.version.Version.sg_path_to_movie", "cut.Cut.version.Version.sg_path_to_frames"
+                ]
 
         orders = [{'field_name':'cut_order','direction':'asc'}]
         self.tray_model.load_data(entity_type="CutItem", filters=tray_filters, fields=tray_fields, order=orders)
@@ -966,25 +969,25 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self._app.engine.log_error('EMPTY dict passed to convert_sg_dict.')
             return sg_dict
 
-        sg_dict_new = copy.copy(sg_dict)
-        #if not 'version.Version.sg_path_to_frames' in sg_dict:
+        #sg_dict_new = copy.copy(sg_dict)
+        if not 'version.Version.sg_path_to_frames' in sg_dict:
 
-        f = [   "version.Version.sg_path_to_frames", "version.Version.id",
-                "version.Version.sg_first_frame", "version.Version.sg_last_frame",
-                "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
-                "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
-                "version.Version.sg_frames_has_slate", "version.Version.image", "version.Version.code",
-                "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
-            ]
+            f = [   "version.Version.sg_path_to_frames", "version.Version.id",
+                    "version.Version.sg_first_frame", "version.Version.sg_last_frame",
+                    "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
+                    "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
+                    "version.Version.sg_frames_has_slate", "version.Version.image", "version.Version.code",
+                    "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
+                ]
 
-        for k in f:
-            s = k.replace('version.Version.', '')
-            if s in sg_dict:
-                sg_dict_new[k] = sg_dict[s]
+            for k in f:
+                s = k.replace('version.Version.', '')
+                if s in sg_dict:
+                    sg_dict[k] = sg_dict[s]
 
         # check for missing media
 
-        return sg_dict_new
+        return sg_dict
 
     # used by the related cuts menu
     def request_cuts_from_entity(self, conditions):
