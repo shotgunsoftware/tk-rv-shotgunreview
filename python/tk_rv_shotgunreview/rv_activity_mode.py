@@ -475,6 +475,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_list.clicked.connect(self.tray_clicked)        
         self.tray_list.doubleClicked.connect(self.tray_double_clicked)
 
+        self.tray_main_frame.mini_right_spinner.valueChanged.connect(self.right_spinner_clicked)
+
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
         
@@ -488,6 +490,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # stuff = None
         # self.popup_test(stuff)
 
+    def right_spinner_clicked(self, event):
+        print "RIGHT SPINNER YEAH! %r" % event
 
     def get_version_from_id(self, id):
         self._app.engine.log_info('get_version_from_id %r' % QtCore.QThread.currentThread() )
