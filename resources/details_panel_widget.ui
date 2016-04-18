@@ -110,7 +110,7 @@
               <item>
                <layout class="QHBoxLayout" name="horizontalLayout">
                 <property name="spacing">
-                 <number>0</number>
+                 <number>4</number>
                 </property>
                 <property name="topMargin">
                  <number>0</number>

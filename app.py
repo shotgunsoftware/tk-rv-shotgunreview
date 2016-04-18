@@ -24,37 +24,18 @@ class RVShotgunReviewApp(Application):
     """
     def init_app(self):
         """
-        Called as the application is being initialized
+        Called as the application is being initialized.
         """
-        if os.getenv("RV_NO_CUTZ"):
-            return
-        parent_widget = self.engine.get_dialog_parent()
-        notes_dock = QtGui.QDockWidget("CutZ", parent_widget)
-        tray_dock = QtGui.QDockWidget("Tray", parent_widget)
+        tk_rv_shotgunreview = self.import_module("tk_rv_shotgunreview")
 
-        # if not os.getenv("RV_NO_CUTZ_STYLE"):
-            # parent_widget.setStyleSheet(
-            #     "QWidget { font-family: Proxima Nova; "
-            #         "background: rgb(36,38,41); "
-            #         "color: rgb(126,127,129); "
-            #         "border-color: rgb(36,38,41);}"
-            # )
- 
-        try:
-            fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), "notes_dock.qss")          
-            f = open(fn, 'r')
-            s = f.read()
-            f.close()
-            notes_dock.setStyleSheet(s)
-        except Exception as e:
-            self.engine.log_error(e)
+        parent_widget = self.engine.get_dialog_parent()
+        notes_dock = QtGui.QDockWidget("", parent_widget)
+        tray_dock = QtGui.QDockWidget("", parent_widget)
 
         notes_dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea | QtCore.Qt.RightDockWidgetArea)
         tray_dock.setAllowedAreas(QtCore.Qt.BottomDockWidgetArea)
+        tray_dock.setTitleBarWidget(QtGui.QWidget(parent_widget))
 
-        self.engine.get_top_toolbar().addAction(notes_dock.toggleViewAction())
-
-        tk_rv_shotgunreview = self.import_module("tk_rv_shotgunreview")
         self._rv_activity_stream = tk_rv_shotgunreview.RvActivityMode(app=self)
         self._rv_activity_stream.init_ui(notes_dock, tray_dock, 8)
         self._rv_activity_stream.toggle()
@@ -63,13 +44,32 @@ class RVShotgunReviewApp(Application):
         parent_widget.addDockWidget(QtCore.Qt.BottomDockWidgetArea, tray_dock)
 
         try:
-            fn = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tray_dock.qss")          
+            fn = os.path.join(self.disk_location, "notes_dock.qss")
             f = open(fn, 'r')
             s = f.read()
+            notes_dock.setStyleSheet(s)
+        except Exception as e:
+            self.engine.log_error(e)
+        finally:
             f.close()
+
+        try:
+            fn = os.path.join(self.disk_location, "tray_dock.qss")
+            f = open(fn, 'r')
+            s = f.read()
             tray_dock.setStyleSheet(s)
         except Exception as e:
             self.engine.log_error(e)
+        finally:
+            f.close()
+
+        # This is silly, but there's some kind of Qt bug that causes
+        # the title bar icon settings in the qss to not be applied
+        # until after an undock/redock operation. There doesn't appear
+        # to be any visual glitch on startup resulting from this, so
+        # it works well enough. Even though it sucks.
+        notes_dock.setFloating(True)
+        notes_dock.setFloating(False)
 
     #####################################################################################
     # Properties
