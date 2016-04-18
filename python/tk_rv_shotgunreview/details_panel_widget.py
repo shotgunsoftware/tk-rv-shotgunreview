@@ -209,6 +209,18 @@ class DetailsPanelWidget(QtGui.QWidget):
                 apply_attachments=True,
             )
 
+    def clear(self):
+        """
+        Clears all data from all widgets and views in the details panel.
+        """
+        self._more_info_toggled(False)
+        self.ui.note_stream_widget._clear()
+        self.ui.shot_info_widget.clear()
+        self.ui.more_info_button.hide()
+        self.ui.pin_button.hide()
+        self.ui.shotgun_nav_button.hide()
+        self.version_model.clear()
+
     def load_data(self, entity):
         """
         Loads the given Shotgun entity into the details panel,
@@ -218,7 +230,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param entity:  The Shotgun entity to load. This is a dict in
                         the form returned by the Shotgun Python API.
         """
-        if not entity:
+        # If we're pinned, then we don't allow loading new entities.
+        if self._pinned:
+            self._requested_entity = entity
+            return
+
+        # If we got an "empty" entity from the mode, then we need
+        # to clear everything out and go back to an empty state.
+        if not entity or not entity.get("id"):
+            self.clear()
             return
 
         # We have various buttons hidden until an entity is loaded,
@@ -227,39 +247,42 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.pin_button.show()
         self.ui.shotgun_nav_button.show()
 
-        # If we're pinned, then we don't allow loading new entities.
-        if not self._pinned:
-            self._current_entity = entity
-            self.ui.note_stream_widget.load_data(entity)
+        # If there aren't any fields set in the info widget then it
+        # likely means we're loading from a "cleared" slate and need
+        # to re-add our relevant fields.
+        if not self.ui.shot_info_widget.fields:
+            self.ui.shot_info_widget.fields = self._active_fields
+            self.ui.shot_info_widget.label_exempt_fields = self._persistent_fields
 
-            shot_filters = [["id", "is", entity["id"]]]
-            self.shot_info_model.load_data(
-                entity_type="Version",
-                filters=shot_filters,
-                fields=self._fields,
-            )
+        self._current_entity = entity
+        self.ui.note_stream_widget.load_data(entity)
 
-            item = self.shot_info_model.item_from_entity(
-                "Version",
-                entity["id"],
-            )
+        shot_filters = [["id", "is", entity["id"]]]
+        self.shot_info_model.load_data(
+            entity_type="Version",
+            filters=shot_filters,
+            fields=self._fields,
+        )
 
-            if not item:
-                return
+        item = self.shot_info_model.item_from_entity(
+            "Version",
+            entity["id"],
+        )
 
-            sg_data = item.get_sg_data()
+        if not item:
+            return
 
-            self.ui.shot_info_widget.set_entity(sg_data)
-            self._more_info_toggled(self.ui.more_info_button.isChecked())
+        sg_data = item.get_sg_data()
 
-            version_filters = [["entity", "is", sg_data["entity"]]]
-            self.version_model.load_data(
-                "Version",
-                filters=version_filters,
-                fields=self._fields,
-            )
-        else:
-            self._requested_entity = entity
+        self.ui.shot_info_widget.set_entity(sg_data)
+        self._more_info_toggled(self.ui.more_info_button.isChecked())
+
+        version_filters = [["entity", "is", sg_data["entity"]]]
+        self.version_model.load_data(
+            "Version",
+            filters=version_filters,
+            fields=self._fields,
+        )
 
     def set_note_screenshot(self, image_path):
         """

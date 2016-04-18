@@ -273,6 +273,18 @@ class ListItemWidget(QtGui.QWidget):
             # single column.
             self.ui.field_grid_layout.addWidget(field_widget, len(self.fields), 0)
 
+    def clear(self):
+        """
+        Clears all data out of the widget.
+        """
+        if self._entity:
+            self._entity = None
+            self.clear_fields()
+            self.thumbnail.hide()
+            self.ui.left_layout.removeWidget(self.thumbnail)
+            self.ui.left_layout.update()
+            self.thumbnail = None
+
     def clear_fields(self):
         """
         Removes all field widgets from the item.
