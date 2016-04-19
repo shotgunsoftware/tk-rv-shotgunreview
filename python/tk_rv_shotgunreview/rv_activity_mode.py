@@ -226,6 +226,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if (self.tray_dock):
             self.tray_dock.hide()
             
+        # Flag the session as "sgreview.submitInProgress" so JS submit tool
+        # code can tell this is not Screening Room.
+        #
+        in_prog_prop = "#Session.sgreview.submitInProgress"
+        if (not rv.commands.propertyExists(in_prog_prop)):
+            rv.commands.newProperty (in_prog_prop, rv.commands.IntType, 1);
+        rv.commands.setIntProperty (in_prog_prop, [1], True);
+
         rv.runtime.eval("""
             {
                 require shotgun_mode;
