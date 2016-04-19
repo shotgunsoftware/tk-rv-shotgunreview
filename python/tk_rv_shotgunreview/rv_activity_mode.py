@@ -263,11 +263,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             }
             """, [])
 
-    def getUnstoredFrameProps(self):
+    def getUnstoredFrameProps(self, grpFilter=None):
         unstoredFrames = {}
         frames = rv.extra_commands.findAnnotatedFrames()
         pnodes = rv.commands.nodesOfType("RVPaint")
         for pnode in pnodes:
+            if grpFilter != None and grpFilter not in pnode:
+                continue
             for frame in frames:
                 sframe = rv.extra_commands.sourceFrame(frame)
                 orderProp = pnode + '.frame:%d.order' % sframe
@@ -287,9 +289,15 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # not sure if anyone else wants to use this,
         # but might as well let them
         event.reject() 
-
-        props = self.getUnstoredFrameProps()
+        props = {}
+        try:
+            eventDict = eval(event.contents())
+            group = self.loaded_sources[eventDict['id']]['group_name']
+            props = self.getUnstoredFrameProps(group)
+        except:
+            pass
         if len(props) <= 0:
+            print("INFO: Found no new annotations to attach")
             return
 
         tempdir = tempfile.mkdtemp()
@@ -313,46 +321,36 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         lic = os.environ.get("RV_APP_USE_LICENSE_FILE", None)
         if (lic != None):
             args += ["-lic", lic]
-        print(args)
+
         rvioExec = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        print(rvioExec.stderr.read(), rvioExec.stdout.read())
+        out = rvioExec.stdout.read()
+        if "ERROR" in out:
+            print("ERROR: Encountered issue saving annotation: %s %s" % (args,out))
 
         attachments = []
-        current = rv.commands.sourcesAtFrame(rv.commands.frame())[0] # will be replaced with event contents
-        for frame,props in props.items():
+        saved = []
+        for frame in props.keys():
             src = "%s/sequence.%d.jpg" % (tempdir,frame)
 
             if not (os.path.isfile(src)):
                 print("ERROR: Can't find annotation for frame: %d at '%s'" % (frame, src))
                 continue
 
-            source = None
-            sources = rv.commands.sourcesAtFrame(frame)
-            if len(sources) > 0:
-                source = sources[0]
-            if source != current:
-                continue # restrict to current source for now
-
-            # load_version_id_from_source expects a group name
-            group_name = rv.commands.nodeGroup(source)
-            info = self.load_version_id_from_session(group_name)
             sframe = rv.extra_commands.sourceFrame(frame)
-
-            if info:
-                tgt = "%s/annotation_ver_%d.%d.jpg" % (tempdir, info['version.Version.id'], sframe)
-            else:
-                tgt = "%s/annotation.%d.jpg" % (tempdir, sframe)
+            tgt = "%s/annot_version_%d_v2.%d.jpg" % (tempdir, eventDict['id'], sframe)
 
             shutil.move(src, tgt)
             attachments.append(tgt)
-
-            for prop in props:
-                rv.commands.newProperty(prop, rv.commands.IntType, 1)
-                rv.commands.setIntProperty(prop, [1234], True) # should be note id
+            saved.append(frame)
 
         os.remove(session)
 #         shutil.rmtree(os.path.dirname(session))
         self.submit_note_attachments(attachments)
+
+        for frame in saved:
+            for prop in props[frame]:
+                rv.commands.newProperty(prop, rv.commands.IntType, 1)
+                rv.commands.setIntProperty(prop, [1234], True) # should be note id
 
     def __init__(self, app):
         rv.rvtypes.MinorMode.__init__(self)
