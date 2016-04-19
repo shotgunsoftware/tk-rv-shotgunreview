@@ -1019,26 +1019,49 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         return cuts
 
     def merge_cuts_for_menu(self, seq_cuts, shot_cuts):
+
+        print "MERGE ==============="
+        print "shot_cuts: %r" % shot_cuts
+        print "=====================\n"
+        print "seq_cuts: %r" % seq_cuts
+        print "=====================\n"
+
+        return
         shot_map = {}
 
         shot_ids = []
-        for x in shot_cuts:
-            shot_ids.append(x['id'])
-            shot_map[x['id']] = x
+        for o in shot_cuts:
+            for x in o['cuts']:
+                for r in x['revisions']:
+                    print "r: %r" % r
+                    shot_ids.append(r['id'])
+                    shot_map[r['id']] = x
         
         seq_ids = []
         for x in seq_cuts:
+            print "seq x: %r" % x
             seq_ids.append(x['id'])
 
         for n in shot_ids:
-            if n in seq_ids:
+            if n not in seq_ids:
+                print "appending %r" % shot_map[n]
                 seq_cuts.append(shot_map[n])
 
         # resort seq_cuts by 'code'
-
+        #sorted_cuts = sorted(seq_cuts, key=lambda x: x['cached_display_name'], reverse=False)
         return seq_cuts
 
-
+    def build_related_cuts_menu(self, entity_in, shot_entity=None):
+        # entity_in is in most cases as Sequence entity, currently whatever is in cut.Cut.entity
+        self._app.engine.log_info( "build_related_cuts_menu: %r %r" % (entity_in, shot_entity))
+        # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
+        conditions = ['entity', 'is', entity_in]
+        cuts = self.find_cuts(conditions)
+        if shot_entity:
+            shot_id = shot_entity['id']
+            shot_results = self.request_cuts_from_entity(['cut_items.CutItem.shot', 'is', { 'id': shot_id, 'type': 'Shot' }])
+            sorted_cuts = self.merge_cuts_for_menu(cuts, shot_results)
+            print "SORTED: %r" % sorted_cuts
 
     # used by the related cuts menu
     def request_cuts_from_entity(self, conditions):
@@ -1059,7 +1082,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                             {'field_name': 'cached_display_name', 'direction': 'asc'}
                             ])
 
-        print "condition:%r\n%r" % (conditions, cuts)
+        # print "condition:%r\n%r" % (conditions, cuts)
 
         last_entity_group = -1
         groups = []
@@ -1119,6 +1142,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
     def create_related_cuts_menu(self, entity_in, shot_entity=None):
+        # self.build_related_cuts_menu(entity_in, shot_entity)
         # entity_in is in most cases as Sequence entity, currently whatever is in cut.Cut.entity
         self._app.engine.log_info( "create_related_cuts_menu: %r %r" % (entity_in, shot_entity))
         # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
@@ -1156,11 +1180,11 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 for c in x['revisions']:
                     cut_ids.append(c['id'])
 
-            print "cut_ids: %r" % cut_ids
-            print "shot_cut_ids: %r" % shot_cut_ids
+            #print "cut_ids: %r" % cut_ids
+            #print "shot_cut_ids: %r" % shot_cut_ids
             for n in shot_cut_ids:
                 if n not in cut_ids:
-                    print "WE FOUND A CUT TO INSERT %r" % cut_map[n]
+                    # print "WE FOUND A CUT TO INSERT %r" % cut_map[n]
                     for x in results[0]['cuts']:
                         for c in x['revisions']:
                             if cut_map[n]['cached_display_name'] <= c['cached_display_name']:
