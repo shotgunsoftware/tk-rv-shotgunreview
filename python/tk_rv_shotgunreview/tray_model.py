@@ -131,6 +131,7 @@ class TrayModel(SimpleShotgunModel):
                 return
 
             if sg['cut.Cut.version.Version.image']:
+                #print "hi"
                 super(TrayModel, self)._request_thumbnail_download(item, 'cut.Cut.version.Version.image', sg['cut.Cut.version.Version.image'], 'Version', sg['cut.Cut.version.Version.id'])
                 return
 

@@ -208,7 +208,8 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                 painter.drawPixmap(paint_widget.width() - self.pin_pixmap.width(), 0, self.pin_pixmap)
                 #painter.fillRect( self._alpha_size.width() - 10, 0, 10, 10, QtGui.QColor(240,200,50,127) )
 
-            # if not sg_item['version.Version.id']:
+            # print "image: %r %r %r " % (sg_item['version.Version.id'] ,sg_item['cut.Cut.image'] ,sg_item['cut.Cut.version.Version.image'])
+            # if not sg_item['version.Version.id'] and not sg_item['image'] and not sg_item['cut.Cut.version.Version.image']:
             #     target = QtCore.QRectF(0.0, 0.0, paint_widget.width(), paint_widget.height() )
             #     source = QtCore.QRectF(0, 0, self.missing_pixmap.width(), self.missing_pixmap.height())
             #     painter.drawPixmap(target, self.missing_pixmap, source)

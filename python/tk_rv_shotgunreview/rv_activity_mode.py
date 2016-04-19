@@ -998,6 +998,40 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         return sg_dict
 
+
+    def find_cuts(self, conditions):
+        cuts = self._bundle.shotgun.find('Cut',
+                filters=[ conditions, ['project', 'is', { 'id': self.project_entity['id'], 'type': 'Project' } ]],
+                fields=['id', 'entity', 'code', 'cached_display_name'],
+                order=[
+                    # {'field_name': 'entity', 'direction': 'asc'}, 
+                    {'field_name': 'code', 'direction': 'asc'}, 
+                    {'field_name': 'cached_display_name', 'direction': 'asc'}
+                    ])
+        return cuts
+
+    def merge_cuts_for_menu(self, seq_cuts, shot_cuts):
+        shot_map = {}
+
+        shot_ids = []
+        for x in shot_cuts:
+            shot_ids.append(x['id'])
+            shot_map[x['id']] = x
+        
+        seq_ids = []
+        for x in seq_cuts:
+            seq_ids.append(x['id'])
+
+        for n in shot_ids:
+            if n in seq_ids:
+                seq_cuts.append(shot_map[n])
+
+        # resort seq_cuts by 'code'
+
+        return seq_cuts
+
+
+
     # used by the related cuts menu
     def request_cuts_from_entity(self, conditions):
         self._app.engine.log_info('request_cuts_from_entity %r %r' % ( QtCore.QThread.currentThread(), conditions) )
@@ -1016,6 +1050,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                             {'field_name': 'code', 'direction': 'asc'}, 
                             {'field_name': 'cached_display_name', 'direction': 'asc'}
                             ])
+
+        print "condition:%r\n%r" % (conditions, cuts)
 
         last_entity_group = -1
         groups = []
@@ -1072,6 +1108,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self.load_tray_with_cut_id(action.data()['id'])
             self._app.engine.log_info("action.data: %r" % action.data()) 
 
+
+
     def create_related_cuts_menu(self, entity_in, shot_entity=None):
         # entity_in is in most cases as Sequence entity, currently whatever is in cut.Cut.entity
         self._app.engine.log_info( "create_related_cuts_menu: %r %r" % (entity_in, shot_entity))
@@ -1091,27 +1129,27 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             
         # make a working copy
         results = copy.copy(self.related_cuts)
+        #print "cuts results: %r" % results
         # merge the shots stuff into results
         cut_map = {}
         if shot_entity:
             # look up related shots
             shot_id = shot_entity['id']
             shot_results = self.request_cuts_from_entity(['cut_items.CutItem.shot', 'is', { 'id': shot_id, 'type': 'Shot' }])
-            print "shot_results: %r" % shot_results
+            #print "shot_results: %r" % shot_results
             shot_cut_ids = []
             for x in shot_results[0]['cuts']:
                 for c in x['revisions']:
                     cut_map[c['id']] = c
                     shot_cut_ids.append(c['id'])
-            # print "cut_map: %r" % cut_map
-
+            
             cut_ids = []
             for x in results[0]['cuts']:
                 for c in x['revisions']:
                     cut_ids.append(c['id'])
 
-            # print "cut_ids: %r" % cut_ids
-            # print "shot_cut_ids: %r" % shot_cut_ids
+            print "cut_ids: %r" % cut_ids
+            print "shot_cut_ids: %r" % shot_cut_ids
             for n in shot_cut_ids:
                 if n not in cut_ids:
                     print "WE FOUND A CUT TO INSERT %r" % cut_map[n]
