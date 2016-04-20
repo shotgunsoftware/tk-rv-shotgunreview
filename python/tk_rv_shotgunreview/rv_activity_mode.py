@@ -1105,10 +1105,18 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         last_code = None
         en = {}
 
+        sg = self.load_version_id_from_session()
+
         for x in seq_cuts:
             action = QtGui.QAction(self.tray_button_browse_cut)
+            action.setCheckable(True)
             en['id'] = x['id']
             en['type'] = 'Cut'
+
+            if x['id'] == sg['cut.Cut.id']:
+                action.setChecked(True)
+            else:
+                action.setChecked(False)
 
             if last_code != x['code']: # this is the first time weve seen this code
                 if x['count'] > 1: # make a submenu
