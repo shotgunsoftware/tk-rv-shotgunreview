@@ -21,6 +21,7 @@ shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "sho
 
 from .tray_delegate import RvTrayDelegate
 from .details_panel_widget import DetailsPanelWidget
+from .popup_utils import PopupUtils
 
 import sgtk
 
@@ -406,6 +407,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self._cuts_model = shotgun_model.SimpleShotgunModel(rv.qtutils.sessionWindow())
 
         self._app = app
+        self._popup_utils = PopupUtils(app.engine, self._bundle.shotgun, self.project_entity)
 
         self.init("RvActivityMode", None,
                 [ 
@@ -1011,61 +1013,61 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         return sg_dict
 
 
-    def find_cuts(self, conditions):
-        cuts = self._bundle.shotgun.find('Cut',
-                filters=[ conditions, ['project', 'is', { 'id': self.project_entity['id'], 'type': 'Project' } ]],
-                fields=['id', 'entity', 'code', 'cached_display_name'],
-                order=[
-                    # {'field_name': 'entity', 'direction': 'asc'}, 
-                    {'field_name': 'code', 'direction': 'asc'}, 
-                    {'field_name': 'cached_display_name', 'direction': 'asc'}
-                    ])
-        return cuts
+    # def find_cuts(self, conditions):
+    #     cuts = self._bundle.shotgun.find('Cut',
+    #             filters=[ conditions, ['project', 'is', { 'id': self.project_entity['id'], 'type': 'Project' } ]],
+    #             fields=['id', 'entity', 'code', 'cached_display_name'],
+    #             order=[
+    #                 # {'field_name': 'entity', 'direction': 'asc'}, 
+    #                 {'field_name': 'code', 'direction': 'asc'}, 
+    #                 {'field_name': 'cached_display_name', 'direction': 'asc'}
+    #                 ])
+    #     return cuts
 
-    def merge_cuts_for_menu(self, seq_cuts, shot_cuts):
+    # def merge_cuts_for_menu(self, seq_cuts, shot_cuts):
 
-        print "MERGE ==============="
-        print "shot_cuts: %r" % shot_cuts
-        print "=====================\n"
-        print "seq_cuts: %r" % seq_cuts
-        print "=====================\n"
+    #     print "MERGE ==============="
+    #     print "shot_cuts: %r" % shot_cuts
+    #     print "=====================\n"
+    #     print "seq_cuts: %r" % seq_cuts
+    #     print "=====================\n"
 
-        return
-        shot_map = {}
+    #     return
+    #     shot_map = {}
 
-        shot_ids = []
-        for o in shot_cuts:
-            for x in o['cuts']:
-                for r in x['revisions']:
-                    print "r: %r" % r
-                    shot_ids.append(r['id'])
-                    shot_map[r['id']] = x
+    #     shot_ids = []
+    #     for o in shot_cuts:
+    #         for x in o['cuts']:
+    #             for r in x['revisions']:
+    #                 print "r: %r" % r
+    #                 shot_ids.append(r['id'])
+    #                 shot_map[r['id']] = x
         
-        seq_ids = []
-        for x in seq_cuts:
-            print "seq x: %r" % x
-            seq_ids.append(x['id'])
+    #     seq_ids = []
+    #     for x in seq_cuts:
+    #         print "seq x: %r" % x
+    #         seq_ids.append(x['id'])
 
-        for n in shot_ids:
-            if n not in seq_ids:
-                print "appending %r" % shot_map[n]
-                seq_cuts.append(shot_map[n])
+    #     for n in shot_ids:
+    #         if n not in seq_ids:
+    #             print "appending %r" % shot_map[n]
+    #             seq_cuts.append(shot_map[n])
 
-        # resort seq_cuts by 'code'
-        #sorted_cuts = sorted(seq_cuts, key=lambda x: x['cached_display_name'], reverse=False)
-        return seq_cuts
+    #     # resort seq_cuts by 'code'
+    #     #sorted_cuts = sorted(seq_cuts, key=lambda x: x['cached_display_name'], reverse=False)
+    #     return seq_cuts
 
     def build_related_cuts_menu(self, entity_in, shot_entity=None):
         # entity_in is in most cases as Sequence entity, currently whatever is in cut.Cut.entity
         self._app.engine.log_info( "build_related_cuts_menu: %r %r" % (entity_in, shot_entity))
         # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
         conditions = ['entity', 'is', entity_in]
-        cuts = self.find_cuts(conditions)
+        #cuts = self.find_cuts(conditions)
         if shot_entity:
             shot_id = shot_entity['id']
             shot_results = self.request_cuts_from_entity(['cut_items.CutItem.shot', 'is', { 'id': shot_id, 'type': 'Shot' }])
-            sorted_cuts = self.merge_cuts_for_menu(cuts, shot_results)
-            print "SORTED: %r" % sorted_cuts
+            #sorted_cuts = self.merge_cuts_for_menu(cuts, shot_results)
+            #print "SORTED: %r" % sorted_cuts
 
     # used by the related cuts menu
     def request_cuts_from_entity(self, conditions):
@@ -1137,101 +1139,54 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # entity['type'] = "Playlist"
         # rv.commands.sendInternalEvent('id_from_gma', json.dumps(entity))        
 
-    def handle_menu(self, action=None):
-        self._app.engine.log_info("handle_menu called with action %r" % action)
-        if action:
-            self.load_tray_with_cut_id(action.data()['id'])
+    def handle_related_menu(self, action=None):
+        self._app.engine.log_info("handle_related_menu called with action %r" % action)
+        if action.data():
             self._app.engine.log_info("action.data: %r" % action.data()) 
-
-
+            self.load_tray_with_cut_id(action.data()['id'])
 
     def create_related_cuts_menu(self, entity_in, shot_entity=None):
-        # self.build_related_cuts_menu(entity_in, shot_entity)
-        # entity_in is in most cases as Sequence entity, currently whatever is in cut.Cut.entity
         self._app.engine.log_info( "create_related_cuts_menu: %r %r" % (entity_in, shot_entity))
-        # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
+        
         conditions = ['entity', 'is', entity_in]
-
-        # to know if we need to refresh
-        if self.related_cuts_entity:
-            if self.related_cuts_entity['id'] != entity_in['id']:
-                self.related_cuts_entity = entity_in
-                # hang on to the answer
-                self.related_cuts = self.request_cuts_from_entity(conditions)
-        else:
-                self.related_cuts_entity = entity_in
-                # hang on to the answer
-                self.related_cuts = self.request_cuts_from_entity(conditions)
-            
-        # make a working copy
-        results = copy.copy(self.related_cuts)
-        #print "cuts results: %r" % results
-        # merge the shots stuff into results
-        cut_map = {}
+        seq_cuts = self._popup_utils.find_cuts(conditions)
+        
+        shot_cuts = None
         if shot_entity:
-            # look up related shots
-            shot_id = shot_entity['id']
-            shot_results = self.request_cuts_from_entity(['cut_items.CutItem.shot', 'is', { 'id': shot_id, 'type': 'Shot' }])
-            #print "shot_results: %r" % shot_results
-            shot_cut_ids = []
-            for x in shot_results[0]['cuts']:
-                for c in x['revisions']:
-                    cut_map[c['id']] = c
-                    shot_cut_ids.append(c['id'])
-            
-            cut_ids = []
-            for x in results[0]['cuts']:
-                for c in x['revisions']:
-                    cut_ids.append(c['id'])
-
-            #print "cut_ids: %r" % cut_ids
-            #print "shot_cut_ids: %r" % shot_cut_ids
-            for n in shot_cut_ids:
-                if n not in cut_ids:
-                    # print "WE FOUND A CUT TO INSERT %r" % cut_map[n]
-                    for x in results[0]['cuts']:
-                        for c in x['revisions']:
-                            if cut_map[n]['cached_display_name'] <= c['cached_display_name']:
-                                # insert this cut_map into the revisions array
-                                x['revisions'].append(cut_map[n])
-                                break
-
+            shot_cuts = self._popup_utils.find_cuts(['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }])
+        seq_cuts = self._popup_utils.merge_cuts_for_menu(seq_cuts, shot_cuts)
+        
         menu = QtGui.QMenu(self.tray_button_browse_cut)
         menu.aboutToShow.connect(self.on_browse_cut)
-        menu.triggered.connect(self.handle_menu)
+        menu.triggered.connect(self.handle_related_menu)
         action = QtGui.QAction(self.tray_button_browse_cut)
         action.setText('Related Cuts')
         menu.addAction(action)
         menu.addSeparator()
 
         last_menu = menu
-        for x in results[0]['cuts']:
-            if 'code' not in x:
-                # print "%r" % x
-                x['code'] = x['name']
-            action = QtGui.QAction(self.tray_button_browse_cut)
-            action.setText(x['code'])
-            en = {}
-            en['id'] = x['revisions'][0]['id']
-            en['type'] = 'Cut'
-            action.setData(en)
-            if len(x['revisions']) > 1:
-                last_menu = last_menu.addMenu(x['code'])
-                for n in x['revisions']:
-                    action = QtGui.QAction(self.tray_button_browse_cut)
-                    action.setText(n['cached_display_name'])
-                    sub_en = {}
-                    sub_en['id'] = n['id']
-                    sub_en['type'] = 'Cut'
-                    action.setData(sub_en)
-                    last_menu.addAction(action)
-                last_menu = menu
-            else:
-                last_menu = menu
-                last_menu.addAction(action)
+        last_code = None
+        en = {}
+        last_action = None
 
+        for x in seq_cuts:
+            action = QtGui.QAction(self.tray_button_browse_cut)
+            en['id'] = x['id']
+            en['type'] = 'Cut'
+
+            if last_code != x['code']: # this is the first time weve seen this code
+                if x['count'] > 1: # make a submenu
+                    last_menu = last_menu.addMenu(x['code'])
+                else:
+                    last_menu = menu
+ 
+            action.setText(x['cached_display_name'])
+            action.setData(en)
+            last_menu.addAction(action)
+            last_code = x['code']
 
         self.tray_button_browse_cut.setMenu(menu)        
+
 
     def find_base_version_for_cut(self, entity):
         self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED! %r' % entity)
@@ -1363,6 +1318,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 #print "PROJECT: %r" % sg_item
                 #print "tray cut id %d" % self.tray_cut_id 
                 self.project_entity = sg_item['cut.Cut.project']
+                self._popup_utils.set_project(self.project_entity)
                        
             # finding keys we want on the source node
             if 'cut_item_in' in sg_item:
@@ -1594,6 +1550,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self._mini_after_shots = self.tray_main_frame.mini_right_spinner.value()
  
     def load_mini_cut(self, index, shot_offset=0):
+
         if not index:
             s = self.tray_list.selectionModel().selectedIndexes()
             index = s[0]
