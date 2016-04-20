@@ -43,11 +43,11 @@ class PopupUtils:
                     ])
 
 
-        print "find_cuts: %r" % conditions
-        for x in cuts:
-            for keys in x:
-                print "\t%r: %r" % (keys, x[keys])
-            print "-----------------------------------"
+        # print "find_cuts: %r" % conditions
+        # for x in cuts:
+        #     for keys in x:
+        #         print "\t%r: %r" % (keys, x[keys])
+        #     print "-----------------------------------"
         
         return cuts
 
@@ -56,15 +56,9 @@ class PopupUtils:
 
     def merge_cuts_for_menu(self, seq_cuts, shot_cuts):
 
-        print "MERGE NEW ==============="
-        print "shot_cuts: %r" % shot_cuts
-        print "=====================\n"
-        print "seq_cuts: %r" % seq_cuts
-        print "=====================\n"
-
         shot_map = {}
-
         shot_ids = []
+
         if shot_cuts:
             for x in shot_cuts:
                 shot_ids.append(x['id'])
@@ -72,16 +66,15 @@ class PopupUtils:
         
         seq_ids = []
         for x in seq_cuts:
-            print "seq x: %r" % x
             seq_ids.append(x['id'])
 
         for n in shot_ids:
             if n not in seq_ids:
-                print "appending %r" % shot_map[n]
                 seq_cuts.append(shot_map[n])
 
         # resort seq_cuts by 'code'
         sorted_cuts = sorted(seq_cuts, key=lambda x: x['cached_display_name'], reverse=False)
+ 
         # count the dups
         dup_map = {}
         for x in sorted_cuts:
@@ -92,12 +85,12 @@ class PopupUtils:
         for x in sorted_cuts:
             x['count'] = dup_map[x['code']]
 
-        print "merge_cuts_for_menu:"
-        for x in sorted_cuts:
-            for keys in x:
-                print "\t%r: %r" % (keys, x[keys])
-            print "-----------------------------------"
-        print "%d ENTRIES IN SORTED" % len(sorted_cuts)
+        # print "merge_cuts_for_menu:"
+        # for x in sorted_cuts:
+        #     for keys in x:
+        #         print "\t%r: %r" % (keys, x[keys])
+        #     print "-----------------------------------"
+        # print "%d ENTRIES IN SORTED" % len(sorted_cuts)
         return sorted_cuts
 
 
