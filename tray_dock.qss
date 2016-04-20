@@ -41,10 +41,6 @@ QMenu::item {
     selection-background-color: #18A7E3;
 }
 
-QMenu::indicator {
-    background: rgb(200,200,200);
-}
-
 QMenu::right-arrow {
     background: rgb(200,200,200);
     image: url(':down_triangle.png');
