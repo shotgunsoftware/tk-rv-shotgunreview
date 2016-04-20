@@ -69,7 +69,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                         print "group_name: %r" % group_name
                         print "entity: %r" % entity
             else:
-                self._app.engine.log_error("load_version_id_from_session: NO PROP NAMED %s" % group_name)
+                #  If we can't find the json_sg_data property it probably means
+                #  that this RVSourceGroup was not created "by us" (IE it does
+                #  not have any shotgun data), so just clear the details pane
+                #  and consider the details "clean" until further notice.
+                #
+                self.load_data({'type': 'Version', 'id': None})
+                self.details_dirty = False
 
         return None
 
