@@ -1146,6 +1146,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         menu.addSeparator()
 
         last_menu = menu
+        parent_menu = None
         last_code = None
         en = {}
 
@@ -1157,23 +1158,29 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             en['id'] = x['id']
             en['type'] = 'Cut'
 
-            if x['id'] == sg['cut.Cut.id']:
-                action.setChecked(True)
-            else:
-                action.setChecked(False)
-
             if last_code != x['code']: # this is the first time weve seen this code
                 if x['count'] > 1: # make a submenu
                     last_menu = last_menu.addMenu(x['code'])
+                    a = last_menu.menuAction()
+                    a.setCheckable(True)
+                    parent_menu = last_menu
                 else:
                     last_menu = menu
+                    parent_menu = None
  
+            if x['id'] == sg['cut.Cut.id']:
+                action.setChecked(True)
+                if parent_menu:
+                    a = parent_menu.menuAction()
+                    a.setChecked(True)
+            else:
+                action.setChecked(False)
+
             action.setText(x['cached_display_name'])
             action.setData(en)
             last_menu.addAction(action)
             last_code = x['code']
 
-        # self.tray_button_browse_cut.setMenu(menu)        
 
 
     def find_base_version_for_cut(self, entity):
