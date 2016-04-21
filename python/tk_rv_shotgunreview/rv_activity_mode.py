@@ -269,13 +269,23 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             }
             """, [])
 
-    def getUnstoredFrameProps(self, grpFilter=None):
+    def get_unstored_frame_props(self, grpFilter=None):
+        '''
+        Collect a dictionary of frame : property list pairs.
+        The properties are for unsaved annotation on the key frame.
+        An optional filter string can be passed to restrict the search to strokes on one source
+        '''
+        # Build up a dictionary of frames : unsaved annotations
         unstoredFrames = {}
         frames = rv.extra_commands.findAnnotatedFrames()
         pnodes = rv.commands.nodesOfType("RVPaint")
         for pnode in pnodes:
+
+            # If there is a filter make sure this paint node matches
             if grpFilter != None and grpFilter not in pnode:
                 continue
+
+            # For each paint node check the list of annotated frames for commands
             for frame in frames:
                 sframe = rv.extra_commands.sourceFrame(frame)
                 orderProp = pnode + '.frame:%d.order' % sframe
@@ -285,61 +295,93 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                         savedProp = pnode + '.%s.sgtk_stored' % pcmd
                         if rv.commands.propertyExists(savedProp):
                             continue
+
+                        # If a command is found and it isn't sgtk_stored than add it to our list.
+                        # Creating the properties this way allows us to easily set them later
+                        # effectively marking the command as stored.
                         unstoredFrames.setdefault(frame, []).append(savedProp)
         return unstoredFrames
 
-    def getUnstoredFrames(self):
-        return self.getUnstoredFrameProps().keys()
+    def get_unstored_frames(self):
+        '''
+        Get the frame numbers for the frames with unsaved (not yet submitted) annotation strokes
+        '''
+        # The keys are the frames with unsaved annotation
+        return self.get_unstored_frame_props().keys()
 
-    def makeNoteAttachments(self, event):
-        # not sure if anyone else wants to use this,
+    def make_note_attachments(self, event):
+        '''
+        Find the annotated frames for the given version, export them through RVIO, then submit them
+        '''
+        # Not sure if anyone else wants to use this,
         # but might as well let them
         event.reject() 
+
+        # Look for unsaved annotation
         props = {}
         try:
             eventDict = eval(event.contents())
             group = self.loaded_sources[eventDict['id']]['group_name']
-            props = self.getUnstoredFrameProps(group)
-        except:
-            pass
+            props = self.get_unstored_frame_props(group)
+        except Exception as exc:
+            self._app.log_error("Unable to locate annotation strokes: " + exc.output)
         if len(props) <= 0:
-            print("INFO: Found no new annotations to attach")
+            self._app.log_info("Found no new annotations to attach")
             return
 
+        # Start RVIO command construction
         tempdir = tempfile.mkdtemp()
-        rv.commands.rvioSetup()
+        rv.commands.rvioSetup() # NOTE: Pass the license to the env
         rvio = os.environ.get("RV_APP_RVIO", None)
         args = [rvio, "-v", "-err-to-out"]
 
+        # Make the temp session
         setDisp = pymu.MuSymbol("export_utils.setExportDisplayConvert")
         setDisp("default")
         session = os.path.join(tempdir, "export.rv")
         rv.commands.saveSession(session)
         args += [session]
 
+        # Start with a generic output file sequence string
         tempfiles = os.path.join(tempdir,"sequence.@.jpg")
         args += ["-o", tempfiles]
 
+        # Use the keys from the unsaved annotation search for frames
         frames = [ str(f) for f in props.keys() ]
         framesStr = ','.join(frames)
         args += ["-t", framesStr]
 
+        # If a specific license was set use it instead
         lic = os.environ.get("RV_APP_USE_LICENSE_FILE", None)
         if (lic != None):
             args += ["-lic", lic]
+        
+        # Tell the user what is going on
+        displayString = "Rendering " + str(len(frames))
+        if len(frames) > 1:
+            displayString += " annotated frames..."
+        else:
+            displayString += " annotated frame..."
+        rv.extra_commands.displayFeedback2(displayString, 3600.0)
 
+        # Run the RVIO conversion
         rvioExec = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        out = rvioExec.stdout.read()
-        if "ERROR" in out:
-            print("ERROR: Encountered issue saving annotation: %s %s" % (args,out))
+        try:
+            out = subprocess.check_output(args)
+        except subprocess.CalledProcessError as exc:
+            self._app.log_error("Unable to export annotation: " + exc.output)
+        
+        # Close out the banner
+        rv.extra_commands.displayFeedback2(displayString, 2.0)
 
+        # Rename the annotation frame before submitting
         attachments = []
         saved = []
         for frame in props.keys():
             src = "%s/sequence.%d.jpg" % (tempdir,frame)
 
             if not (os.path.isfile(src)):
-                print("ERROR: Can't find annotation for frame: %d at '%s'" % (frame, src))
+                self._app.log_error("Can't find annotation for frame: %d at '%s'" % (frame, src))
                 continue
 
             sframe = rv.extra_commands.sourceFrame(frame)
@@ -349,10 +391,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             attachments.append(tgt)
             saved.append(frame)
 
+        # Delete the session file
         os.remove(session)
-#         shutil.rmtree(os.path.dirname(session))
+
+        # Submit the frames
         self.submit_note_attachments(attachments)
 
+        # Update the graph to reflect which strokes have been submitted
         for frame in saved:
             for prop in props[frame]:
                 rv.commands.newProperty(prop, rv.commands.IntType, 1)
@@ -424,7 +469,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 ('play-start', self.on_play_state_change, ""),
                 ('play-stop', self.on_play_state_change, ""),
                 ('view-size-changed', self.on_view_size_changed, ''),
-                ('new_note_screenshot', self.makeNoteAttachments, ''),
+                ('new_note_screenshot', self.make_note_attachments, ''),
                 ],
                 [("SG Review", [
                     ("Submit Tool", self.launchSubmitTool, None, lambda: rv.commands.UncheckedMenuState),
