@@ -1517,8 +1517,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if 'cut.Cut.entity' in sg:
             self.create_related_cuts_menu(sg['cut.Cut.entity'], sg['shot'])
         else:
-            self.related_cuts_menu.clear()
-            print "NAME? %r" % tray_seq_name
+            if self.related_cuts_menu:
+                self.related_cuts_menu.clear()
+                print "NAME? %r" % tray_seq_name
            
     def tray_double_clicked(self, index):
         sg_item = shotgun_model.get_sg_data(index)
