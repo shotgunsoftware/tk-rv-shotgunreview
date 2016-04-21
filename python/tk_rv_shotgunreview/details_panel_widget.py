@@ -20,6 +20,7 @@ from .list_item_widget import ListItemWidget
 from .list_item_delegate import ListItemDelegate
 from .version_context_menu import VersionContextMenu
 from .qtwidgets import ShotgunFieldManager
+from .version_sort_filter import VersionSortFilterProxyModel
 
 shotgun_view = tank.platform.import_framework(
     "tk-framework-qtwidgets",
@@ -130,7 +131,13 @@ class DetailsPanelWidget(QtGui.QWidget):
         ]
 
         self.version_model = shotgun_model.SimpleShotgunModel(self.ui.entity_version_tab)
-        self.ui.entity_version_view.setModel(self.version_model)
+        self.version_proxy_model = VersionSortFilterProxyModel(
+            parent=self.ui.entity_version_view,
+            filter_by_fields=self._version_list_persistent_fields,
+            sort_by_field="id",
+        )
+        self.version_proxy_model.setSourceModel(self.version_model)
+        self.ui.entity_version_view.setModel(self.version_proxy_model)
         self.version_delegate = ListItemDelegate(
             view=self.ui.entity_version_view,
             fields=self._version_list_persistent_fields,
