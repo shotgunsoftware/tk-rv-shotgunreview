@@ -118,7 +118,9 @@ class TrayModel(SimpleShotgunModel):
         """
         sg = item.data(self.SG_DATA_ROLE)
 
-        #print "SHOT? %r" % sg['shot']
+        if 'shot' not in sg:
+            super(TrayModel, self)._request_thumbnail_download(item, 'image', sg['image'], 'Version', sg['id'])
+            return
 
         if not sg['shot']:
 

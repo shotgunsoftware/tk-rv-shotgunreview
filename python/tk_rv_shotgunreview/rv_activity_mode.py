@@ -1060,6 +1060,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self._app.engine.log_info("on_browse_cut called")
         sg_data = self.load_version_id_from_session()
 
+        if 'cut.Cut.entity' not in sg_data:
+            self._app.engine.log_info('No cut info available. Playlist?')
+            return
+
         # are we stopped? on a selected item? mix in second related shots
         print "on_browse_cut: %r %r" % (sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
         if sg_data['version.Version.entity']:
@@ -1265,7 +1269,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             #print "%d is %r" % (x, sg_item)
             
             # needed for the related cuts menu.
-            if not self.project_entity:
+            if not self.project_entity and 'cut.Cut.project' in sg_item:
                 #print "PROJECT: %r" % sg_item
                 #print "tray cut id %d" % self.tray_cut_id 
                 self.project_entity = sg_item['cut.Cut.project']
@@ -1353,10 +1357,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             if 'cut_item_in' not in sg_item:
                 sg_item['cut_item_in'] = sg_item['version.Version.sg_first_frame']
                 sg_item['cut_item_out'] = sg_item['version.Version.sg_last_frame']
-                print "HERE: %d %d" % (sg_item['version.Version.sg_first_frame'], sg_item['version.Version.sg_last_frame'])
 
             if not sg_item['cut_item_in'] or not sg_item['cut_item_out']:
-                print "THERE?"
                 # this logic was added to make certain incomplete cuts work...
                 if 'edit_in' and 'edit_out' in sg_item:
                     if sg_item['edit_in'] and sg_item['edit_out']:
@@ -1413,7 +1415,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             seq_prop_name = ("%s.cut_support.json_cutitem_data") % self.cut_seq_name
             self.set_session_prop(seq_prop_name, cut_items)
         else:
-            print "PLIST: %r" % sg_item
             if 'playlists' in sg_item:
                 for p in sg_item['playlists']:
                     if p['id'] == self.entity_from_gma['id']:
@@ -1464,10 +1465,16 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             rv.commands.newProperty(seq_pinned_name, rv.commands.IntType, 1)
         rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
 
+        # get info from first shot in sequence
         item = self.tray_proxyModel.index(0, 0)
         sg_item_orig = shotgun_model.get_sg_data(item)
         sg = self.convert_sg_dict(sg_item_orig)
-        self.create_related_cuts_menu(sg['cut.Cut.entity'], sg['shot'])
+        
+        if 'cut.Cut.entity' in sg:
+            self.create_related_cuts_menu(sg['cut.Cut.entity'], sg['shot'])
+        else:
+            self.related_cuts_menu.clear()
+            print "NAME? %r" % tray_seq_name
            
     def tray_double_clicked(self, index):
         sg_item = shotgun_model.get_sg_data(index)
