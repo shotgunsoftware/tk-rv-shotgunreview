@@ -365,7 +365,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.extra_commands.displayFeedback2(displayString, 3600.0)
 
         # Run the RVIO conversion
-        rvioExec = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         try:
             out = subprocess.check_output(args)
         except subprocess.CalledProcessError as exc:
