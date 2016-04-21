@@ -107,8 +107,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             event.reject()
 
     def compareWithCurrent(self, event):
-        print "COMPARE"
-        print "%r" % event.contents()
         vlist = []
         try:
             # examine whats under the playhead, thats a source you want.
@@ -117,30 +115,15 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             # now whatever we got from the event
             vd = json.loads(event.contents())
             for v in vd:
-                # print "Version id: %d" % v['id']
                 v['pinned'] = 1
                 vlist.append(v)
             self.load_sequence_with_versions(vlist)
             
         except Exception as e:
-            print "ERROR: compareWithCurrent %r" % e
-            print "%r" % event.contents()
+            self._app.engine.log_error("compareWithCurrent %r" % e)
 
         finally:
             event.reject()
-
-        """
-        u'sg_last_frame' 82
-        u'code' u'BBB_08_a-team_006_ANIM_001'
-        u'image' u'https://sg-media-usor-01.s3.amazonaws.com/25f4a7a8f476fdba7f4412605a46bd46d4318af7/d5b0911e76c31ada4dbb666581dcfb52c5cfbc95/BBB_08_a-team_006_ANIM_001_thumb_t.jpg?AWSAccessKeyId=AKIAJEA7VWGTG3UYWNWA&Expires=1457522191&Signature=Wah2K%2Fa9twvNTe4URix3uonfTYg%3D'
-        u'sg_first_frame' 40
-        u'entity' {u'type': u'Shot', u'id': 1228, u'name': u'08_a-team_006'}
-        u'sg_path_to_frames' u'/rvshotgundemo/BBB_Short/08_a-team/006/ANIM/001/BBB_08_a-team_006_ANIM_001.40-82#.jpg'
-        u'sg_status_list' u'rev'
-        u'user' {u'type': u'HumanUser', u'id': 73, u'name': u'Johnny Duguid'}
-        u'type' u'Version'
-        u'id' 6044
-        """
 
     def beforeSessionRead (self, event):
         # print "################### beforeSessionRead"
@@ -503,10 +486,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
         self.details_timer.start(1000)
 
-        # self.create_related_cuts_menu(None)
-        # stuff = None
-        # self.popup_test(stuff)
-
     def right_spinner_clicked(self, event):
         self.get_mini_values()
         self.load_mini_cut(self.last_mini_center)
@@ -533,7 +512,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         return self.convert_sg_dict(version)
 
     def on_id_from_gma(self, event):
-        self._app.engine.log_info("on_id_from_gma  %r" % (QtCore.QThread.currentThread() ) )
+        self._app.engine.log_info("on_id_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
         self.pinned_items = []
         self.version_swap_out = None
         self.no_cut_context = False
@@ -572,6 +551,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 ]
                 # get the version info we need
                 version  = self._bundle.shotgun.find_one("Version", [["id", "is", d['id']]], v_fields)
+                if not version:
+                    # clear display?
+                    self._app.engine.log_error('Version id %d does not exist!' % d['id'])
+                    return
 
                 if cuts:
                     version['cutitem_id'] = cuts[0]['id']
@@ -690,8 +673,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def load_sequence_with_versions(self, vlist):
         self._app.engine.log_info('load_sequence_with_versions %r' % QtCore.QThread.currentThread() )
-        
-        
+             
         v_sources = []
         v_frames = []
         v_ins = []
@@ -706,15 +688,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # if ph_dict:            
         #     if 'ui_index' in ph_dict:
         #         self.pinned_items.append(ph_dict['ui_index'])
-
         for sgd in vlist:
             sg = self.convert_sg_dict(sgd)
             sg['pinned'] = 1
             f = self.get_media_path(sg)
-
-            # if not f:
-            #     f =  'black,start=%d,end=%d.movieproc' % (sg['sg_first_frame'], sg['sg_last_frame'])
-
             try:
                 if f:
                     fk = sg['version.Version.id']
@@ -741,59 +718,64 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 rv.commands.setStringProperty(source_prop_name, [json_sg_item], True)
             except Exception as e:
                 self._app.engine.log_error("load_sequence_with_versions %r" % e)
-                # print "%r" % sg
 
-            #(num_plus, _) = source_name.split('_')
-            v_source_names.append(source_obj['group_name'])
- 
-            v_sources.append(w)
-            self.pinned_items.append(w)
-            w = w + 1
-            
+            try:
+                v_source_names.append(source_obj['group_name'])
+     
+                v_sources.append(w)
+                self.pinned_items.append(w)
+                w = w + 1
+                
+                v_frames.append(t)
+
+                if 'version.Version.sg_first_frame' in sg:
+                    v_ins.append( sg['version.Version.sg_first_frame'] )
+                    v_outs.append( sg['version.Version.sg_last_frame'] )            
+                    t = sg['version.Version.sg_last_frame'] - sg['version.Version.sg_first_frame'] + 1 + t
+                else:
+                    v_ins.append( sg['sg_first_frame'] )
+                    v_outs.append( sg['sg_last_frame'] )            
+                    t = sg['sg_last_frame'] - sg['sg_first_frame'] + 1 + t
+
+            except Exception as e:
+                self._app.engine.log_error("load_sequence_with_versions %r" % e)
+        
+        try:
+            v_sources.append(0)
+            v_ins.append(0)
+            v_outs.append(0)
             v_frames.append(t)
+      
+            if self.want_stacked:
+                if not self._stack_node:
+                    self._stack_node = rv.commands.newNode('RVStackGroup')
+                self._v_cut_seq_name = sg['version.Version.code']
+                rv.extra_commands.setUIName(self._stack_node, self._v_cut_seq_name)     
+                rv.commands.setNodeInputs(self._stack_node, v_source_names)
+                rv.commands.setViewNode(self._stack_node)
 
-            if 'version.Version.sg_first_frame' in sg:
-                v_ins.append( sg['version.Version.sg_first_frame'] )
-                v_outs.append( sg['version.Version.sg_last_frame'] )            
-                t = sg['version.Version.sg_last_frame'] - sg['version.Version.sg_first_frame'] + 1 + t
-            else:
-                v_ins.append( sg['sg_first_frame'] )
-                v_outs.append( sg['sg_last_frame'] )            
-                t = sg['sg_last_frame'] - sg['sg_first_frame'] + 1 + t
-        
-        v_sources.append(0)
-        v_ins.append(0)
-        v_outs.append(0)
-        v_frames.append(t)
+            else:        
+                if not self._layout_node:
+                    self._layout_node = rv.commands.newNode("RVLayoutGroup")
+                self._v_cut_seq_name = sg['version.Version.code']
+                rv.extra_commands.setUIName(self._layout_node, self._v_cut_seq_name)
+                rv.commands.setStringProperty("%s.layout.mode" % self._layout_node, ["grid"]);     
+            
+                rv.commands.setNodeInputs(self._layout_node, v_source_names)
+                rv.commands.setViewNode(self._layout_node)
 
-        if self.want_stacked:
-            if not self._stack_node:
-                self._stack_node = rv.commands.newNode('RVStackGroup')
-            self._v_cut_seq_name = sg['version.Version.code']
-            rv.extra_commands.setUIName(self._stack_node, self._v_cut_seq_name)     
-            rv.commands.setNodeInputs(self._stack_node, v_source_names)
-            rv.commands.setViewNode(self._stack_node)
+            # if ph_dict:
+            #     if 'ui_index' in ph_dict:
+            #         seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
+            #         rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
 
-        else:        
-            if not self._layout_node:
-                self._layout_node = rv.commands.newNode("RVLayoutGroup")
-            self._v_cut_seq_name = sg['version.Version.code']
-            rv.extra_commands.setUIName(self._layout_node, self._v_cut_seq_name)
-            rv.commands.setStringProperty("%s.layout.mode" % self._layout_node, ["grid"]);     
-        
-            rv.commands.setNodeInputs(self._layout_node, v_source_names)
-            rv.commands.setViewNode(self._layout_node)
-
-        # if ph_dict:
-        #     if 'ui_index' in ph_dict:
-        #         seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
-        #         rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
-
-        #         self.load_data(vlist[0])
-        #         self.tray_list.repaint()
-        # else:
-        self.tray_dock.hide()
-        self.tray_model.clear()
+            #         self.load_data(vlist[0])
+            #         self.tray_list.repaint()
+            # else:
+            self.tray_dock.hide()
+            self.tray_model.clear()
+        except Exception as e:
+            self._app.engine.log_error("load_sequence_with_versions %r" % e)
 
         # rv.commands.setFrame(shot_start + shot_offset)
 
@@ -1013,48 +995,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # check for missing media
 
         return sg_dict
-
-    # used by the related cuts menu
-    # def request_cuts_from_entity(self, conditions):
-    #     self._app.engine.log_info('request_cuts_from_entity %r %r' % ( QtCore.QThread.currentThread(), conditions) )
-        
-    #     # conditions: ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
-        
-    #     if not self.project_entity:
-    #         self._app.engine.log_error('project entity does not exist!')
-    #         return None
-
-    #     cuts = self._bundle.shotgun.find('Cut',
-    #                     filters=[ conditions, ['project', 'is', { 'id': self.project_entity['id'], 'type': 'Project' } ]],
-    #                     fields=['id', 'entity', 'code', 'cached_display_name'],
-    #                     order=[
-    #                         # {'field_name': 'entity', 'direction': 'asc'}, 
-    #                         {'field_name': 'code', 'direction': 'asc'}, 
-    #                         {'field_name': 'cached_display_name', 'direction': 'asc'}
-    #                         ])
-
-    #     # print "condition:%r\n%r" % (conditions, cuts)
-
-    #     last_entity_group = -1
-    #     groups = []
-
-    #     for cut in cuts:
-
-    #         if (last_entity_group == -1) or (groups[last_entity_group]['entity'] != cut['entity']):
-    #             last_entity_group = last_entity_group+1
-    #             last_cut_group = -1
-    #             groups.append( { 'entity': cut['entity'], 'cuts': [] } )
-
-    #         rev_cuts = groups[last_entity_group]['cuts']
-    #         if (last_cut_group == -1) or ( rev_cuts[last_cut_group]['code'] != cut['code'] ):
-    #             last_cut_group = last_cut_group + 1
-    #             rev_cuts.append( { 'code': cut['code'], 'revisions': [] } )
-
-    #         revisions = rev_cuts[last_cut_group]['revisions']
-
-    #         revisions.append( { 'id': cut['id'], 'cached_display_name': cut['cached_display_name'] } )
-
-    #     return groups
 
     def on_browse_cut(self):
         self._app.engine.log_info("on_browse_cut called")
