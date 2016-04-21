@@ -36,7 +36,9 @@ QTabBar::tab {
     border: none;
     alignment: center;
     background: transparent;
-    margin: 4px;
+    margin-left: 4px;
+    margin-right: 4px;
+    margin-bottom: 4px;
     color: rgb(126,127,129);
 }
 
@@ -54,4 +56,11 @@ QToolButton#more_info_button:hover, QToolButton#more_fields_button:hover, QToolB
 
 QToolButton#more_fields_button:menu-indicator, QToolButton#version_fields_button:menu-indicator {
     image:none;
+}
+
+QComboBox#version_sort_by_field {
+    border: 1px solid rgb(30, 30, 30);
+    border-radius: 1px;
+    margin-top: 2px;
+    background-color: transparent;
 }
