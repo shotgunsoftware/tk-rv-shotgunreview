@@ -124,6 +124,8 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
                 # the simple stringify here.
                 if data_type == "entity":
                     match_data = sg_data[field]["name"]
+                elif data_type == "status_list":
+                    match_data = shotgun_globals.get_status_display_name(sg_data[field])
                 else:
                     match_data = sg_data[field]
 
