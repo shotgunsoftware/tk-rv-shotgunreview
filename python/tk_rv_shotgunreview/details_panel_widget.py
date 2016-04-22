@@ -139,6 +139,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             filter_by_fields=self._version_list_persistent_fields,
             sort_by_field="id",
         )
+        self.version_proxy_model.setFilterWildcard("*")
         self.version_proxy_model.setSourceModel(self.version_model)
         self.ui.entity_version_view.setModel(self.version_proxy_model)
         self.version_delegate = ListItemDelegate(
@@ -173,20 +174,17 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.shotgun_nav_button.clicked.connect(
             self.ui.note_stream_widget._load_shotgun_activity_stream
         )
-
         self.ui.entity_version_view.customContextMenuRequested.connect(
             self._show_version_context_menu,
         )
-        self.ui.version_sort_by_field.currentIndexChanged[int].connect(
-            self._sort_version_list,
-        )
+        self.ui.version_search.search_edited.connect(self.version_proxy_model.setFilterWildcard)
 
         # The fields menu attached to the "Fields..." buttons
         # when "More info" is active as well as in the Versions
         # tab.
         self._setup_fields_menu()
         self._setup_version_list_fields_menu()
-        self._setup_version_sort_by_list()
+        self._setup_version_sort_by_menu()
 
     ##########################################################################
     # properties
@@ -372,40 +370,33 @@ class DetailsPanelWidget(QtGui.QWidget):
             if action.isChecked():
                 self.version_delegate.add_field(field_name)
 
-                # Likely the only time we'll NOT be adding here is for
-                # the "id" field, which we include along with persistent
-                # fields for sorting, but don't force the display of.
-                if not self.ui.version_sort_by_field.findData(field_name):
-                    # I have some kind of styling issue that's causing the
-                    # longest item in the list to have its first character
-                    # partially clipped. I can't figure it out, but putting
-                    # a space at the head of the item sorts it out and it
-                    # looks fine. What's displayed is just a label, so the
-                    # data there doesn't need to be sanitary.
-                    #
-                    # Note that the second argument to addItem is user data
-                    # that is stored in the UserRole of the item. We keep
-                    # the database field name there, while displaying the
-                    # field's display name.
-                    self.ui.version_sort_by_field.addItem(
-                        " " + shotgun_globals.get_field_display_name(
+                # When a field is added to the list, then we also need to
+                # add it to the sort-by menu.
+                if field_name not in self._version_list_sort_by_fields:
+                    self._version_list_sort_by_fields.append(field_name)
+                    new_action = QtGui.QAction(
+                        shotgun_globals.get_field_display_name(
                             "Version",
                             field_name,
                         ),
-                        field_name,
+                        self,
                     )
+                    new_action.setData(field_name)
+                    self._version_sort_menu.addAction(new_action)
             else:
                 self.version_delegate.remove_field(field_name)
-                try:
-                    self.ui.version_sort_by_field.removeItem(
-                        self.ui.version_sort_by_field.findText(field_name),
-                    )
-                except Exception:
-                    # This will likely only happen if the item doesn't
-                    # exist in the list. That shouldn't ever happen, but
-                    # if it does it really doesn't matter here.
-                    pass
 
+                # We also need to remove the field from the sort-by menu. We
+                # will leave "id" in the list always, even if it isn't being
+                # displayed by the delegate.
+                if field_name != "id" and field_name in self._version_list_sort_by_fields:
+                    self._version_list_sort_by_fields.remove(field_name)
+                    sort_actions = self._version_sort_menu.actions()
+                    remove_action = [a for a in sort_actions if a.data() == field_name][0]
+                    self._version_sort_menu.removeAction(remove_action)
+
+            self.version_proxy_model.filter_by_fields = self.version_delegate.fields
+            self.version_proxy_model.setFilterWildcard(self.ui.version_search.search_text)
             self.ui.entity_version_view.repaint()
 
     def _more_info_toggled(self, checked):
@@ -463,37 +454,25 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._version_list_field_menu.triggered.connect(self._version_list_field_menu_triggered)
         self.ui.version_fields_button.setMenu(menu)
 
-    def _setup_version_sort_by_list(self):
+    def _setup_version_sort_by_menu(self):
         """
-        Sets up the sort-by combobox in the Versions tab.
+        Sets up the sort-by menu in the Versions tab.
         """
-        # In order to AlignRight the current item text, the box needs
-        # to be editable so that we have a lineEdit to customize. We
-        # don't ACTUALLY want it editable, so we can then make that
-        # lineEdit read only and then set our alignment.
-        self.ui.version_sort_by_field.setEditable(True)
-        self.ui.version_sort_by_field.lineEdit().setReadOnly(True)
-        self.ui.version_sort_by_field.lineEdit().setAlignment(QtCore.Qt.AlignRight)
+        self._version_sort_menu = QtGui.QMenu(self)
 
         for field_name in self._version_list_sort_by_fields:
-            # I have some kind of styling issue that's causing the
-            # longest item in the list to have its first character
-            # partially clipped. I can't figure it out, but putting
-            # a space at the head of the item sorts it out and it
-            # looks fine. What's displayed is just a label, so the
-            # data there doesn't need to be sanitary.
-            #
-            # Note that the second argument to addItem is user data
-            # that is stored in the UserRole of the item. We keep
-            # the database field name there, while displaying the
-            # field's display name.
-            self.ui.version_sort_by_field.addItem(
-                " " + shotgun_globals.get_field_display_name(
-                    "Version",
-                    field_name,
-                ),
-                field_name,
+            action = QtGui.QAction(
+                shotgun_globals.get_field_display_name("Version", field_name),
+                self,
             )
+
+            # We store the database field name on the action, but
+            # display the "pretty" name for users.
+            action.setData(field_name)
+            self._version_sort_menu.addAction(action)
+
+        self._version_sort_menu.triggered.connect(self._sort_version_list)
+        self.ui.version_sort_button.setMenu(self._version_sort_menu)
 
     def _show_version_context_menu(self, point):
         """
@@ -620,17 +599,16 @@ class DetailsPanelWidget(QtGui.QWidget):
             json.dumps(versions),
         )
 
-    def _sort_version_list(self, index):
+    def _sort_version_list(self, action):
         """
-        Sorts the version list by the current field in the sort-by
-        combobox. This also triggers a reselection in the view in
+        Sorts the version list by the field chosen in the sort-by
+        menu. This also triggers a reselection in the view in
         order to ensure proper sorting and drawing of items in the
         list.
 
-        :param index:   The integer index of the field sort combobox
-                        that was chosen by the user.
+        :param action:  The QAction chosen by the user from the menu.
         """
-        field = self.ui.version_sort_by_field.itemData(index) or "id"
+        field = action.data() or "id"
         self.version_proxy_model.sort_by_field = field
         self.version_proxy_model.sort(0, QtCore.Qt.AscendingOrder)
 

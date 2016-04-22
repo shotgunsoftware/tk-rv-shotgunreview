@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="tk-rv-shotgunreview">
+    <file>arrow.png</file>
     <file>blank.png</file>
     <file>close.png</file>
     <file>close_hover.png</file>
