@@ -58,9 +58,4 @@ QToolButton#more_fields_button:menu-indicator, QToolButton#version_fields_button
     image: none;
 }
 
-QComboBox#version_sort_by_field {
-    border: 1px solid rgb(30, 30, 30);
-    border-radius: 1px;
-    margin-top: 2px;
-    background-color: transparent;
-}
+

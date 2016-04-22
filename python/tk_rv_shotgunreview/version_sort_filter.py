@@ -29,7 +29,7 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
     stored therein.
 
     :ivar filter_by_fields: A list of string Shotgun field names to filter on.
-    :ivar sort_by_field:    A string Shotgunfield name to sort by.
+    :ivar sort_by_field:    A string Shotgun field name to sort by.
     """
     def __init__(self, parent, filter_by_fields, sort_by_field):
         """
