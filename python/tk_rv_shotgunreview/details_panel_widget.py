@@ -177,7 +177,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.entity_version_view.customContextMenuRequested.connect(
             self._show_version_context_menu,
         )
-        self.ui.version_search.search_edited.connect(self.version_proxy_model.setFilterWildcard)
+        self.ui.version_search.search_edited.connect(self._set_version_list_filter)
 
         # The fields menu attached to the "Fields..." buttons
         # when "More info" is active as well as in the Versions
@@ -427,6 +427,19 @@ class DetailsPanelWidget(QtGui.QWidget):
         selection_model = self.ui.entity_version_view.selectionModel()
         indexes = selection_model.selectedIndexes()
         return [shotgun_model.get_sg_data(i) for i in indexes]
+
+    def _set_version_list_filter(self, filter_text):
+        """
+        Sets the Version list proxy model's filter pattern and forces
+        a reselection of any items in the list.
+
+        :param filter_text: The pattern to set as the proxy model's
+                            filter wildcard.
+        """
+        # Forcing a reselection handles forcing a rebuild of any
+        # editor widgets and will ensure we draw/sort/filter properly.
+        self.version_proxy_model.setFilterWildcard(filter_text)
+        self.version_delegate.force_reselection()
 
     def _setup_fields_menu(self):
         """
