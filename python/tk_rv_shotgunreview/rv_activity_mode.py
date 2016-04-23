@@ -431,6 +431,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         # filter menus
         self.pipeline_steps = None
+        self.status_list = None
 
         # models for ad-hoc queries
         self._shot_model = shotgun_model.SimpleShotgunModel(rv.qtutils.sessionWindow())
@@ -562,6 +563,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         if count > 1:
             self.tray_main_frame.status_filter_button.setText("%d Statuses" % count)
 
+        self.filter_tray()
+
     def get_approval_status(self):
         # print "get_approval_status"
         statii = self._popup_utils.get_status_menu(self.project_entity)
@@ -578,6 +581,42 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 action.setText(status[x])
             action.setData(status)
             menu.addAction(action)
+
+    def filter_tray(self):
+        print "filter_tray"
+        full_filters = self.get_tray_filters()
+        print "full filters: %r" % full_filters
+        versions = self._bundle.shotgun.find( 'Version',
+                    filters=full_filters,
+                    fields=['id', 'code', 'image', 'sg_status_list', 'entity'],
+                    additional_filter_presets = [
+                        {"preset_name": "LATEST", "latest_by": "BY_PIPELINE_STEP_NUMBER_AND_ENTITIES_CREATED_AT" }
+                    ])
+        for v in versions:
+            print "v: %r" % v
+
+
+    def get_tray_filters(self):
+        rows = self.tray_proxyModel.rowCount()
+        shot_list = []
+        for x in range(0,rows):
+            item = self.tray_proxyModel.index(x, 0)
+            sg = shotgun_model.get_sg_data(item)
+            shot_list.append(sg['shot'])
+        entity_list = [ 'entity', 'in', shot_list ]
+        if self.status_list and self.pipeline_steps:
+            status_list = ['sg_status_list', 'in', self.status_list ]
+            step_list = ['sg_task.Task.step', 'in', self.pipeline_steps]
+            filters = [ step_list, status_list, entity_list ]
+            return filters
+        if self.status_list:
+            status_list = ['sg_status_list', 'in', self.status_list ]
+            filters = [ status_list, entity_list ]
+            return filters
+        if self.pipeline_steps:
+            step_list = ['sg_task.Task.step', 'in', self.pipeline_steps]
+            filters = [ step_list, entity_list ]
+            return filters
 
 
     def handle_pipeline_menu(self, event):
@@ -602,6 +641,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self.tray_main_frame.pipeline_filter_button.setText(name)
         if count > 1:
             self.tray_main_frame.pipeline_filter_button.setText("%d steps" % count)
+        self.filter_tray()
 
     # loads the pipeline setps menu, only needed once.
     def get_pipeline_step(self):
