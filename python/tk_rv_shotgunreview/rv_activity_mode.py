@@ -429,6 +429,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.related_cuts_entity = None
         self.related_cuts = None
 
+        # filter menus
+        self.pipeline_steps = None
+
         # models for ad-hoc queries
         self._shot_model = shotgun_model.SimpleShotgunModel(rv.qtutils.sessionWindow())
         self._cuts_model = shotgun_model.SimpleShotgunModel(rv.qtutils.sessionWindow())
@@ -489,6 +492,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_dock = tray_dock
 
         self.related_cuts_menu = None
+        self.pipeline_steps_menu = None
+        self.status_menu = None
         
         # Setup the details panel.
         self.details_panel = DetailsPanelWidget()
@@ -524,11 +529,73 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
         
-        self.tray_main_frame.tray_button_latest_pipeline.clicked.connect(self.load_sequence_with_versions)
+        #self.tray_main_frame.status_filter_button.clicked.connect(self.get_approval_status)
 
         self.details_timer = QTimer(rv.qtutils.sessionWindow())
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
         self.details_timer.start(1000)
+        self.get_pipeline_step()
+
+    def handle_status_menu(self):
+        print "handle_status_menu"
+
+    def get_approval_status(self):
+        print "get_approval_status"
+        statii = self._popup_utils.get_status_menu(self.project_entity)
+        if not self.status_menu:
+            self.status_menu = QtGui.QMenu(self.tray_main_frame.status_filter_button)
+            self.tray_main_frame.status_filter_button.setMenu(self.status_menu)        
+            self.tray_main_frame.status_filter_button.triggered.connect(self.handle_status_menu)
+        menu = self.status_menu
+        for status in statii:
+            action = QtGui.QAction(self.tray_main_frame.status_filter_button)
+            action.setCheckable(True)
+            action.setChecked(False)
+            for x in status:
+                action.setText(status[x])
+            action.setData(status)
+            menu.addAction(action)
+
+
+    def handle_pipeline_menu(self, event):
+        # you only get the latest one clicked here. there could be more.
+        # you might also get a roll off event that you dont want.
+        # so check the widget and then update the button text
+        if event.data():
+            print "handle_pipeline_menu: %r" % event.data()
+        actions = self.pipeline_steps_menu.actions()
+        count = 0
+        name = 'Error'
+        # for later filtering
+        self.pipeline_steps = []
+        for a in actions:
+            if a.isChecked():
+                count = count + 1
+                name = a.data()['cached_display_name']
+                self.pipeline_steps.append(a.data())
+        if count == 0:
+            self.tray_main_frame.pipeline_filter_button.setText("Filter by Pipeline")
+        if count == 1:
+            self.tray_main_frame.pipeline_filter_button.setText(name)
+        if count > 1:
+            self.tray_main_frame.pipeline_filter_button.setText("%d steps" % count)
+
+    # loads the pipeline setps menu, only needed once.
+    def get_pipeline_step(self):
+        steps = self._popup_utils.get_pipeline_steps()
+        if not self.pipeline_steps_menu:
+            self.pipeline_steps_menu = QtGui.QMenu(self.tray_main_frame.pipeline_filter_button)
+            self.tray_main_frame.pipeline_filter_button.setMenu(self.pipeline_steps_menu)        
+            self.pipeline_steps_menu.triggered.connect(self.handle_pipeline_menu)
+        menu = self.pipeline_steps_menu
+
+        for step in steps:
+            action = QtGui.QAction(self.tray_main_frame.pipeline_filter_button)
+            action.setCheckable(True)
+            action.setChecked(False)
+            action.setText(step['cached_display_name'])
+            action.setData(step)
+            menu.addAction(action)
 
     def right_spinner_clicked(self, event):
         self.get_mini_values()
@@ -1460,6 +1527,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
                 print "NAME? %r" % tray_seq_name
+        self.get_approval_status()
            
     def tray_double_clicked(self, index):
         sg_item = shotgun_model.get_sg_data(index)
@@ -1618,240 +1686,4 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
 
-    # popup right side menu stuff from eric ... tested but not integrated yet.
-
-    ##########################################################
-    # the following came from cuts_helpers.js
-    ##########################################################
-    def get_default_version_entity_for_cut_item(self, cut_item, parent_cut):
-        version = cut_item.get('version')
-        if ( version == None ):
-            if ( parent_cut and parent_cut.type == 'Cut' ):
-                # If there is a cut, let's see if it has a version
-                version = parent_cut.get('version')
-                if version != None:
-                    # for some reason the javascript code already has the status set in the entity hash!
-                    # but in python we don't :-(
-                    # The following will probably not work since we didnt query for that field on the parent cut!
-                    # version['status'] = parent_cut.get('version.Version.sg_status_list')
-                    version['status'] = 'Unknown'
-        else:
-            # for some reason the javascript code already has the status set in the entity hash!
-            # but in python we don't :-(
-            version['status'] = cut_item.get('version.Version.sg_status_list')
-
-        return version
-
-
-    # I dont really use this one but...
-    def get_version_image_for_record(self, record, parent_record):
-        # If no valid version is in record, return -1
-        image = None
-
-        if ( record.get('type') == 'Version' ):
-            image = record.get('image')
-        elif ( record.get('type') == 'CutItem' ):
-            # the version image is in the version field
-            version = record.get('version')
-            if ( version ):
-                image = record.get('version.Version.image')
-            elif ( parent_record ):
-                version = parent_record.get('version')
-                if ( version ):
-                    #hum not sure this will work if we didnt query for that field while doing the query for the cut
-                    image = parent_record.get('version.Version.image')
-        return image
-
-    def find_filter(self, shot_filters, filter_path):
-        for filter in shot_filters:
-            if filter[0] == filter_path:
-                if len(filter)>2:
-                    return filter[2]
-                else:
-                    return None
-        return None
-
-    def show_menus(self, shot_filters):
-        sg = self._bundle.shotgun
-        project_id = 76
-        print 'Status Menu:'
-        print ''
-        print '[ ] Any Status'
-        print '-------------------'
-
-        schema = sg.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
-
-        schema = schema.get('sg_status_list')
-        schema = schema.get('properties')
-
-        values = schema.get('valid_values').get('value')
-        display_values = schema.get('display_values').get('value')
-
-        filter = self.find_filter(shot_filters, 'sg_status_list')
-
-        for value in values:
-            display_value = display_values.get(value)
-            if filter and value in filter:
-                print '[x] %s (%s)' %(display_value, value)
-            else:
-                print '[ ] %s (%s)' %(display_value, value)
-
-        print ''
-
-        print 'Step Menu:'
-        print ''
-        print 'PIPELINE STEP PRIORITY'
-        print '---------------------------'
-
-        filter = self.find_filter(shot_filters, 'sg_task.Task.step')
-
-        if len(filter) == 0:
-            print '[x] Latest in Pipeline'
-        else:
-            print '[ ] Latest in Pipeline'
-
-        shot_steps = sg.find('Step', 
-            filters=[['entity_type', 'is', 'Shot' ]], 
-            fields=['code', 'list_order', 'short_name', 'id'], 
-            order=[{'field_name': 'list_order', 'direction': 'desc'}])
-
-        for step in shot_steps:
-            found = False
-            if filter:
-                for current_step in filter:
-                    if current_step.get('id') == step.get('id'):
-                        found = True
-                        break
-            if found:
-                print '[x] %s' %step.get('code')
-            else:
-                print '[ ] %s' %step.get('code')
-
-        print ''
-
-    def request_data(self, shot_filters):
-
-        print 'Here are the default versions used by that cut in the cut order:'
-        print 'They should all be the ANIM ones, 15, 14, ..., 2, 1'
-        print ''
-
-
-        sg = self._bundle.shotgun
-        cut_id = 6
-        cut = sg.find_one('Cut', [['id', 'is', cut_id]], fields=['code', 'cached_display_name', 'entity'])
-
-        cut_items = sg.find('CutItem',
-                            filters=[['cut', 'is', [{ 'id': cut_id, 'type': 'Cut' }]]],
-                            # there might be too many fields requested here but that will do for now
-                            fields=['code', 'cut_item_in', 'cut_item_out', 'cut_order', 'shot', 'version', 'version.Version.sg_status_list', 'version.Version.image'],
-                            order=[{'field_name': 'cut_order', 'direction': 'asc'}])
-
-        map = {}
-
-        if shot_filters != None:
-
-            # project_entity = { 'id': project_id, 'type': 'Project' }
-
-            shots = []
-
-            for cut_item in cut_items:
-                shot = cut_item.get('shot')
-                if shot != None:
-                    shots.append( { 'id': shot.get('id'), 'type': 'Shot' } )
-
-            full_filters = self.build_version_filters( self.project_entity, shot_filters, shots)
-
-            versions = sg.find('Version',
-                                filters=full_filters,
-                                fields=['id', 'code', 'image', 'sg_status_list', 'entity'],
-                                additional_filter_presets = [
-                                    {"preset_name": "LATEST", "latest_by": "BY_PIPELINE_STEP_NUMBER_AND_ENTITIES_CREATED_AT" }
-                                ]
-                                )
-
-            for version in versions:
-                shot = version.get('entity')
-                if shot != None:
-                    map[shot.get('id')] = version
-
-        for cut_item in cut_items:
-            shot = cut_item.get('shot')
-            shot_id = None
-            if shot != None:
-                shot_id = shot.get('id')
-
-            if shot_id in map:
-                version = map[shot_id]
-                version_entity = { 'id': version.get('id'), 'name': version.get('code'), 'type': 'Version', 'status': version.get('sg_status_list') }
-                version_image = version.get('image')
-            else:
-                version_entity = self.get_default_version_entity_for_cut_item(cut_item, cut)
-                version_image = self.get_version_image_for_record(cut_item, cut)
-
-            status = version_entity.get('status')
-            if status == None:
-                status = "unknown"
-
-            print 'version: name=%s, id=%s, status=%s' %(version_entity.get('name'), version_entity.get('id'), status )
-
-
-    ##########################################################
-    # the following came from review_app_data_manager.js
-    ##########################################################
-    def build_version_filters(self, project, shot_version_filters, shots):
-        conditions = []
-        # this.shot_version_filters is always defined when we get here but let's check anyway
-        if ( shot_version_filters ):
-            # let's use this.shot_version_filters but first let's remove the "ANY" filter
-
-            for filter in shot_version_filters:
-                # filter is like [ 'sg_task.Task.step', 'in', [ { 'id': 6, 'name': 'FX', 'type': 'Step' } ]
-
-                # By convention an empty array for sub-array means ANY like "any status" or "latest in pipeline" etc
-                # so let's just ignore this filter since it's any!
-                if len(filter) > 2 and len(filter[2]) > 0:
-                    conditions.append(filter)
-
-        conditions.append(['entity', 'in', shots])
-
-        if ( project ):
-            conditions.append( [ 'project', 'is', [ { 'id': project.get('id'), 'type': 'Project' } ] ] )
-
-        return conditions
-
-
-    def popup_test(self, shot_filters):
-
-        self.request_data(shot_filters)
-
-        print ''
-        print 'Now we will use the following shot filters:'
-        print ''
-
-        shot_filters = [ [ 'sg_task.Task.step', 'in', [ { 'id': 7, 'name': 'Light', 'type': 'Step' } ] ],
-                         [ 'sg_status_list', 'in', ['rev'] ] ]
-
-
-        self.show_menus(shot_filters)
-
-        print 'Here are shot versions found in the cut order: '
-        print 'Only a few LIGHT (aka TD) ones will be found because we also check for status=reviewed!'
-        print 'when the query does not find anything we use the default version'
-
-        print ''
-
-        self.request_data(shot_filters)
-
-        print ''
-        print 'Finally we will use the latest-in-pipeline step:'
-        print ''
-
-        shot_filters = [ [ 'sg_task.Task.step', 'in', [] ],
-                         [ 'sg_status_list', 'in', ['rev'] ] ]
-
-        self.show_menus(shot_filters)
-
-        print ''
-
-        self.request_data(shot_filters)
 

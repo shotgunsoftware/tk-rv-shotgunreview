@@ -142,13 +142,13 @@ class TrayMainFrame(QtGui.QFrame):
 
         self.tray_button_bar_hlayout.addStretch(1)
 
-        self.tray_button_latest_pipeline = QtGui.QPushButton()
-        self.tray_button_latest_pipeline.setText('Latest in Pipeline')
-        self.tray_button_bar_hlayout.addWidget(self.tray_button_latest_pipeline)
+        self.pipeline_filter_button = QtGui.QPushButton()
+        self.pipeline_filter_button.setText('Filter by Pipeline')
+        self.tray_button_bar_hlayout.addWidget(self.pipeline_filter_button)
 
-        self.tray_button_approved = QtGui.QPushButton()
-        self.tray_button_approved.setText('Approved')
-        self.tray_button_bar_hlayout.addWidget(self.tray_button_approved)
+        self.status_filter_button = QtGui.QPushButton()
+        self.status_filter_button.setText('Filter by Status')
+        self.tray_button_bar_hlayout.addWidget(self.status_filter_button)
 
         self.close_button = QtGui.QToolButton()
         self.float_button = QtGui.QToolButton()
