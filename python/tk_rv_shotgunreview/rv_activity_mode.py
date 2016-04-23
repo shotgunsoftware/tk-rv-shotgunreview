@@ -536,16 +536,39 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.details_timer.start(1000)
         self.get_pipeline_step()
 
-    def handle_status_menu(self):
-        print "handle_status_menu"
+    def handle_status_menu(self, event):
+        #print "handle_status_menu"
+        # if event.data():
+        #     print "handle_pipeline_menu: %r" % event.data()
+        actions = self.status_menu.actions()
+        name = 'Error'
+
+        # for later filtering
+        self.status_list = []
+        count = 0
+        name = 'Error'
+        for a in actions:
+            if a.isChecked():
+                e = a.data()
+                for k in e:
+                    self.status_list.append(k)
+                    name = e[k]
+                    count = count + 1
+        # print "status list: %r" % self.status_list
+        if count == 0:
+            self.tray_main_frame.status_filter_button.setText("Filter by Status")
+        if count == 1:
+            self.tray_main_frame.status_filter_button.setText(name)
+        if count > 1:
+            self.tray_main_frame.status_filter_button.setText("%d Statuses" % count)
 
     def get_approval_status(self):
-        print "get_approval_status"
+        # print "get_approval_status"
         statii = self._popup_utils.get_status_menu(self.project_entity)
         if not self.status_menu:
             self.status_menu = QtGui.QMenu(self.tray_main_frame.status_filter_button)
             self.tray_main_frame.status_filter_button.setMenu(self.status_menu)        
-            self.tray_main_frame.status_filter_button.triggered.connect(self.handle_status_menu)
+            self.status_menu.triggered.connect(self.handle_status_menu)
         menu = self.status_menu
         for status in statii:
             action = QtGui.QAction(self.tray_main_frame.status_filter_button)
@@ -561,8 +584,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # you only get the latest one clicked here. there could be more.
         # you might also get a roll off event that you dont want.
         # so check the widget and then update the button text
-        if event.data():
-            print "handle_pipeline_menu: %r" % event.data()
+        # if event.data():
+        #     print "handle_pipeline_menu: %r" % event.data()
         actions = self.pipeline_steps_menu.actions()
         count = 0
         name = 'Error'

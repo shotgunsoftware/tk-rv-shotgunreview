@@ -94,11 +94,11 @@ class PopupUtils:
         if not self._shot_steps:
             self._shot_steps = self._shotgun.find('Step', filters=[['entity_type', 'is', 'Shot' ]], fields=['code', 'list_order', 'short_name', 'id', 'cached_display_name'], order=[{'field_name': 'list_order', 'direction': 'desc'}])
         
-        for x in self._shot_steps:
-            print '=============='
-            for z in x:
-                print "%r -> %r" %( z, x[z])
-        print "STEPS: %r" % len(self._shot_steps)
+        # for x in self._shot_steps:
+        #     print '=============='
+        #     for z in x:
+        #         print "%r -> %r" %( z, x[z])
+        # print "STEPS: %r" % len(self._shot_steps)
 
         return self._shot_steps
 
@@ -115,12 +115,12 @@ class PopupUtils:
             project_id = self._project_entity['id']
             self._status_schema = self._shotgun.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
 
-        print "status_list: %r" % self._status_schema['sg_status_list']
-        print "properties: %r" % self._status_schema['sg_status_list']['properties']
-        print "values: %r" % self._status_schema['sg_status_list']['properties']['valid_values']['value']
+        # print "status_list: %r" % self._status_schema['sg_status_list']
+        # print "properties: %r" % self._status_schema['sg_status_list']['properties']
+        # print "values: %r" % self._status_schema['sg_status_list']['properties']['valid_values']['value']
         #for x in self._status_schema['sg_status_list']:
             #print "%r" % x
-        print "display values: %r" % self._status_schema['sg_status_list']['properties']['display_values']['value']
+        # print "display values: %r" % self._status_schema['sg_status_list']['properties']['display_values']['value']
 
         return self._status_schema
         #shot_filters = None
