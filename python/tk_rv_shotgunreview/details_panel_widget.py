@@ -473,15 +473,34 @@ class DetailsPanelWidget(QtGui.QWidget):
         """
         self._version_sort_menu = QtGui.QMenu(self)
 
+        ascending = QtGui.QAction("Sort Ascending", self)
+        descending = QtGui.QAction("Sort Descending", self)
+        ascending.setCheckable(True)
+        descending.setCheckable(True)
+        descending.setChecked(True)
+        ascending.setIcon(QtGui.QIcon(":tk-rv-shotgunreview/sort_up.png"))
+        descending.setIcon(QtGui.QIcon(":tk-rv-shotgunreview/sort_down.png"))
+
+        self._version_sort_menu_directions = [ascending, descending]
+        self._version_sort_menu.addActions(self._version_sort_menu_directions)
+        self._version_sort_menu.addSeparator()
+
         for field_name in self._version_list_sort_by_fields:
-            action = QtGui.QAction(
-                shotgun_globals.get_field_display_name("Version", field_name),
-                self,
-            )
+            if field_name == "id":
+                display_name = "Age"
+            else:
+                display_name = shotgun_globals.get_field_display_name(
+                    "Version",
+                    field_name,
+                )
+
+            action = QtGui.QAction(display_name, self)
 
             # We store the database field name on the action, but
             # display the "pretty" name for users.
             action.setData(field_name)
+            action.setCheckable(True)
+            action.setChecked((field_name == "id"))
             self._version_sort_menu.addAction(action)
 
         self._version_sort_menu.triggered.connect(self._sort_version_list)
