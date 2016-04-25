@@ -32,7 +32,7 @@ def groupMemberOfType(node, memberType):
     return None
 
 class RvActivityMode(rv.rvtypes.MinorMode):
-    _RV_DATA_ROLE = QtCore.Qt.UserRole + 99
+    
     
     def check_details(self):
         if self.details_dirty:
@@ -388,6 +388,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def __init__(self, app):
         rv.rvtypes.MinorMode.__init__(self)
+        self._RV_DATA_ROLE = QtCore.Qt.UserRole + 99
         self._bundle = sgtk.platform.current_bundle()
         
         self.note_dock = None
@@ -508,6 +509,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         from .tray_main_frame import TrayMainFrame
         self.tray_main_frame = TrayMainFrame(self.tray_dock)
         self.tray_main_frame.set_rv_mode(self)
+
+
         
         # just map these back for the moment...
         self.tray_model = self.tray_main_frame.tray_model
@@ -531,6 +534,16 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
         
         #self.tray_main_frame.status_filter_button.clicked.connect(self.get_approval_status)
+
+#        from .filter_model import FilterModel
+#        task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
+#        self.filter_task_manager = task_manager.BackgroundTaskManager(parent=self.tray_list,
+#                                                                start_processing=True,
+#                                                                max_threads=2)
+
+#        self.filter_model = FilterModel(self.tray_list, bg_task_manager=self.filter_task_manager)
+        self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
+        
 
         self.details_timer = QTimer(rv.qtutils.sessionWindow())
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
@@ -573,6 +586,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self.tray_main_frame.status_filter_button.setMenu(self.status_menu)        
             self.status_menu.triggered.connect(self.handle_status_menu)
         menu = self.status_menu
+        menu.clear()
         for status in statii:
             action = QtGui.QAction(self.tray_main_frame.status_filter_button)
             action.setCheckable(True)
@@ -582,22 +596,46 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             action.setData(status)
             menu.addAction(action)
 
-    def filter_tray(self):
-        print "filter_tray"
-        full_filters = self.get_tray_filters()
-        print "full filters: %r" % full_filters
-        versions = self._bundle.shotgun.find( 'Version',
-                    filters=full_filters,
-                    fields=['id', 'code', 'image', 'sg_status_list', 'entity'],
-                    additional_filter_presets = [
-                        {"preset_name": "LATEST", "latest_by": "BY_PIPELINE_STEP_NUMBER_AND_ENTITIES_CREATED_AT" }
-                    ])
-        for v in versions:
-            print "v: %r" % v
+    def on_filter_refreshed(self, really_changed):
+        self._app.engine.log_info("on_filter_refreshed: really_changed is %r" % really_changed)
 
+
+    def filter_tray(self):
+        full_filters = self.get_tray_filters()
+        if full_filters:
+            #print "full filters: %r" % full_filters
+            versions = self._bundle.shotgun.find( 'Version',
+                        filters=full_filters,
+                        fields=['id', 'code', 'image', 'sg_status_list', 'entity'],
+                        additional_filter_presets = [
+                            {"preset_name": "LATEST", "latest_by": "BY_PIPELINE_STEP_NUMBER_AND_ENTITIES_CREATED_AT" }
+                        ])
+            if not versions:
+                self._app.engine.log_warning( "Filtering query returned nothing." )
+                return
+            shot_map = {}
+            for v in versions:
+                shot_map[v['entity']['id']] = v
+                print "v: %r - %r" % (v['code'], v['entity'] )
+            # roll thru the tray and replace
+            rows = self.tray_proxyModel.rowCount()
+            if rows < 1:
+                return None
+            for x in range(0,rows):
+                item = self.tray_proxyModel.index(x, 0)
+                sg = shotgun_model.get_sg_data(item)
+                if sg['shot']['id'] in shot_map:
+                    v = shot_map[sg['shot']['id']]
+                    self.tray_delegate.update_rv_role(item, v)
+                else:
+                    self.tray_delegate.update_rv_role(item, None)
+            self.tray_model.notify_filter_data_refreshed(True)
+                    
 
     def get_tray_filters(self):
         rows = self.tray_proxyModel.rowCount()
+        if rows < 1:
+            return None
         shot_list = []
         for x in range(0,rows):
             item = self.tray_proxyModel.index(x, 0)
@@ -617,6 +655,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             step_list = ['sg_task.Task.step', 'in', self.pipeline_steps]
             filters = [ step_list, entity_list ]
             return filters
+        return None
 
 
     def handle_pipeline_menu(self, event):
@@ -651,7 +690,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self.tray_main_frame.pipeline_filter_button.setMenu(self.pipeline_steps_menu)        
             self.pipeline_steps_menu.triggered.connect(self.handle_pipeline_menu)
         menu = self.pipeline_steps_menu
-
+        menu.clear()
         for step in steps:
             action = QtGui.QAction(self.tray_main_frame.pipeline_filter_button)
             action.setCheckable(True)

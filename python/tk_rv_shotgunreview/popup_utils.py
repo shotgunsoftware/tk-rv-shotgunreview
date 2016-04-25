@@ -34,7 +34,7 @@ class PopupUtils:
         # [ <field>, 'is', dict ]
         # ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
         # ['cut_items.CutItem.shot', 'is', {'type': 'Shot', 'id': 1237}]
-
+        print "DB CALL: find_cuts with conditions: %r" % conditions
         cuts = self._shotgun.find('Cut',
                 filters=[ conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]],
                 fields=['id', 'entity', 'code', 'cached_display_name'],
@@ -92,6 +92,7 @@ class PopupUtils:
 
     def get_pipeline_steps(self):
         if not self._shot_steps:
+            print "DB CALL: get_pipeline_steps"
             self._shot_steps = self._shotgun.find('Step', filters=[['entity_type', 'is', 'Shot' ]], fields=['code', 'list_order', 'short_name', 'id', 'cached_display_name'], order=[{'field_name': 'list_order', 'direction': 'desc'}])
         
         # for x in self._shot_steps:
@@ -109,10 +110,12 @@ class PopupUtils:
             if project_entity['id'] != self._project_entity['id']:
                 self._project_entity = project_entity
                 project_id = self._project_entity['id']
+                print "DB CALL: get_status_list - new project id"
                 self._status_schema = self._shotgun.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
         
         if not self._status_schema:
             project_id = self._project_entity['id']
+            print "DB CALL: get_status_list - load schema"
             self._status_schema = self._shotgun.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
 
         # print "status_list: %r" % self._status_schema['sg_status_list']

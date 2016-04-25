@@ -137,6 +137,9 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         widget.set_selected(True)  
         widget.setStyleSheet("{border: 2px solid #ff0000;}")
 
+    def update_rv_role(self, index, entity):
+        (source_index, item, model) = self._source_for_index(index)
+        item.setData(entity, self._RV_DATA_ROLE)
 
     def sizeHint(self, style_options, model_index):
         """
@@ -174,8 +177,11 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         :param style_options:   The style options to use when painting
         :param model_index:     The index in the data model that needs to be painted
         """
-        sg_item = shotgun_model.get_sg_data(model_index)  
-
+        sg_item = shotgun_model.get_sg_data(model_index)
+        rv_item = model_index.data(self._RV_DATA_ROLE)
+        if rv_item:
+            #print "RV ITEM IS HERE %r" % rv_item  
+            pass
         # for performance reasons, we are not creating a widget every time
         # but merely moving the same widget around. 
         paint_widget = self._get_painter_widget(model_index, self.parent())

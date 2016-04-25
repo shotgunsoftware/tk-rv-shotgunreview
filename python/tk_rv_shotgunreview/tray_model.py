@@ -10,8 +10,16 @@ ShotgunModel = shotgun_model.ShotgunModel
 
 class TrayModel(SimpleShotgunModel):
 
+    # signal which gets emitted whenever the model has been updated with fresh FILTERED data.
+    filter_data_refreshed = QtCore.Signal(bool)
+
+
     def __init__(self, parent, bg_task_manager=None):
         SimpleShotgunModel.__init__(self, parent)
+        self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
+
+    def notify_filter_data_refreshed(self, modified=True):
+        self.filter_data_refreshed.emit(modified)
 
     def load_data(self, entity_type, filters=None, fields=None, hierarchy=None, order=None):
         filters = filters or []
@@ -92,7 +100,6 @@ class TrayModel(SimpleShotgunModel):
                 )
             )
 
-    # why doesnt this happen?
     def _request_thumbnail_download(self, item, field, url, entity_type, entity_id):
         """
         Request that a thumbnail is downloaded for an item. If a thumbnail is successfully
@@ -117,6 +124,15 @@ class TrayModel(SimpleShotgunModel):
         :param entity_id: Shotgun entity id
         """
         sg = item.data(self.SG_DATA_ROLE)
+        rv_data = item.data(self._RV_DATA_ROLE)
+
+        if rv_data:
+            print "downloading RV_DATA_ROLE thumb %r" % rv_data['image']
+            if rv_data['image']:
+                super(TrayModel, self)._request_thumbnail_download(item, 'image', rv_data['image'], 'Version', rv_data['id'])
+        else:
+            print "NO RV ROLE YET"
+
 
         if 'shot' not in sg:
             super(TrayModel, self)._request_thumbnail_download(item, 'image', sg['image'], 'Version', sg['id'])
