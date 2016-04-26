@@ -554,6 +554,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.request_pipeline_steps()
         self.last_rel_cut_entity = None
         self.last_rel_shot_entity = None
+        self.last_related_cuts = None
 
     def handle_status_menu(self, event):
         #print "handle_status_menu"
@@ -1281,10 +1282,34 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self.tray_button_browse_cut.setMenu(self.related_cuts_menu)        
             self.related_cuts_menu.aboutToShow.connect(self.request_related_cuts_from_models)
             self.related_cuts_menu.triggered.connect(self.handle_related_menu)
-        else:
-            self.related_cuts_menu.clear()
+        # else:
+        #     self.related_cuts_menu.clear()
+        sg = self.load_version_id_from_session()
 
         seq_cuts = self._popup_utils.merge_rel_models_for_menu()
+        if seq_cuts == self.last_related_cuts:
+            actions = self.related_cuts_menu.actions()
+            for a in actions:
+                a.setChecked(False)
+                x = a.data()
+                if x:
+                    if x['id'] == sg['cut.Cut.id']:
+                        a.setChecked(True)
+
+                if a.menu():
+                    sub_acts = a.menu().actions()
+                    for b in sub_acts:
+                        b.setChecked(False)
+                        x = b.data()
+
+                        if x['id'] == sg['cut.Cut.id']:
+                            b.setChecked(True)
+                            a.setChecked(True)
+
+            return
+
+        self.last_related_cuts = seq_cuts
+        self.related_cuts_menu.clear()
 
         menu = self.related_cuts_menu
         action = QtGui.QAction(self.tray_button_browse_cut)
@@ -1297,7 +1322,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         last_code = None
         en = {}
 
-        sg = self.load_version_id_from_session()
 
         for x in seq_cuts:
             action = QtGui.QAction(self.tray_button_browse_cut)
