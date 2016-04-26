@@ -1,7 +1,21 @@
 import json
+import tank
 
-class PopupUtils:
+from tank.platform.qt import QtCore, QtGui
+
+task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
+shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
+
+from .filter_steps_model import FilterStepsModel
+from .rel_cuts_model import RelCutsModel
+from .rel_shots_model import RelShotsModel
+
+class PopupUtils(QtCore.QObject):
+
+    related_cuts_ready = QtCore.Signal()
+
     def __init__(self, engine, shotgun, project_entity):
+        QtCore.QObject.__init__(self)
         self._engine = engine
         self._shotgun = shotgun
         self._project_entity = project_entity
@@ -9,6 +23,31 @@ class PopupUtils:
         self._sequence_entity = None
         self._shot_steps = None
         self._status_schema = None
+        # self._steps_list = QtGui.QListView()
+
+        self._steps_task_manager = task_manager.BackgroundTaskManager(parent=None,
+                                                                    start_processing=True,
+                                                                    max_threads=2)
+
+        self._steps_model = FilterStepsModel(None, self._steps_task_manager)
+
+        self._rel_cuts_task_manager = task_manager.BackgroundTaskManager(parent=None,
+                                                                    start_processing=True,
+                                                                    max_threads=2)
+
+        self._rel_cuts_model = RelCutsModel(None, self._rel_cuts_task_manager)
+
+        self._rel_shots_task_manager = task_manager.BackgroundTaskManager(parent=None,
+                                                                    start_processing=True,
+                                                                    max_threads=2)
+
+        self._rel_shots_model = RelShotsModel(None, self._rel_cuts_task_manager)
+
+        self._rel_cuts_model.data_refreshed.connect(self.on_rel_cuts_refreshed)
+        self._rel_shots_model.data_refreshed.connect(self.on_rel_shots_refreshed)
+        # self._related_timer = QTimer(rv.qtutils.sessionWindow())
+        # self.connect(self._related_timer, SIGNAL("timeout()"), self.watch_rel_models)
+ 
      
     def cached_find_cuts(self, conditions):
         # conditions is an array, with 3 vals
@@ -39,15 +78,97 @@ class PopupUtils:
                 filters=[ conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]],
                 fields=['id', 'entity', 'code', 'cached_display_name'],
                 order=[
-                    # {'field_name': 'entity', 'direction': 'asc'}, 
                     {'field_name': 'code', 'direction': 'asc'}, 
                     {'field_name': 'cached_display_name', 'direction': 'asc'}
                     ])
        
         return cuts
 
+    def find_rel_cuts_with_model(self, entity_in, shot_entity):
+        print "find_rel_cuts_with_model %r %r %r" % (entity_in, shot_entity, self._project_entity['id'])
+        self._rel_cuts_done = False
+        self._rel_shots_done = False
+
+        conditions = ['entity', 'is', entity_in]
+        cut_filters = [ conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]]
+        cut_fields = ['id', 'entity', 'code', 'cached_display_name']
+        cut_orders = [
+            {'field_name': 'code', 'direction': 'asc'}, 
+            {'field_name': 'cached_display_name', 'direction': 'asc'}
+            ]
+        self._rel_cuts_model.load_data(entity_type="Cut", filters=cut_filters, fields=cut_fields, order=cut_orders)        
+
+        shot_conditions = ['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }]
+        shot_filters = [ shot_conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]]
+        shot_fields = ['id', 'entity', 'code', 'cached_display_name']
+        shot_orders = [
+            {'field_name': 'code', 'direction': 'asc'}, 
+            {'field_name': 'cached_display_name', 'direction': 'asc'}
+            ]
+        self._rel_shots_model.load_data(entity_type="Cut", filters=shot_filters, fields=shot_fields, order=shot_orders)        
+        #self._related_timer.start(20)
+
+
+    def on_rel_cuts_refreshed(self):
+        print "on_rel_cuts_refreshed"
+        self._rel_cuts_done = True
+        if self._rel_cuts_done and self._rel_shots_done:
+            self._rel_shots_done = False
+            self._rel_cuts_done = False
+            self.related_cuts_ready.emit()
+
+    def on_rel_shots_refreshed(self):
+        print "on_rel_shots_refreshed"
+        self._rel_shots_done = True
+        if self._rel_cuts_done and self._rel_shots_done:
+            self._rel_shots_done = False
+            self._rel_cuts_done = False
+            self.related_cuts_ready.emit()
+        
+
     def set_project(self, entity):
         self._project_entity = entity
+
+    def merge_rel_models_for_menu(self):
+        shot_map = {}
+        shot_ids = []
+
+        shot_rows = self._rel_shots_model.rowCount()
+        if shot_rows:
+            for x in range( 0, shot_rows ):
+                item = self._rel_shots_model.index(x, 0)
+                sg = shotgun_model.get_sg_data(item)
+                shot_ids.append(sg['id'])
+                shot_map[sg['id']] = sg
+        
+        seq_ids = []
+        cut_rows = self._rel_cuts_model.rowCount()
+        seq_cuts = []
+        for x in range(0, cut_rows):
+            item = self._rel_cuts_model.index(x, 0)
+            sg = shotgun_model.get_sg_data(item)  
+            seq_ids.append(sg['id'])
+            seq_cuts.append(sg)
+
+        for n in shot_ids:
+            if n not in seq_ids:
+                seq_cuts.append(shot_map[n])
+
+        # resort seq_cuts by 'code'
+        sorted_cuts = sorted(seq_cuts, key=lambda x: x['cached_display_name'], reverse=False)
+ 
+        # count the dups
+        dup_map = {}
+        for x in sorted_cuts:
+            if x['code'] not in dup_map:
+                dup_map[x['code']] = 1
+            else:
+                dup_map[x['code']] = dup_map[x['code']] + 1
+        for x in sorted_cuts:
+            x['count'] = dup_map[x['code']]
+
+        return sorted_cuts
+
 
     def merge_cuts_for_menu(self, seq_cuts, shot_cuts):
 
@@ -90,19 +211,11 @@ class PopupUtils:
 
     # Pipeline filtering
 
-    def get_pipeline_steps(self):
-        if not self._shot_steps:
-            print "DB CALL: get_pipeline_steps"
-            self._shot_steps = self._shotgun.find('Step', filters=[['entity_type', 'is', 'Shot' ]], fields=['code', 'list_order', 'short_name', 'id', 'cached_display_name'], order=[{'field_name': 'list_order', 'direction': 'desc'}])
-        
-        # for x in self._shot_steps:
-        #     print '=============='
-        #     for z in x:
-        #         print "%r -> %r" %( z, x[z])
-        # print "STEPS: %r" % len(self._shot_steps)
-
-        return self._shot_steps
-
+    def get_pipeline_steps_with_model(self):
+        step_filters = [['entity_type', 'is', 'Shot' ]]
+        step_fields = ['code', 'list_order', 'short_name', 'id', 'cached_display_name']
+        step_orders = [ {'field_name': 'list_order', 'direction': 'desc'} ]
+        self._steps_model.load_data(entity_type="Step", filters=step_filters, fields=step_fields, order=step_orders)        
 
     def get_status_list(self, project_entity=None):
         print "get_status_list %r" % project_entity

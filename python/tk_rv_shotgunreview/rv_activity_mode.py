@@ -544,11 +544,16 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 #        self.filter_model = FilterModel(self.tray_list, bg_task_manager=self.filter_task_manager)
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
         
+        self._popup_utils._steps_model.data_refreshed.connect(self.handle_pipeline_steps_refreshed)
+        self._popup_utils.related_cuts_ready.connect(self.create_related_cuts_from_models)
 
         self.details_timer = QTimer(rv.qtutils.sessionWindow())
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
         self.details_timer.start(1000)
-        self.get_pipeline_step()
+        #self.get_pipeline_step()
+        self.request_pipeline_steps()
+        self.last_rel_cut_entity = None
+        self.last_rel_shot_entity = None
 
     def handle_status_menu(self, event):
         #print "handle_status_menu"
@@ -599,7 +604,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
     def on_filter_refreshed(self, really_changed):
         self._app.engine.log_info("on_filter_refreshed: really_changed is %r" % really_changed)
 
-
     def filter_tray(self):
         full_filters = self.get_tray_filters()
         if full_filters:
@@ -631,7 +635,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     self.tray_delegate.update_rv_role(item, None)
             self.tray_model.notify_filter_data_refreshed(True)
                     
-
     def get_tray_filters(self):
         rows = self.tray_proxyModel.rowCount()
         if rows < 1:
@@ -657,8 +660,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             return filters
         return None
 
-
     def handle_pipeline_menu(self, event):
+        """
+        This is run after the user makes a selection in the Pipeline Steps menu
+        """
         # you only get the latest one clicked here. there could be more.
         # you might also get a roll off event that you dont want.
         # so check the widget and then update the button text
@@ -682,22 +687,35 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self.tray_main_frame.pipeline_filter_button.setText("%d steps" % count)
         self.filter_tray()
 
-    # loads the pipeline setps menu, only needed once.
-    def get_pipeline_step(self):
-        steps = self._popup_utils.get_pipeline_steps()
+    def handle_pipeline_steps_refreshed(self, refreshed):
+        """
+        This loads the menu with values returned when the model returns data_refreshed
+        """
+        self._app.engine.log_info('================handle_pipeline_steps_refreshed')
+
         if not self.pipeline_steps_menu:
             self.pipeline_steps_menu = QtGui.QMenu(self.tray_main_frame.pipeline_filter_button)
             self.tray_main_frame.pipeline_filter_button.setMenu(self.pipeline_steps_menu)        
             self.pipeline_steps_menu.triggered.connect(self.handle_pipeline_menu)
         menu = self.pipeline_steps_menu
         menu.clear()
-        for step in steps:
+
+        rows = self._popup_utils._steps_model.rowCount()
+        for x in range(0, rows):
+            item = self._popup_utils._steps_model.index(x, 0)
+            sg = shotgun_model.get_sg_data(item)
             action = QtGui.QAction(self.tray_main_frame.pipeline_filter_button)
             action.setCheckable(True)
             action.setChecked(False)
-            action.setText(step['cached_display_name'])
-            action.setData(step)
+            action.setText(sg['cached_display_name'])
+            action.setData(sg)
             menu.addAction(action)
+
+    def request_pipeline_steps(self):
+        """
+        This initiates a asynch request for data to eventually load the pipeline steps menu
+        """
+        self._popup_utils.get_pipeline_steps_with_model()
 
     def right_spinner_clicked(self, event):
         self.get_mini_values()
@@ -1209,24 +1227,24 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         return sg_dict
 
-    def on_browse_cut(self):
-        self._app.engine.log_info("on_browse_cut called")
-        sg_data = self.load_version_id_from_session()
+    # def on_browse_cut(self):
+    #     self._app.engine.log_info("on_browse_cut called")
+    #     sg_data = self.load_version_id_from_session()
 
-        if 'cut.Cut.entity' not in sg_data:
-            self._app.engine.log_info('No cut info available. Playlist?')
-            return
+    #     if 'cut.Cut.entity' not in sg_data:
+    #         self._app.engine.log_info('No cut info available. Playlist?')
+    #         return
 
-        # are we stopped? on a selected item? mix in second related shots
-        print "on_browse_cut: %r %r" % (sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
-        if sg_data['version.Version.entity']:
-            if sg_data['version.Version.entity']['type'] == "Shot":
-                self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
-                return
+    #     # are we stopped? on a selected item? mix in second related shots
+    #     print "on_browse_cut: %r %r" % (sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
+    #     if sg_data['version.Version.entity']:
+    #         if sg_data['version.Version.entity']['type'] == "Shot":
+    #             self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
+    #             return
 
-        if sg_data['cut.Cut.entity']['type'] == "Scene":
-            self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['shot'])
-            return
+    #     if sg_data['cut.Cut.entity']['type'] == "Scene":
+    #         self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['shot'])
+    #         return
 
     def handle_related_menu(self, action=None):
         self._app.engine.log_info("handle_related_menu called with action %r" % action)
@@ -1234,24 +1252,40 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self._app.engine.log_info("action.data: %r" % action.data()) 
             self.load_tray_with_cut_id(action.data()['id'])
 
-    def create_related_cuts_menu(self, entity_in, shot_entity=None):
-        self._app.engine.log_info( "create_related_cuts_menu: %r %r" % (entity_in, shot_entity))
+    def request_related_cuts_from_models(self):
+        self._app.engine.log_info( "request_related_cuts_from_model" )
+        sg_data = self.load_version_id_from_session()
         
-        conditions = ['entity', 'is', entity_in]
-        seq_cuts = self._popup_utils.find_cuts(conditions)
-        
-        shot_cuts = None
-        if shot_entity:
-            shot_cuts = self._popup_utils.find_cuts(['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }])
-        seq_cuts = self._popup_utils.merge_cuts_for_menu(seq_cuts, shot_cuts)
-        
+        if 'cut.Cut.entity' not in sg_data:
+            self._app.engine.log_info('No cut info available. Playlist?')
+            return
+
+        # are we stopped? on a selected item? mix in second related shots
+        if sg_data['version.Version.entity']:
+            if sg_data['version.Version.entity']['type'] == "Shot":
+                if sg_data['cut.Cut.entity'] != self.last_rel_cut_entity or sg_data['version.Version.entity'] != self.last_rel_shot_entity:
+                    self._popup_utils.find_rel_cuts_with_model(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
+                    self.last_rel_cut_entity = sg_data['cut.Cut.entity']
+                    self.last_rel_shot_entity = sg_data['version.Version.entity']
+                    return
+
+        if sg_data['cut.Cut.entity']['type'] == "Scene":
+            self._popup_utils.find_rel_cuts_with_model(sg_data['cut.Cut.entity'], sg_data['shot'])
+            return
+
+
+    def create_related_cuts_from_models(self):
+        self._app.engine.log_info( "create_related_cuts_from_models")
         if not self.related_cuts_menu:
             self.related_cuts_menu = QtGui.QMenu(self.tray_button_browse_cut)
             self.tray_button_browse_cut.setMenu(self.related_cuts_menu)        
-            self.related_cuts_menu.aboutToShow.connect(self.on_browse_cut)
+            self.related_cuts_menu.aboutToShow.connect(self.request_related_cuts_from_models)
             self.related_cuts_menu.triggered.connect(self.handle_related_menu)
         else:
             self.related_cuts_menu.clear()
+
+        seq_cuts = self._popup_utils.merge_rel_models_for_menu()
+
         menu = self.related_cuts_menu
         action = QtGui.QAction(self.tray_button_browse_cut)
         action.setText('Related Cuts')
@@ -1295,6 +1329,66 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             last_code = x['code']
 
 
+
+    # def create_related_cuts_menu(self, entity_in, shot_entity=None):
+    #     self._app.engine.log_info( "create_related_cuts_menu: %r %r" % (entity_in, shot_entity))
+        
+    #     conditions = ['entity', 'is', entity_in]
+    #     seq_cuts = self._popup_utils.find_cuts(conditions)
+        
+    #     shot_cuts = None
+    #     if shot_entity:
+    #         shot_cuts = self._popup_utils.find_cuts(['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }])
+    #     seq_cuts = self._popup_utils.merge_cuts_for_menu(seq_cuts, shot_cuts)
+        
+    #     if not self.related_cuts_menu:
+    #         self.related_cuts_menu = QtGui.QMenu(self.tray_button_browse_cut)
+    #         self.tray_button_browse_cut.setMenu(self.related_cuts_menu)        
+    #         self.related_cuts_menu.aboutToShow.connect(self.on_browse_cut)
+    #         self.related_cuts_menu.triggered.connect(self.handle_related_menu)
+    #     else:
+    #         self.related_cuts_menu.clear()
+    #     menu = self.related_cuts_menu
+    #     action = QtGui.QAction(self.tray_button_browse_cut)
+    #     action.setText('Related Cuts')
+    #     menu.addAction(action)
+    #     menu.addSeparator()
+
+    #     last_menu = menu
+    #     parent_menu = None
+    #     last_code = None
+    #     en = {}
+
+    #     sg = self.load_version_id_from_session()
+
+    #     for x in seq_cuts:
+    #         action = QtGui.QAction(self.tray_button_browse_cut)
+    #         action.setCheckable(True)
+    #         en['id'] = x['id']
+    #         en['type'] = 'Cut'
+
+    #         if last_code != x['code']: # this is the first time weve seen this code
+    #             if x['count'] > 1: # make a submenu
+    #                 last_menu = last_menu.addMenu(x['code'])
+    #                 a = last_menu.menuAction()
+    #                 a.setCheckable(True)
+    #                 parent_menu = last_menu
+    #             else:
+    #                 last_menu = menu
+    #                 parent_menu = None
+ 
+    #         if x['id'] == sg['cut.Cut.id']:
+    #             action.setChecked(True)
+    #             if parent_menu:
+    #                 a = parent_menu.menuAction()
+    #                 a.setChecked(True)
+    #         else:
+    #             action.setChecked(False)
+
+    #         action.setText(x['cached_display_name'])
+    #         action.setData(en)
+    #         last_menu.addAction(action)
+    #         last_code = x['code']
 
     def find_base_version_for_cut(self, entity):
         self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED! %r' % entity)
@@ -1624,7 +1718,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         sg = self.convert_sg_dict(sg_item_orig)
         
         if 'cut.Cut.entity' in sg:
-            self.create_related_cuts_menu(sg['cut.Cut.entity'], sg['shot'])
+            # self.create_related_cuts_menu(sg['cut.Cut.entity'], sg['shot'])
+            self.request_related_cuts_from_models()
         else:
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
