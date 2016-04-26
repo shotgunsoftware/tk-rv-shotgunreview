@@ -15,6 +15,10 @@ import json
 import urllib
 import time
 
+import rv.rvtypes as rvt
+import rv.commands as rvc
+import rv.extra_commands as rve
+import rv.qtutils as rvqt
 
 shotgun_view = tank.platform.import_framework("tk-framework-qtwidgets", "views")
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
@@ -25,69 +29,138 @@ from .popup_utils import PopupUtils
 
 import sgtk
 
+import pprint
+pp = pprint.PrettyPrinter(indent=4)
+
 def groupMemberOfType(node, memberType):
-    for n in rv.commands.nodesInGroup(node):
-        if rv.commands.nodeType(n) == memberType:
+    for n in rvc.nodesInGroup(node):
+        if rvc.nodeType(n) == memberType:
             return n
     return None
 
-class RvActivityMode(rv.rvtypes.MinorMode):
+class MediaType:
+    def __init__(self, name, path_field, slate_field, aspect_field):
+        self.name = name
+        self.path_field = path_field
+        self.slate_field = slate_field
+        self.aspect_field = aspect_field
+
+standard_media_types = dict(
+        Movie=MediaType ("Movie",  "sg_path_to_movie",  "sg_movie_has_slate",   "sg_movie_aspect_ratio"),
+        Frames=MediaType("Frames", "sg_path_to_frames", "sg_frames_have_slate", "sg_frames_aspect_ratio")
+    )
+
+required_version_fields = [
+    "code",
+    "id",
+    "entity",
+    "sg_first_frame",
+    "sg_last_frame",
+    "sg_frames_aspect_ratio",
+    "sg_frames_have_slate",
+    "sg_movie_aspect_ratio",
+    "sg_movie_has_slate",
+    "sg_path_to_frames",
+    "sg_path_to_movie",
+    "sg_status_list",
+    "sg_uploaded_movie_frame_rate"
+    ]
+
+def setProp(prop, value):
+
+    if type(value) == int or (type(value) == list and type(value[0]) == int):
+        if not rvc.propertyExists(prop):
+            rvc.newProperty(prop, rvc.IntType, 1)
+        rvc.setIntProperty(prop, value if (type(value) == list) else [value], True)
+
+    elif ((type(value) == str     or (type(value) == list and type(value[0]) == str)) or 
+          (type(value) == unicode or (type(value) == list and type(value[0]) == unicode))):
+        if not rvc.propertyExists(prop):
+            rvc.newProperty(prop, rvc.StringType, 1)
+        rvc.setStringProperty(prop, value if (type(value) == list) else [value], True)
+            
+def getIntProp(prop, default):
+    val = default
+    if rvc.propertyExists(prop):
+        vals = rvc.getIntProperty(prop)
+        if vals:
+            val = vals[0]
+    return val
+    
+def getStringProp(prop, default):
+    val = default
+    if rvc.propertyExists(prop):
+        vals = rvc.getStringProperty(prop)
+        if vals:
+            val = vals[0]
+    return val
+    
+class RvActivityMode(rvt.MinorMode):
     
     
     def check_details(self):
         if self.details_dirty:
             self.load_version_id_from_session()
  
-    def load_version_id_from_session(self, group_name=None):
+    def current_source(self):
+        """
+        The "current source" is the "first" RVSourceGroup used to render this
+        frame.  So in a simple Sequence, it will be the Source showing in the
+        current clip of the EDL.  In a Stack it will be the "top" element.  In a
+        standard tiled Layout it will be (often) the upper-left element.
+        """
+        group_name = None
+
+        saf = rvc.sourcesAtFrame(rvc.frame())
+        if saf:
+            source_name = str(saf[0])
+            group_name = rvc.nodeGroup(source_name)
+            
+        return group_name
+
+    def version_data_from_source(self, group_name=None):
         
         if not group_name:
-            saf = rv.commands.sourcesAtFrame(rv.commands.frame())
-            if saf:
-                source_name = str(saf[0])
-                group_name = rv.commands.nodeGroup(source_name)
+            group_name = self.current_source()
                 
         if group_name:
-            source_prop_name = ("%s.cut_support.json_sg_data") % group_name
-            if rv.commands.propertyExists(source_prop_name):
-                j_data = rv.commands.getStringProperty(source_prop_name)
-                if j_data:
-                    try:
-                        sg_data = json.loads(str(j_data[0]))
-                        entity = {}
-                        entity['type'] = 'Version'
-                        if 'version.Version.id' in sg_data:
-                            entity['id'] = sg_data['version.Version.id']
-                        else:
-                            entity['id'] = sg_data['id']
-                        if self.version_id != entity['id']:
-                            self.load_data(entity)
-                            self.details_dirty = False
-                        return sg_data
-                    except Exception as e:
+            version_data_str = getStringProp(group_name + ".cut_support.version_data", None)
+            if version_data_str:
+                try:
+                    return json.loads(version_data_str)
+                except Exception as e:
                         print "ERROR: load_version_id_from_session JSON EXCEPTION %r" % e
-                        #self.details_dirty = True
-                        print "JDATA: %r" % j_data
+                        print "JDATA: %r" % version_data_str
                         print "group_name: %r" % group_name
-                        print "entity: %r" % entity
-            else:
-                #  If we can't find the json_sg_data property it probably means
-                #  that this RVSourceGroup was not created "by us" (IE it does
-                #  not have any shotgun data), so just clear the details pane
-                #  and consider the details "clean" until further notice.
-                #
-                self.load_data({'type': 'Version', 'id': None})
-                self.details_dirty = False
 
         return None
+
+    def load_version_id_from_session(self, group_name=None):
+        
+        version_data = self.version_data_from_source(group_name)
+
+        if version_data:
+            if self.version_id != version_data["id"]:
+                self.load_data({"type": "Version", "id": version_data["id"]})
+        else:
+            #  If we can't find the version_data property it probably means
+            #  that this RVSourceGroup was not created "by us" (IE it does
+            #  not have any shotgun data), so just clear the details pane
+            #  and consider the details "clean" until further notice.
+            #
+            self.load_data({"type": "Version", "id": None})
+
+        self.details_dirty = False
+
+        return version_data
 
     # RV Events
 
     def replaceWithSelected(self, event):
-        s = copy.copy(event.contents())
-        print "replaceWithSelected"
         try:
-            v = json.loads(s)
-            self.load_sequence_with_versions(v)
+            data = json.loads(event.contents())[0]
+            self.target_entity = data
+            self.load_tray_with_version_ids([data["id"]])
         except Exception as e:
             print "ERROR: replaceWithSelected %r" % e
         finally:
@@ -110,13 +183,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         vlist = []
         try:
             # examine whats under the playhead, thats a source you want.
-            ph_version = self.load_version_id_from_session()
+            ph_version = self.version_data_from_source()
             vlist.append(ph_version)
             # now whatever we got from the event
             vd = json.loads(event.contents())
             for v in vd:
-                v['pinned'] = 1
+                # XXX ? v["pinned"] = 1
                 vlist.append(v)
+            # XXX "load_layout" or whatever
             self.load_sequence_with_versions(vlist)
             
         except Exception as e:
@@ -145,21 +219,20 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # print "################### viewChange %r" % event
         # print "contents %r" % event.contents()
         event.reject()
-        self.load_version_id_from_session()
+        self.details_dirty = True
 
     def frameChanged(self, event):
-        event.reject()
+        if event:
+            event.reject()
         try:
-            sg_data = self.load_version_id_from_session()
-            if sg_data:
-                if 'ui_index' in sg_data:
-                    idx = sg_data['ui_index']
-                    sel_index = self.tray_model.index(idx, 0)
-                    sels = self.tray_list.selectionModel().selectedIndexes()
-                    if sel_index not in sels:
-                        sm = self.tray_list.selectionModel()           
-                        sm.select(sel_index, sm.ClearAndSelect)
-                        self.tray_list.scrollTo(sel_index, QtGui.QAbstractItemView.PositionAtCenter)
+            idx = self.clip_index_from_frame()
+            self.details_dirty = True
+            sel_index = self.tray_model.index(idx, 0)
+            sels = self.tray_list.selectionModel().selectedIndexes()
+            if sel_index not in sels:
+                sm = self.tray_list.selectionModel()           
+                sm.select(sel_index, sm.ClearAndSelect)
+                self.tray_list.scrollTo(sel_index, QtGui.QAbstractItemView.PositionAtCenter)
                     
         except Exception as e:
             print "ERROR: RV frameChanged EXCEPTION %r" % e
@@ -197,8 +270,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         cont = event.contents()
         if (self.details_panel and cont != "buffering" and cont != "turn-around"):
             # We only auto-pin the details if they are not already pinned
-            # XXX _pinned should be publicly accessible
-            if   (event.name() == "play-start" and not self.details_panel._pinned):
+            if   (event.name() == "play-start" and not self.details_panel.is_pinned):
                 self.details_panel.set_pinned(True)
                 self.details_pinned_for_playback = True
             # We only auto-unpin the details on stop if we auto-pinned them in
@@ -219,10 +291,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # Flag the session as "sgreview.submitInProgress" so JS submit tool
         # code can tell this is not Screening Room.
         #
-        in_prog_prop = "#Session.sgreview.submitInProgress"
-        if (not rv.commands.propertyExists(in_prog_prop)):
-            rv.commands.newProperty (in_prog_prop, rv.commands.IntType, 1);
-        rv.commands.setIntProperty (in_prog_prop, [1], True);
+        setProp("#Session.sgreview.submitInProgress", 1)
 
         rv.runtime.eval("""
             {
@@ -261,8 +330,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         '''
         # Build up a dictionary of frames : unsaved annotations
         unstoredFrames = {}
-        frames = rv.extra_commands.findAnnotatedFrames()
-        pnodes = rv.commands.nodesOfType("RVPaint")
+        frames = rve.findAnnotatedFrames()
+        pnodes = rvc.nodesOfType("RVPaint")
         for pnode in pnodes:
 
             # If there is a filter make sure this paint node matches
@@ -271,13 +340,13 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             # For each paint node check the list of annotated frames for commands
             for frame in frames:
-                sframe = rv.extra_commands.sourceFrame(frame)
+                sframe = rve.sourceFrame(frame)
                 orderProp = pnode + '.frame:%d.order' % sframe
-                if rv.commands.propertyExists(orderProp):
-                    pcmds = rv.commands.getStringProperty(orderProp)
+                if rvc.propertyExists(orderProp):
+                    pcmds = rvc.getStringProperty(orderProp)
                     for pcmd in pcmds:
                         savedProp = pnode + '.%s.sgtk_stored' % pcmd
-                        if rv.commands.propertyExists(savedProp):
+                        if rvc.propertyExists(savedProp):
                             continue
 
                         # If a command is found and it isn't sgtk_stored than add it to our list.
@@ -315,7 +384,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         # Start RVIO command construction
         tempdir = tempfile.mkdtemp()
-        rv.commands.rvioSetup() # NOTE: Pass the license to the env
+        rvc.rvioSetup() # NOTE: Pass the license to the env
         rvio = os.environ.get("RV_APP_RVIO", None)
         args = [rvio, "-v", "-err-to-out"]
 
@@ -323,7 +392,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         setDisp = pymu.MuSymbol("export_utils.setExportDisplayConvert")
         setDisp("default")
         session = os.path.join(tempdir, "export.rv")
-        rv.commands.saveSession(session)
+        rvc.saveSession(session)
         args += [session]
 
         # Start with a generic output file sequence string
@@ -346,7 +415,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             displayString += " annotated frames..."
         else:
             displayString += " annotated frame..."
-        rv.extra_commands.displayFeedback2(displayString, 3600.0)
+        rve.displayFeedback2(displayString, 3600.0)
 
         # Run the RVIO conversion
         try:
@@ -355,7 +424,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self._app.log_error("Unable to export annotation: " + exc.output)
         
         # Close out the banner
-        rv.extra_commands.displayFeedback2(displayString, 2.0)
+        rve.displayFeedback2(displayString, 2.0)
 
         # Rename the annotation frame before submitting
         attachments = []
@@ -367,7 +436,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 self._app.log_error("Can't find annotation for frame: %d at '%s'" % (frame, src))
                 continue
 
-            sframe = rv.extra_commands.sourceFrame(frame)
+            sframe = rve.sourceFrame(frame)
             tgt = "%s/annot_version_%d_v2.%d.jpg" % (tempdir, eventDict['id'], sframe)
 
             shutil.move(src, tgt)
@@ -383,12 +452,116 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         # Update the graph to reflect which strokes have been submitted
         for frame in saved:
             for prop in props[frame]:
-                rv.commands.newProperty(prop, rv.commands.IntType, 1)
-                rv.commands.setIntProperty(prop, [1234], True) # should be note id
+                rvc.newProperty(prop, rvc.IntType, 1)
+                rvc.setIntProperty(prop, [1234], True) # XXX should be note id
+
+    def set_media_type_property(self, source_group, media_type):
+        setProp(source_group + ".cut_support.media_type", media_type)
+
+    def get_media_type_of_source(self, source_group):
+        return getStringProp(source_group + ".cut_support.media_type", None)
+
+    def configure_source_media(self, source_group, version_data=None):
+        # XXX more to do here (stereo, fps, ...)
+
+        if not version_data:
+            version_data = self.version_data_from_source(source_group)
+
+        media_type = self.get_media_type_of_source(source_group)
+        file_source = groupMemberOfType(source_group, "RVFileSource")
+
+        # Set up correct source frame mapping
+
+        range_start_prop = file_source + ".group.rangeStart"
+        first_frame = version_data["sg_first_frame"]
+        has_slate = version_data[standard_media_types[media_type].slate_field]
+
+        if first_frame is not None:
+            # If this is not a Movie assume the default frame mapping works (as
+            # it should for Frames)
+            if   media_type != "Movie" and rvc.propertyExists(range_start_prop):
+                rvc.deleteProperty(range_start_prop)
+
+            # If it _is_ a movie, compensate for lack of timecode or wrong
+            # timecode.
+            elif media_type == "Movie" and has_slate is not None:
+                setProp(range_start_prop, first_frame - int(has_slate))
+
+    def set_media_of_source(self, source_group, media_type_name, version_data=None):
+        """
+        Given the name of an RVSourceGroup node, set the media held by that node to
+        be of the given "media type". (IE at the moment "Movie" or "Frames").
+        Set the "cut_support.media_type" property of the source to
+        match the current media type.
+        """
+        self._app.engine.log_info("set_media_of_source '%s' to '%s'" % 
+            (source_group, media_type_name))
+
+        current_media_type = self.get_media_type_of_source(source_group)
+
+        if not version_data:
+            version_data = self.version_data_from_source(source_group)
+
+        m_type = self.media_type_fallback(version_data, media_type_name)
+        # XXX warn if falling back
+
+        if m_type and m_type != current_media_type: 
+            path = version_data[standard_media_types[m_type].path_field]
+            file_source = groupMemberOfType(source_group, "RVFileSource")
+            rvc.setSourceMedia(file_source, [path], "shotgun")
+            self.set_media_type_property(source_group, m_type)
+            self.configure_source_media(source_group, version_data)
+
+        #self._app.engine.log_warning("Version '%s' has no local media" % version_data["code"])
+
+
+    def swap_media_of_source(self, source_node, media_type_name):
+        """
+        Given the name of an RVSourceGroup node, swap the media held by that node to
+        be of the given "media type".  Silently ignore sources with no Shotgun
+        data and nodes that already hold the right type of media.
+        """
+        self._app.engine.log_info("swap_media_of_source '%s' to '%s'" % 
+            (source_node, media_type_name))
+
+        old_media_type = self.get_media_type_of_source(source_node)
+
+        if old_media_type and (old_media_type != media_type_name):
+            self.set_media_of_source(source_node, media_type_name)
+
+    def swap_media_factory(self, media_type_name, one_or_all):
+
+        def swap_media(event):
+
+            if one_or_all == "one":
+                sources = [ self.current_source() ]
+            else:
+                # Collect all RVSourceGroup nodes that could be input to the
+                # current view node.  In the common case, this will be all the
+                # Versions that appear in the current RVSequence.
+                view = rvc.viewNode()
+                if rvc.nodeType(view) == "RVSourceGroup":
+                    sources = [ view ]
+                else:
+                    # XXX Since the view is not an RVSourceGroup, assuming the
+                    # _inputs_ of the view are ...
+                    inputs = rvc.nodeConnections(view, False)[0]
+                    sources = []
+                    for i in inputs:
+                        if rvc.nodeType(i) == "RVSourceGroup":
+                            sources.append(i)
+
+                        # remove duplicates
+                        sources = sorted(set(sources))
+
+            for source in sources:
+                self.swap_media_of_source(source, media_type_name)
+
+        return swap_media
 
     def __init__(self, app):
-        rv.rvtypes.MinorMode.__init__(self)
-        self._RV_DATA_ROLE = QtCore.Qt.UserRole + 99
+        rvt.MinorMode.__init__(self)
+        self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._bundle = sgtk.platform.current_bundle()
         
         self.note_dock = None
@@ -423,7 +596,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.no_cut_context = False
 
         self.version_id = -1
-        self.entity_from_gma = None
         self.project_entity = None
 
         # related cuts menu
@@ -435,8 +607,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self.status_list = None
 
         # models for ad-hoc queries
-        self._shot_model = shotgun_model.SimpleShotgunModel(rv.qtutils.sessionWindow())
-        self._cuts_model = shotgun_model.SimpleShotgunModel(rv.qtutils.sessionWindow())
+        self._shot_model = shotgun_model.SimpleShotgunModel(rvqt.sessionWindow())
+        self._cuts_model = shotgun_model.SimpleShotgunModel(rvqt.sessionWindow())
 
         self._app = app
         self._popup_utils = PopupUtils(app.engine, self._bundle.shotgun, self.project_entity)
@@ -461,16 +633,23 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 ('new_note_screenshot', self.make_note_attachments, ''),
                 ],
                 [("SG Review", [
-                    ("Submit Tool", self.launchSubmitTool, None, lambda: rv.commands.UncheckedMenuState),
+                    ("Swap Media - Current Clip", None, None, lambda: rvc.DisabledMenuState),
+                    ("    Movie",  self.swap_media_factory("Movie", "one"),  None, lambda: rvc.UncheckedMenuState),
+                    ("    Frames", self.swap_media_factory("Frames", "one"), None, lambda: rvc.UncheckedMenuState),
+                    ("Swap Media - All Clips", None, None, lambda: rvc.DisabledMenuState),
+                    ("    Movie",  self.swap_media_factory("Movie", "all"),  None, lambda: rvc.UncheckedMenuState),
+                    ("    Frames", self.swap_media_factory("Frames", "all"), None, lambda: rvc.UncheckedMenuState),
+                    ("_", None),
+                    ("Submit Tool", self.launchSubmitTool, None, lambda: rvc.UncheckedMenuState),
                     ("_", None)]
                 )],
-                None);
+                None)
        
     def activate(self):
-        rv.rvtypes.MinorMode.activate(self)
+        rvt.MinorMode.activate(self)
 
     def deactivate(self):
-        rv.rvtypes.MinorMode.deactivate(self)
+        rvt.MinorMode.deactivate(self)
               
 
     ################################################################################### qt stuff down here. 
@@ -547,7 +726,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         self._popup_utils._steps_model.data_refreshed.connect(self.handle_pipeline_steps_refreshed)
         self._popup_utils.related_cuts_ready.connect(self.create_related_cuts_from_models)
 
-        self.details_timer = QTimer(rv.qtutils.sessionWindow())
+        self.details_timer = QTimer(rvqt.sessionWindow())
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
         self.details_timer.start(1000)
         #self.get_pipeline_step()
@@ -604,6 +783,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def on_filter_refreshed(self, really_changed):
         self._app.engine.log_info("on_filter_refreshed: really_changed is %r" % really_changed)
+        if really_changed:
+            self.on_data_refreshed(True)
 
     def filter_tray(self):
         full_filters = self.get_tray_filters()
@@ -611,7 +792,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             #print "full filters: %r" % full_filters
             versions = self._bundle.shotgun.find( 'Version',
                         filters=full_filters,
-                        fields=['id', 'code', 'image', 'sg_status_list', 'entity'],
+                        fields=["image"] + required_version_fields,
                         additional_filter_presets = [
                             {"preset_name": "LATEST", "latest_by": "BY_PIPELINE_STEP_NUMBER_AND_ENTITIES_CREATED_AT" }
                         ])
@@ -629,7 +810,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             for x in range(0,rows):
                 item = self.tray_proxyModel.index(x, 0)
                 sg = shotgun_model.get_sg_data(item)
-                if sg['shot']['id'] in shot_map:
+                # cut item may not be linked to shot
+                if sg['shot'] and sg['shot']['id'] in shot_map:
                     v = shot_map[sg['shot']['id']]
                     self.tray_delegate.update_rv_role(item, v)
                 else:
@@ -644,7 +826,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         for x in range(0,rows):
             item = self.tray_proxyModel.index(x, 0)
             sg = shotgun_model.get_sg_data(item)
-            shot_list.append(sg['shot'])
+            if sg['shot']:
+                # cut item may not be linked to shot
+                shot_list.append(sg['shot'])
         entity_list = [ 'entity', 'in', shot_list ]
         if self.status_list and self.pipeline_steps:
             status_list = ['sg_status_list', 'in', self.status_list ]
@@ -732,8 +916,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             "sg_path_to_frames", "id",
             "sg_first_frame", "sg_last_frame",
             "sg_path_to_movie", "sg_movie_aspect_ratio",
-            "sg_movie_as_slate", "sg_frames_aspect_ratio",
-            "sg_frames_has_slate", "image", "code",
+            "sg_movie_has_slate", "sg_frames_aspect_ratio",
+            "sg_frames_have_slate", "image", "code",
             "sg_uploaded_movie_frame_rate", "sg_uploaded_movie_mp4", 
         ]
         # get the version info we need
@@ -754,56 +938,26 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         try:
             
             d = json.loads(event.contents())
-            # we save the request so that we know what exactly was requested when we get down to loading the tray asynchronously
-            self.entity_from_gma = d
+            # we save the request so that we know what exactly was requested
+            # when we get down to loading the tray asynchronously
+            self.target_entity = d
+            self.target_entity["server"] = self._app.tank.shotgun_url
+
+            type_string = d["type"]
+            if "ids" in d and len(d["ids"]) > 1:
+                type_string += "s"
+            rve.displayFeedback("Loading " + type_string +  " ...", 6.5)
 
             if d['type'] == "Cut":
                 # self.tray_dock.setVisible(True)
                 self.tray_dock.show()
                 self.load_tray_with_cut_id(d['id'])
             if d['type'] == "Version":
-                self.tray_dock.hide()
-                # disabling this feature for now....
-                
-                # shot = self._bundle.shotgun.find_one("Version", [["id", "is", d["id"]]], ["entity"] ).get('entity')
-                # orders = [{'field_name':'cut.Cut.updated_at','direction':'desc'}]
-                # cuts = self._bundle.shotgun.find('CutItem', [['shot', 'is', shot]], fields=["cut", "cut.Cut.updated_at"], order=orders)
-                
-                cuts = None
-
-                # now we have the latest cut
-                # we need to swap in the version we want into the cut.
-                v_fields = [
-                    "sg_path_to_frames", "id",
-                    "sg_first_frame", "sg_last_frame",
-                    "sg_path_to_movie", "sg_movie_aspect_ratio",
-                    "sg_movie_as_slate", "sg_frames_aspect_ratio",
-                    "sg_frames_has_slate", "image", "code",
-                    "sg_uploaded_movie_frame_rate", "sg_uploaded_movie_mp4", 
-                ]
-                # get the version info we need
-                version  = self._bundle.shotgun.find_one("Version", [["id", "is", d['id']]], v_fields)
-                if not version:
-                    # clear display?
-                    self._app.engine.log_error('Version id %d does not exist!' % d['id'])
-                    return
-
-                if cuts:
-                    version['cutitem_id'] = cuts[0]['id']
-                    self.version_swap_out = version
-                    self.load_tray_with_cut_id(cuts[0]['cut']['id'])
-
+                if "ids" in d:
+                    ids = d["ids"]
                 else:
-                    # we bail to the single version
-                    sg_dict = self.convert_sg_dict(version)
-                    sa = [sg_dict]
-                    self.load_sequence_with_versions(sa)
-                    self.no_cut_context = True
-                    # self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
-                    # self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
-                    # self.tray_model.clear()
-                    # self.tray_dock.setVisible(False)
-
+                    ids = [ d["id"] ]
+                self.load_tray_with_version_ids(ids)
 
             if d['type'] == "Playlist":
                 self.tray_dock.show()
@@ -822,85 +976,44 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def replace_version_in_sequence(self, versions):
         self._app.engine.log_info('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
+
+        if len(versions) != 1:
+            self._app.engine.log_error(
+                "replace_version_in_sequence received %d versions!" % len(versions))
+            return
+
+        version_data = versions[0]
+        seq_group = rvc.viewNode()
+
+        if rvc.nodeType(seq_group) != "RVSequenceGroup":
+            return
+
+        seq_node      = groupMemberOfType(seq_group, "RVSequence")
+        inputs        = rvc.nodeConnections(seq_group, False)[0]
+        input_indices = rvc.getIntProperty(seq_node + ".edl.source")
         
-        fno = rv.commands.frame()    
-        for version in versions:
-            version = self.convert_sg_dict(version)
- 
-            # ok, selected cutitem in tray is destination for this version
-            ph_version = self.load_version_id_from_session()
-            if 'ui_index' not in ph_version:
-                self._app.engine.log_error('ui_index missing from %r' % ph_version)
+        # make or find source group
+        media_type = "Frames" # XXX should come from preference
+        src_group = self.source_group_from_version_data(version_data, media_type)
 
-            f = self.get_media_path(version)
+        # Version/source of current clip is destination for this version, so
+        # first find index of current clip 
+        # XXX handle mini-cut.  
+        clip_index = self.clip_index_from_frame()
 
-            try:
-                
-                source_obj = {}                                                        
-                if version['version.Version.id'] in self.loaded_sources:
-                    source_obj = self.loaded_sources[version['version.Version.id']]
-                else:
-                    source_name = rv.commands.addSourceVerbose([f])
-                    fk = version['version.Version.id']
-                    source_obj['group_name'] = rv.commands.nodeGroup(source_name)
-                    self.loaded_sources[fk] = source_obj
-                source_prop_name = ("%s.cut_support.json_sg_data") % source_obj['group_name']
+        # replace input corresponding to input at clip index with new source
+        inputs[input_indices[clip_index]] = src_group
 
-                if version['version.Version.code']:
-                    rv.extra_commands.setUIName(source_obj['group_name'], version['version.Version.code'])
-                
+        # reset inputs
+        rvc.setNodeInputs(seq_group, inputs)
 
-                if not rv.commands.propertyExists(source_prop_name):
-                    rv.commands.newProperty(source_prop_name, rv.commands.StringType, 1)
+        # XXX handle pinning: note that more than one clip may be pinned as
+        # result of the above.  Maybe pinning should be tracked by input ?
 
-                # add markers from ph_version
-                # if 'ui_index' in ph_version:
-                version['ui_index'] = ph_version['ui_index']
-                version['tl_index'] = ph_version['tl_index']
-                # as we are swapping in, this version will be pinned
-                version['pinned'] = 1
-                self.pinned_items.append(version['ui_index'])
+        # Details need to be updated
+        self.details_dirty = True
 
-
-                source_index = ph_version['ui_index']
-                if not self.swapped_sources:
-                    self.swapped_sources = list(self.tray_sources)
-                
-                (source, _) = source_name.split('_')
-                self.swapped_sources[source_index] = source
-
-                # as this is a version we may need to translate the dict into a different form...?
-                json_sg_item = json.dumps(version)
-                rv.commands.setStringProperty(source_prop_name, [json_sg_item], True)
-                        
-            except Exception as e:
-                print "replace version in session: %r" % e
-
-        if not self.cut_seq_node:
-            self.cut_seq_node = rv.commands.newNode("RVSequenceGroup")
-        
-        cut_name = self.tray_main_frame.tray_button_browse_cut.text()
-        if cut_name:
-            rv.extra_commands.setUIName(self.cut_seq_node, cut_name)
-        #self.tray_main_frame.tray_button_browse_cut.setText('MOD.' + cut_name)
-        
-        self.mod_seq_name = rv.extra_commands.nodesInGroupOfType(self.cut_seq_node, 'RVSequence')[0]
-
-        rv.commands.setIntProperty('%s.edl.source' % self.mod_seq_name, self.rv_source_nums, True)
-        rv.commands.setIntProperty('%s.edl.frame' % self.mod_seq_name, self.rv_frames, True)
-        rv.commands.setIntProperty('%s.edl.in' % self.mod_seq_name, self.rv_ins, True)
-        rv.commands.setIntProperty('%s.edl.out' % self.mod_seq_name, self.rv_outs, True)
-        rv.commands.setIntProperty("%s.mode.autoEDL" % self.mod_seq_name, [0])
-        rv.commands.setIntProperty("%s.mode.useCutInfo" % self.mod_seq_name, [0])
-
-        rv.commands.setNodeInputs(self.cut_seq_node, self.swapped_sources)
-        rv.commands.setViewNode(self.cut_seq_node)
-        rv.commands.setFrame(fno)
-
-        seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
-        rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
-
-        self.load_data(versions[0])
+        # XXX how does below pick up new thumbnail ?   Ans: it doesn't yet ..
         self.tray_list.repaint()
 
     def load_sequence_with_versions(self, vlist):
@@ -931,10 +1044,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     if fk in self.loaded_sources:
                         source_obj = self.loaded_sources[fk]
                     else:
-                        source_obj['source_name'] = rv.commands.addSourceVerbose([f])
-                        source_obj['group_name'] = rv.commands.nodeGroup(source_obj['source_name'])
+                        source_obj['source_name'] = rvc.addSourceVerbose([f])
+                        source_obj['group_name'] = rvc.nodeGroup(source_obj['source_name'])
                         self.loaded_sources[fk] = source_obj
-                    rv.extra_commands.setUIName(source_obj['group_name'], sg['version.Version.code'])
+                    rve.setUIName(source_obj['group_name'], sg['version.Version.code'])
                 
                 else:
                     self._app.engine.log_info("load_sequence_with_versions: f is %r" % f)
@@ -944,10 +1057,10 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             source_prop_name = ("%s.cut_support.json_sg_data") % source_obj['group_name']
             try:
-                if not rv.commands.propertyExists(source_prop_name):
-                    rv.commands.newProperty(source_prop_name, rv.commands.StringType, 1)
+                if not rvc.propertyExists(source_prop_name):
+                    rvc.newProperty(source_prop_name, rvc.StringType, 1)
                 json_sg_item = json.dumps(sg)
-                rv.commands.setStringProperty(source_prop_name, [json_sg_item], True)
+                rvc.setStringProperty(source_prop_name, [json_sg_item], True)
             except Exception as e:
                 self._app.engine.log_error("load_sequence_with_versions %r" % e)
 
@@ -980,26 +1093,26 @@ class RvActivityMode(rv.rvtypes.MinorMode):
       
             if self.want_stacked:
                 if not self._stack_node:
-                    self._stack_node = rv.commands.newNode('RVStackGroup')
+                    self._stack_node = rvc.newNode('RVStackGroup')
                 self._v_cut_seq_name = sg['version.Version.code']
-                rv.extra_commands.setUIName(self._stack_node, self._v_cut_seq_name)     
-                rv.commands.setNodeInputs(self._stack_node, v_source_names)
-                rv.commands.setViewNode(self._stack_node)
+                rve.setUIName(self._stack_node, self._v_cut_seq_name)     
+                rvc.setNodeInputs(self._stack_node, v_source_names)
+                rvc.setViewNode(self._stack_node)
 
             else:        
                 if not self._layout_node:
-                    self._layout_node = rv.commands.newNode("RVLayoutGroup")
+                    self._layout_node = rvc.newNode("RVLayoutGroup")
                 self._v_cut_seq_name = sg['version.Version.code']
-                rv.extra_commands.setUIName(self._layout_node, self._v_cut_seq_name)
-                rv.commands.setStringProperty("%s.layout.mode" % self._layout_node, ["grid"]);     
+                rve.setUIName(self._layout_node, self._v_cut_seq_name)
+                rvc.setStringProperty("%s.layout.mode" % self._layout_node, ["grid"]);     
             
-                rv.commands.setNodeInputs(self._layout_node, v_source_names)
-                rv.commands.setViewNode(self._layout_node)
+                rvc.setNodeInputs(self._layout_node, v_source_names)
+                rvc.setViewNode(self._layout_node)
 
             # if ph_dict:
             #     if 'ui_index' in ph_dict:
             #         seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
-            #         rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
+            #         rvc.setIntProperty(seq_pinned_name, self.pinned_items, True)
 
             #         self.load_data(vlist[0])
             #         self.tray_list.repaint()
@@ -1009,16 +1122,16 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         except Exception as e:
             self._app.engine.log_error("load_sequence_with_versions %r" % e)
 
-        # rv.commands.setFrame(shot_start + shot_offset)
+        # rvc.setFrame(shot_start + shot_offset)
+
+    def load_tray_with_version_ids(self, ids):
+        vfilters = [["id", "in", ids]]
+        vfields =  [ "project", "playlists", "image" ] + required_version_fields
+        self.tray_model.load_data(entity_type="Version", filters=vfilters, fields=vfields)
 
     def load_tray_with_playlist_id(self, playlist_id=None):
-        #plist = self._bundle.shotgun.find("Version", [["playlists", "is", {"type": "Playlist", "id": d["id"]}]], fields=['sg_path_to_frames'])
         plist_filters = [["playlists", "is", {"type": "Playlist", "id": playlist_id}]]
-        plist_fields =  ['sg_path_to_frames', 'sg_first_frame', 'sg_last_frame', 
-                        'sg_path_to_movie', 'sg_movie_aspect_ratio', 'sg_movie_as_slate',
-                        'sg_frames_aspect_ratio', 'sg_frames_has_slate',
-                        'sg_uploaded_movie_frame_rate', 'sg_uploaded_movie_mp4', 'code', 'client_code'
-                        'playlists']
+        plist_fields =  [ "project", "playlists", "image" ] + required_version_fields
         self.tray_model.load_data(entity_type="Version", filters=plist_filters, fields=plist_fields)
 
     def load_tray_with_cut_id(self, cut_id=None):
@@ -1032,20 +1145,14 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         tray_filters = [ ['cut','is', {'type':'Cut', 'id': self.tray_cut_id }] ]
 
         tray_fields= ["cut_item_in", "cut_item_out", "cut_order",
-                "edit_in", "edit_out", "code", "entity", "shot",
-                "version.Version.sg_path_to_frames", "version.Version.id",
-                "version.Version.sg_first_frame", "version.Version.sg_last_frame",
-                "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
-                "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
-                "version.Version.sg_frames_has_slate", "version.Version.image",
-                "version.Version.code", "version.Version.sg_status_list", "version.Version.entity",
-                "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
+                "edit_in", "edit_out", "code", "entity", "shot", "project",
+                "version.Version.image",
                 "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.revision_numnber",
-                "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.project", "cut.Cut.image",
-                "cut.Cut.version.Version.id", "cut.Cut.version.Version.image",
-                "cut.Cut.version.Version.sg_first_frame", "cut.Cut.version.Version.sg_last_frame",
-                "cut.Cut.version.Version.sg_path_to_movie", "cut.Cut.version.Version.sg_path_to_frames"
-                ]
+                "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.image",
+                "cut.Cut.version.Version.image"] 
+
+        tray_fields += ["version.Version."         + f for f in required_version_fields]
+        tray_fields += ["cut.Cut.version.Version." + f for f in required_version_fields]
 
         orders = [{'field_name':'cut_order','direction':'asc'}]
         self.tray_model.load_data(entity_type="CutItem", filters=tray_filters, fields=tray_fields, order=orders)
@@ -1060,28 +1167,28 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
 
         # store whatever frame we are on now
-        # fno = rv.commands.frame()
+        # fno = rvc.frame()
         # this is a MetaInfo, frame is sourceFrame:
         #  {u'node': u'sourceGroup000013_source', u'frame': 66, u'nodeType': u'RVFileSource'}
-        # smi = rv.extra_commands.sourceMetaInfoAtFrame(fno)
+        # smi = rve.sourceMetaInfoAtFrame(fno)
         #
         # so a cut can have frames that are repeated, so getting the source frame
         # can be unhelpful
         # instead use the global tl spec and figure out how many frmes in from cut in,
         # use the mini_index in sg_data
-        # sf = rv.extra_commands.sourceFrame(fno)
+        # sf = rve.sourceFrame(fno)
         # print "%d %r %d\n" % (fno, smi, sf)
         self.mini_cut = False
         self.tray_list.mini_cut = False
 
         #sg_data = self.load_version_id_from_session()
         #print "ENTIRE: %r" % sg_data        
-        rv.commands.setIntProperty('%s.edl.source' % self.cut_seq_name, self.rv_source_nums, True)
-        rv.commands.setIntProperty('%s.edl.frame' % self.cut_seq_name, self.rv_frames, True)
-        rv.commands.setIntProperty('%s.edl.in' % self.cut_seq_name, self.rv_ins, True)
-        rv.commands.setIntProperty('%s.edl.out' % self.cut_seq_name, self.rv_outs, True)
+        rvc.setIntProperty('%s.edl.source' % self.cut_seq_name, self.rv_source_nums, True)
+        rvc.setIntProperty('%s.edl.frame' % self.cut_seq_name, self.rv_frames, True)
+        rvc.setIntProperty('%s.edl.in' % self.cut_seq_name, self.rv_ins, True)
+        rvc.setIntProperty('%s.edl.out' % self.cut_seq_name, self.rv_outs, True)
         
-        rv.commands.setViewNode(self.cut_seq_node)
+        rvc.setViewNode(self.cut_seq_node)
 
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
@@ -1101,7 +1208,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         sel_index = self.tray_list.selectionModel().selectedIndexes()[0]
 
-        global_frame = rv.commands.frame()
+        global_frame = rvc.frame()
         sg_data = self.load_version_id_from_session()
         if 'tl_index' not in sg_data:
             print "ERROR: missing tl_index in session for %r" % sg_data
@@ -1172,34 +1279,34 @@ class RvActivityMode(rv.rvtypes.MinorMode):
      
     def createText(self, node, text, hpos, vpos):
 
-        rv.commands.newProperty('%s.position' % node, rv.commands.FloatType, 2)
-        rv.commands.newProperty('%s.color' % node, rv.commands.FloatType, 4)
-        rv.commands.newProperty('%s.spacing' % node, rv.commands.FloatType, 1)
-        rv.commands.newProperty('%s.size' % node, rv.commands.FloatType, 1)
-        rv.commands.newProperty('%s.scale' % node, rv.commands.FloatType, 1)
-        rv.commands.newProperty('%s.rotation' % node, rv.commands.FloatType, 1)
-        rv.commands.newProperty("%s.font" % node, rv.commands.StringType, 1)
-        rv.commands.newProperty("%s.text" % node, rv.commands.StringType, 1)
-        rv.commands.newProperty('%s.debug' % node, rv.commands.IntType, 1)
+        rvc.newProperty('%s.position' % node, rvc.FloatType, 2)
+        rvc.newProperty('%s.color' % node, rvc.FloatType, 4)
+        rvc.newProperty('%s.spacing' % node, rvc.FloatType, 1)
+        rvc.newProperty('%s.size' % node, rvc.FloatType, 1)
+        rvc.newProperty('%s.scale' % node, rvc.FloatType, 1)
+        rvc.newProperty('%s.rotation' % node, rvc.FloatType, 1)
+        rvc.newProperty("%s.font" % node, rvc.StringType, 1)
+        rvc.newProperty("%s.text" % node, rvc.StringType, 1)
+        rvc.newProperty('%s.debug' % node, rvc.IntType, 1)
 
-        rv.commands.setFloatProperty('%s.position' % node, [ float(hpos), float(vpos) ], True)
-        rv.commands.setFloatProperty('%s.color' % node, [ 1.0, 1.0, 1.0, 1.0 ], True)
-        rv.commands.setFloatProperty('%s.spacing' % node, [ 1.0 ], True)
-        rv.commands.setFloatProperty('%s.size' % node, [ 0.004 ], True)
-        rv.commands.setFloatProperty('%s.scale' % node, [ 1.0 ], True)
-        rv.commands.setFloatProperty('%s.rotation' % node, [ 0.0 ], True)
-        rv.commands.setStringProperty("%s.font" % node, [""], True)
-        rv.commands.setStringProperty("%s.text" % node, [text], True)
-        rv.commands.setIntProperty('%s.debug' % node, [ 0 ], True)
+        rvc.setFloatProperty('%s.position' % node, [ float(hpos), float(vpos) ], True)
+        rvc.setFloatProperty('%s.color' % node, [ 1.0, 1.0, 1.0, 1.0 ], True)
+        rvc.setFloatProperty('%s.spacing' % node, [ 1.0 ], True)
+        rvc.setFloatProperty('%s.size' % node, [ 0.004 ], True)
+        rvc.setFloatProperty('%s.scale' % node, [ 1.0 ], True)
+        rvc.setFloatProperty('%s.rotation' % node, [ 0.0 ], True)
+        rvc.setStringProperty("%s.font" % node, [""], True)
+        rvc.setStringProperty("%s.text" % node, [text], True)
+        rvc.setIntProperty('%s.debug' % node, [ 0 ], True)
 
     def set_session_prop(self, name, item):
         self._app.engine.log_info('set_session_prop %r' % QtCore.QThread.currentThread() )
         
         try:
-            if not rv.commands.propertyExists(name):
-                rv.commands.newProperty(name, rv.commands.StringType, 1)
+            if not rvc.propertyExists(name):
+                rvc.newProperty(name, rvc.StringType, 1)
             cut_json = json.dumps(item)
-            rv.commands.setStringProperty(name, [cut_json], True)
+            rvc.setStringProperty(name, [cut_json], True)
         except Exception as e:
             print "ERROR: set_session_prop %r" % e
 
@@ -1214,8 +1321,8 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             f = [   "version.Version.sg_path_to_frames", "version.Version.id",
                     "version.Version.sg_first_frame", "version.Version.sg_last_frame",
                     "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
-                    "version.Version.sg_movie_as_slate", "version.Version.sg_frames_aspect_ratio",
-                    "version.Version.sg_frames_has_slate", "version.Version.image", "version.Version.code",
+                    "version.Version.sg_movie_has_slate", "version.Version.sg_frames_aspect_ratio",
+                    "version.Version.sg_frames_have_slate", "version.Version.image", "version.Version.code",
                     "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
                 ]
 
@@ -1255,25 +1362,38 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     def request_related_cuts_from_models(self):
         self._app.engine.log_info( "request_related_cuts_from_model" )
-        sg_data = self.load_version_id_from_session()
         
-        if 'cut.Cut.entity' not in sg_data:
-            self._app.engine.log_info('No cut info available. Playlist?')
+        seq_data = self.sequence_data_from_session()
+
+        if (not seq_data or seq_data["target_entity"]["type"] != "Cut"):
+            self._app.engine.log_info('request_related_cuts_from_models: No cut info available')
             return
 
-        # are we stopped? on a selected item? mix in second related shots
-        if sg_data['version.Version.entity']:
-            if sg_data['version.Version.entity']['type'] == "Shot":
-                if sg_data['cut.Cut.entity'] != self.last_rel_cut_entity or sg_data['version.Version.entity'] != self.last_rel_shot_entity:
-                    self._popup_utils.find_rel_cuts_with_model(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
-                    self.last_rel_cut_entity = sg_data['cut.Cut.entity']
-                    self.last_rel_shot_entity = sg_data['version.Version.entity']
+
+        cut_link = seq_data['entity']
+        cut_id   = seq_data["target_entity"]["id"]
+
+        version_data = self.version_data_from_source()
+        if version_data:
+            # mix in second related shots
+            version_link = version_data['entity']
+            if version_link:
+                # version_link might not be a Shot (because version is
+                # base-layer, etc)
+                if version_link['type'] != "Shot":
+                    version_link = None
+                # XXX does this allow for cut_link == None ?
+                if cut_link != self.last_rel_cut_entity or version_link != self.last_rel_shot_entity:
+                    self._popup_utils.find_rel_cuts_with_model(cut_link, version_link)
+                    self.last_rel_cut_entity = cut_link
+                    self.last_rel_shot_entity = version_link
                     return
 
-        if sg_data['cut.Cut.entity']['type'] == "Scene":
-            self._popup_utils.find_rel_cuts_with_model(sg_data['cut.Cut.entity'], sg_data['shot'])
+        # XXX don't get this ? -- alan
+        if cut_link['type'] == "Scene":
+            edit_data = self.edit_data_from_session()
+            self._popup_utils.find_rel_cuts_with_model(cut_link, version_link['shot'])
             return
-
 
     def create_related_cuts_from_models(self):
         self._app.engine.log_info( "create_related_cuts_from_models")
@@ -1284,7 +1404,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             self.related_cuts_menu.triggered.connect(self.handle_related_menu)
         # else:
         #     self.related_cuts_menu.clear()
-        sg = self.load_version_id_from_session()
+
+        seq_data = self.sequence_data_from_session()
+        cut_id = seq_data["target_entity"]["id"] if seq_data else None
 
         seq_cuts = self._popup_utils.merge_rel_models_for_menu()
         if seq_cuts == self.last_related_cuts:
@@ -1293,7 +1415,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                 a.setChecked(False)
                 x = a.data()
                 if x:
-                    if x['id'] == sg['cut.Cut.id']:
+                    if x['id'] == cut_id:
                         a.setChecked(True)
 
                 if a.menu():
@@ -1302,7 +1424,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                         b.setChecked(False)
                         x = b.data()
 
-                        if x['id'] == sg['cut.Cut.id']:
+                        if x['id'] == cut_id:
                             b.setChecked(True)
                             a.setChecked(True)
 
@@ -1322,7 +1444,6 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         last_code = None
         en = {}
 
-
         for x in seq_cuts:
             action = QtGui.QAction(self.tray_button_browse_cut)
             action.setCheckable(True)
@@ -1339,7 +1460,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     last_menu = menu
                     parent_menu = None
  
-            if x['id'] == sg['cut.Cut.id']:
+            if x['id'] == cut_id:
                 action.setChecked(True)
                 if parent_menu:
                     a = parent_menu.menuAction()
@@ -1446,7 +1567,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
             f = self.get_media_path(sg_item)
             source_name = None
             try:
-                source_name = rv.commands.addSourceVerbose([f])
+                source_name = rvc.addSourceVerbose([f])
             except Exception as e:
                 self._app.engine.log_error( '%r' %  e )
                 self._app.engine.log_info('trying to create black with data from version: %r' % sg_item['version.Version.id'])
@@ -1459,12 +1580,12 @@ class RvActivityMode(rv.rvtypes.MinorMode):
                     sg_item['version.Version.sg_last_frame'] = 100
 
                 self._app.engine.log_info("trying: %r instead" % s)
-                source_name = rv.commands.addSourceVerbose([s])
+                source_name = rvc.addSourceVerbose([s])
 
-            group_name = rv.commands.nodeGroup(source_name)
+            group_name = rvc.nodeGroup(source_name)
 
             if sg_item['version.Version.code']:
-                rv.extra_commands.setUIName(group_name, sg_item['version.Version.code'])
+                rve.setUIName(group_name, sg_item['version.Version.code'])
             
             self.loaded_sources[fk] = {}
             self.loaded_sources[fk]['group_name'] = group_name
@@ -1473,284 +1594,349 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
             if 'movieproc' in f:
                 # group_name returned an empty list here. source name works.
-                overlays = rv.extra_commands.associatedNodes("RVOverlay",source_name)
+                overlays = rve.associatedNodes("RVOverlay",source_name)
                 # node need to be a component name ...
                 self.createText(overlays[0] + '.text:mytext', sg_item['version.Version.code'] + '\nis missing.', -0.5, 0.0)
             return True
 
+    def sequence_group_from_target(self, target_entity, subTarget):
+        """
+        We keep a RVSequenceGroup around to represent each Playlist, and two
+        for each Cut (one for entire-cut and one for min-cut).
+        """
+        # XXX handle subTarget, target_entity["server"]
+
+        t_type = target_entity["type"]
+        t_id   = target_entity["id"]
+
+        for s in rvc.nodesOfType("RVSequenceGroup"):
+            # for Playlist and Cut, we stick with one Sequence node per entity.
+            # But for the "scratch" usage of playing arbitrary group of
+            # Versions, we just re-use a single sequence.
+            if ( getStringProp(s + ".cut_support.target_type", None) == t_type and
+                (getIntProp   (s + ".cut_support.target_id",   None) == t_id or 
+                 t_type == "Version")):
+                return s
+
+        # We failed to find our RVSequenceGroup, so make one.
+
+        s = rvc.newNode("RVSequenceGroup")
+
+        setProp(s + ".cut_support.target_type", t_type)
+
+        if (t_type != "Version"):
+            setProp(s + ".cut_support.target_id",   t_id)
+
+        return s
+
+    def media_type_fallback(self, version_data, media_type):
+        if version_data[standard_media_types[media_type].path_field]:
+            return media_type
+
+        other = "Movie" if (media_type == "Frames") else "Frames"
+        if version_data[standard_media_types[other].path_field]:
+            return other
+
+        return None
+            
+    def source_group_from_version_data(self, version_data, media_type):
+
+        for s in rvc.nodesOfType("RVSourceGroup"):
+            if getIntProp(s + ".cut_support.version_id", 0) == version_data["id"]:
+                # XXX we should be storing/checking url too
+                # XXX possibly this version data is stale, think about when we
+                # might refresh ?
+                return s
+
+        # We failed to find our RVSourceGroup, so make one.
+
+        m_type = self.media_type_fallback(version_data, media_type)
+        if m_type: 
+            path = version_data[standard_media_types[media_type].path_field]
+        else:
+            self._app.engine.log_warning("Version '%s' has no local media" % version_data["code"])
+            path = "black,start=%d,end=%d.movieproc"
+            m_type = "Movie"
+
+        try:
+            source_node = rvc.addSourceVerbose([path])
+        except:
+            # XXX
+            return
+
+        source_group = rvc.nodeGroup(source_node)
+
+        setProp(source_group + ".cut_support.version_id",   version_data["id"])
+        setProp(source_group + ".cut_support.version_data", json.dumps(version_data))
+
+        self.set_media_type_property(source_group, m_type)
+
+        self.configure_source_media(source_group, version_data)
+
+        rve.setUIName(source_group, version_data["code"])
+
+        return source_group
+
+    def sequence_data_from_query_item(self, sg_item, target_entity):
+        data = {}
+
+        if   target_entity["type"] == "Cut":
+            data["ui_name"] = sg_item["cut.Cut.cached_display_name"]
+            data["entity"]  = sg_item["cut.Cut.entity"]
+        elif target_entity["type"] == "Playlist":
+            data["ui_name"] = "Playlist %d" % target_entity["id"]
+            data["entity"]  = "No Entity"
+        elif target_entity["type"] == "Version":
+            data["ui_name"] = "%d Versions" % len(target_entity.get("ids", [1]))
+            data["entity"]  = "No Entity"
+
+        data["project"]        = sg_item["project"]
+        data["target_entity"]  = target_entity
+
+        return data
+
+    def clip_index_from_frame(self):
+        index = -1
+        if rvc.nodeType(rvc.viewNode()) == "RVSequenceGroup":
+            seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
+            current_frame = rvc.frame()
+            frames = rvc.getIntProperty(seq_node + ".edl.frame")
+            for f in frames:
+                if current_frame < f:
+                    return index
+                index += 1
+
+    def sequence_data_from_session(self):
+        json_str = getStringProp(rvc.viewNode() + ".cut_support.sequence_data", None)
+        if json_str:
+            return json.loads(json_str)
+
+        return None
+
+    def data_from_cut_item(self, sg, rv):
+        version_data = {}
+        edit_data = {}
+
+        # We prefer the Version attached to the CutItem, and fallback to the
+        # one attached to the Cut.   XXX eventually we will start with any
+        # Version that results from filtering, fallback to the CutItem Version,
+        # then to the Cut Version.
+
+        if   rv and rv.get("id"):
+
+            for f in required_version_fields:
+                version_data[f] = rv.get(f)
+
+            edit_data["in"]    = sg.get("cut_item_in")
+            edit_data["out"]   = sg.get("cut_item_out")
+
+        elif sg and sg.get("version.Version.id"):
+
+            for f in required_version_fields:
+                version_data[f] = sg.get("version.Version." + f)
+
+            edit_data["in"]    = sg.get("cut_item_in")
+            edit_data["out"]   = sg.get("cut_item_out")
+
+        else:
+            for f in required_version_fields:
+                version_data[f] = sg.get("cut.Cut.version.Version." + f)
+
+            edit_data["in"]    = sg.get("edit_in")
+            edit_data["out"]   = sg.get("edit_out")
+
+        edit_data["shot"] = sg.get("shot")
+
+        return (version_data, edit_data)
+
+    def data_from_version(self, sg):
+
+        version_data = sg
+        edit_data = {}
+        edit_data["in"]  = sg.get("sg_first_frame", 1)
+        edit_data["out"] = sg.get("sg_last_frame",  100)
+        edit_data["shot"] = sg.get("entity")
+
+        return (version_data, edit_data)
+
+    def data_from_query_item(self, sg_item, rv_item, target_entity):
+        if target_entity["type"] == "Cut":
+            return self.data_from_cut_item(sg_item, rv_item)
+        else:
+            return self.data_from_version(sg_item)
+
     # the way data from shotgun gets into the tray
     def on_data_refreshed(self, was_refreshed):
+        """
+        The tray_model has one item per clip in sequence; each clip's data
+        comes from a CutItem (when loading a Cut) or straight from a Version
+        (when loading a Playlist).
+        """
+        rows = self.tray_proxyModel.rowCount()
+        if False:
+            for index in range(0, rows):
+                item = self.tray_proxyModel.index(index, 0)
+                sg_item = shotgun_model.get_sg_data(item)
+                rv_item = item.data(self._RV_DATA_ROLE)
+                pp.pprint(sg_item)
+                #pp.pprint(rv_item)
+                return
         self._app.engine.log_info('on_data_refreshed: %r' % str(QtCore.QThread.currentThread()))
-        # tray is cleared by ShotgunModel _load_data
 
-        self.swapped_sources = None
-        self.project_entity = None
+        # XXX eventually we want to enter min-cut mode directly in some cases,
+        # in which case we want to start with corresponding Sequence node.
+        subTarget = "entire-cut" # XXX should come from pref or previous run
 
-        v_id = -1
-
-        # first see if we have a selection
-        # this was an attempt to make sure we end up in the same place
-        cur_index = self.tray_list.currentIndex()
-        if cur_index:
-            sg_item = shotgun_model.get_sg_data(cur_index)
-            if sg_item:
-                v_id = sg_item['version.Version.id']
+        # find or make RV sequence node for this target entity
+        seq_group_node = self.sequence_group_from_target(self.target_entity, subTarget)
+        seq_node = groupMemberOfType(seq_group_node, "RVSequence")
 
         # tray proxy model sorting in cut order
         self.tray_proxyModel.sort(0, QtCore.Qt.AscendingOrder)
+
+        input_map = {}
+        sequence_data = None
+        seq_inputs = []
+        edit_data_list = []
+        accumulated_frames = 0
+
+        edl_source_nums = []
+        edl_frames = []
+        edl_ins = []
+        edl_outs = []
+
         rows = self.tray_proxyModel.rowCount()
- 
-        # this should be impossible since all id's are fed in...?
-        if rows < 1:
-            self._app.engine.log_error('Query returned no rows.')
-            # clear tray and draw something on screen
-            # label into tray saying 'no cut items'
-            return
- 
-        self.rv_source_nums = []
-        self.rv_frames = []
-        self.rv_ins = []
-        self.rv_outs = []
-        self.tray_sources = []
 
-        source_incr = 0
-        timeline_incr = 1
+        for index in range(0, rows):
+            item = self.tray_proxyModel.index(index, 0)
+            sg_item = shotgun_model.get_sg_data(item)
+            rv_item = item.data(self._RV_DATA_ROLE)
 
-        tray_seq_name = None
-        final_selection = None
+            # Collect some data to attach to the sequence level
+            if index == 0:
+                sequence_data = self.sequence_data_from_query_item(
+                        sg_item, self.target_entity)
 
-        # keys and array to hold values detrived from result set into sequence level node.
-        cut_items = []
-        cutitem_keys = ["cut_item_in", "cut_item_out", "cut_order", "edit_in", "edit_out", "id", "code"]
+            # Build unique version_data and edit_data dictionaries for
+            # this row.  This contains all the logic for using different
+            # Versions etc.
+            (version_data, edit_data) = self.data_from_query_item(
+                    sg_item, rv_item, self.target_entity)
 
-        for x in range(0, rows):
-            item = self.tray_proxyModel.index(x, 0)
-            sg_item_orig = shotgun_model.get_sg_data(item)
-            # print "%d is %r %r %r " % (x, sg_item_orig['cut.Cut.version'], sg_item_orig['cut.Cut.version.Version.id'], sg_item_orig['cut.Cut.version.Version.sg_first_frame'])
-            if not sg_item_orig:
-                # put an error message into the tray for that item
-                self._app.engine.log_error("What do I do when there is no data at all for item %d" % item.row())
-                sg_item_orig = {}
-                sg_item_orig['sg_first_frame'] = 1
-                sg_item_orig['sg_last_frame'] = 100
-                sg_item_orig['sg_path_to_movie'] = '/tmp/foodles.mov'
+            # store edit_data
+            edit_data_list.append(json.dumps(edit_data))
 
-            # adapting pure version queries to match key naming in results from cut queries.
-            sg_item = self.convert_sg_dict(sg_item_orig)
-            #print "%d is %r" % (x, sg_item)
-            
-            # needed for the related cuts menu.
-            if not self.project_entity and 'cut.Cut.project' in sg_item:
-                #print "PROJECT: %r" % sg_item
-                #print "tray cut id %d" % self.tray_cut_id 
-                self.project_entity = sg_item['cut.Cut.project']
-                self._popup_utils.set_project(self.project_entity)
-                       
-            # finding keys we want on the source node
-            if 'cut_item_in' in sg_item:
-                cutitem_dict = dict ( [(k, sg_item[k]) for k in cutitem_keys])
-                cut_items.append(cutitem_dict)
+            # Now we have version data, find or create the corresponding
+            # RVSourceGroup
+            media_type = "Frames" # XXX should come from preference
+            src_group = self.source_group_from_version_data(version_data, media_type)
 
-            # this is used for a currently disabled feature:
-            # when a version is viewed, lookup the latest cut and 
-            # swap that version into it.
-            if self.version_swap_out:
-                if cutitem_dict['id'] == self.version_swap_out['cutitem_id']:
-                    # update sg_item with new fields.
-                    tmp_dict = self.convert_sg_dict(self.version_swap_out)
-                    for k in tmp_dict:
-                        sg_item[k] = tmp_dict[k]
-            
-            # if version id is none then lookup base version id with
-            # cut.Cut.version entity
-            
-            # moving to create source
-            #if not sg_item['version.Version.id']:
-            #    self._app.engine.log_info("finding base version with cut.Cut.version: %r" % sg_item['cut.Cut.version'])
-            #    sg_item = self.find_base_version_for_cut(sg_item['cut.Cut.version'])
-
-            
-            if self.create_source_from_version(sg_item, source_incr):
-                source_incr = source_incr + 1
-
-            if not sg_item:
-                self._app.engine.log_error('sg_item is null for item %d' % x)
-                continue
-
-            fk = sg_item['version.Version.id']
-                 
-            source_prop_name = ("%s.cut_support.json_sg_data") % self.loaded_sources[fk]['group_name']
-            
-            # Add source/version to list of future inputs for this sequence
-            # node
-            self.tray_sources.append(self.loaded_sources[fk]['group_name'])
- 
-            try:
-                # these should be at the cut item (sequence) level
-                # this should also move into the 'only if new source' block
-
-                # XXX ui_index is the index of this source/version in the list
-                # of inputs for this sequence.
-                # sg_item['ui_index'] = self.loaded_sources[fk]['source_index']
-                sg_item['ui_index'] = len(self.tray_sources) - 1
-
-                sg_item['tl_index'] = timeline_incr
-                if not rv.commands.propertyExists(source_prop_name):
-                    rv.commands.newProperty(source_prop_name, rv.commands.StringType, 1)
-                json_sg_item = json.dumps(sg_item)
-                rv.commands.setStringProperty(source_prop_name, [json_sg_item], True)
-            except Exception as e:
-                print "ERROR: on_data_refreshed %r" % e
-
-            # need to remember source numbers so that we can reuse a version if it appears multiple times
-            # source numbers are the index into the inputs array, being created as we move thru this loop
-
-            # XXX  The line above that is modifying tray_sources is adding what
-            # will become an input for every CutItem.  That means that the
-            # edl.sources array (which contains indices into the inputs array)
-            # will just be 1-to-1 with those indices.  IE be 0,1,2...n where
-            # n-1 is size of inputs array.  It's only if we re-use inputs that
-            # there will be more than one of the same index in the edl.sources
-            # array. For example if we have 4 cut items, and #1 and #3 refer to
-            # the same version/input, we could have edl.sources == 0,1,2,1.
-            #
-            # self.rv_source_nums.append(self.loaded_sources[fk]['source_index'])
-            self.rv_source_nums.append(len(self.tray_sources) - 1)
-
-            # would be looked up instead of icremented if source exists
-            
-
-            # playlist code? 
-            # address difference between playlist versions and cutitem with no version (use base version)
-            # in base layer case we use edit_in and edit_out instead of cut_item_in, etc.
-            #print "WTF: %r" % sg_item
-            # print sg_item['code']
-            if 'cut_item_in' not in sg_item:
-                sg_item['cut_item_in'] = sg_item['version.Version.sg_first_frame']
-                sg_item['cut_item_out'] = sg_item['version.Version.sg_last_frame']
-
-            if not sg_item['cut_item_in'] or not sg_item['cut_item_out']:
-                # this logic was added to make certain incomplete cuts work...
-                if 'edit_in' and 'edit_out' in sg_item:
-                    if sg_item['edit_in'] and sg_item['edit_out']:
-                        sg_item['cut_item_in'] = sg_item['edit_in']
-                        sg_item['cut_item_out'] = sg_item['edit_out']
-                else: 
-                    sg_item['cut_item_in'] = sg_item['version.Version.sg_first_frame']
-                    sg_item['cut_item_out'] = sg_item['version.Version.sg_last_frame']
-
-            self.rv_ins.append( sg_item['cut_item_in'] )
-            self.rv_outs.append( sg_item['cut_item_out'] )
-            self.rv_frames.append(timeline_incr)
-            
-            timeline_incr = sg_item['cut_item_out'] - sg_item['cut_item_in'] + 1 + timeline_incr
-
-            # if we had a version selected before the query we try to select it again when this cut is loaded
-            if 'version.Version.id' in sg_item:
-                if sg_item['version.Version.id'] == v_id:
-                    final_selection = item
-        
-        tray_seq_name = 'unknown'
-
-        # draw something in the tray
-        if not sg_item:
-            self._app.engine.log_error('SG_ITEM is null.')
-            return
-
-        # cached_display_name has the _002 suffix to indicate cut revision...
-        if 'cut.Cut.code' in sg_item:
-            tray_seq_name = sg_item['cut.Cut.cached_display_name']
-        
-        # these zeros ( and a 1 ) initialize the arrays for RV
-        self.rv_source_nums.append(0)
-        self.rv_ins.append(0)
-        self.rv_outs.append(0)
-        self.rv_frames.append(timeline_incr)
-
-        # newNode for everything except sources
-        # this lets us store multiple cuts in a session file later
-        # and lets you flip between cuts via session browser
-        self.cut_seq_node = rv.commands.newNode("RVSequenceGroup")
-
-        # create a sequence level dict from sg_item
-        cut_keys = ["cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps"]
-        cut_dict = None
-        if 'cut.Cut.code' in sg_item:
-            cut_dict = dict ( [(k, sg_item[k]) for k in cut_keys])
-        
-        self.cut_seq_name = rv.extra_commands.nodesInGroupOfType(self.cut_seq_node, 'RVSequence')[0]
-        seq_prop_name = ("%s.cut_support.json_cut_data") % self.cut_seq_name
-
-        if cut_dict:
-            self.set_session_prop(seq_prop_name, cut_dict)
-            seq_prop_name = ("%s.cut_support.json_cutitem_data") % self.cut_seq_name
-            self.set_session_prop(seq_prop_name, cut_items)
-        else:
-            if 'playlists' in sg_item:
-                for p in sg_item['playlists']:
-                    if p['id'] == self.entity_from_gma['id']:
-                        seq_prop_name = ("%s.cut_support.json_playlist_data") % self.cut_seq_name
-                        self.set_session_prop(seq_prop_name, p)
-                        tray_seq_name = p['name']
+            # input_num for this clip is just the nth input, unless we already have it.
+            if src_group in input_map:
+                input_num = input_map[src_group]
             else:
-                tray_seq_name = sg_item['code']
+                input_num = len(seq_inputs)
+                input_map[src_group] = input_num
+                seq_inputs.append(src_group)
 
-        self.tray_main_frame.tray_button_browse_cut.setText(tray_seq_name)
-        rv.extra_commands.setUIName(self.cut_seq_node, tray_seq_name)
+            edl_source_nums.append(input_num)
+            edl_ins.append(edit_data["in"])
+            edl_outs.append(edit_data["out"])
+            edl_frames.append(accumulated_frames + 1)
 
-        #k = "%s.mode.autoEDL" % str(self.cut_seq_name)
-        #if not rv.commands.propertyExists(k):
-        #    rv.commands.newProperty(k, rv.commands.IntType, 1)
+            # keep track of total frames
+            accumulated_frames += edit_data["out"] - edit_data["in"] + 1
 
-        # self._app.tank.shotgun_url
-        k = "%s.cut_support.shotgun_url" % str(self.cut_seq_name)
-        if not rv.commands.propertyExists(k):
-            rv.commands.newProperty(k, rv.commands.StringType, 1)
-        rv.commands.setStringProperty(k, [self._app.tank.shotgun_url], True)
-                
-        rv.commands.setIntProperty('%s.edl.source' % self.cut_seq_name, self.rv_source_nums, True)
-        rv.commands.setIntProperty('%s.edl.frame' % self.cut_seq_name, self.rv_frames, True)
-        rv.commands.setIntProperty('%s.edl.in' % self.cut_seq_name, self.rv_ins, True)
-        rv.commands.setIntProperty('%s.edl.out' % self.cut_seq_name, self.rv_outs, True)
-        
-        rv.commands.setIntProperty("%s.mode.autoEDL" % self.cut_seq_name, [0])
-        rv.commands.setIntProperty("%s.mode.useCutInfo" % self.cut_seq_name, [0])
+            # XXX - re-implement
+            ## if we had a version selected before the query we try to select it again when this cut is loaded
+            #if 'version.Version.id' in sg_item:
+            #    if sg_item['version.Version.id'] == v_id:
+            #        final_selection = item
 
-        rv.commands.setNodeInputs(self.cut_seq_node, self.tray_sources)
-        rv.commands.setViewNode(self.cut_seq_node)
 
-        # if we had a selection coming in, we move to that
-        # not sure if these even works EXAMINE
-        if final_selection:
-            self.tray_list.selectionModel().select(final_selection, self.tray_list.selectionModel().ClearAndSelect)
-        else:            
-            zero_index = self.tray_model.createIndex(0, 0)
-            self.tray_list.selectionModel().select(zero_index, self.tray_list.selectionModel().ClearAndSelect)
-        
-        self.tray_list.scrollTo(self.tray_proxyModel.index(0, 0), QtGui.QAbstractItemView.EnsureVisible)
-        # triggers the details pane
-        self.load_version_id_from_session()
+        # XXX error if sequence_data is None
 
-        seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
-        if not rv.commands.propertyExists(seq_pinned_name):
-            rv.commands.newProperty(seq_pinned_name, rv.commands.IntType, 1)
-        rv.commands.setIntProperty(seq_pinned_name, self.pinned_items, True)
+        # needed for menus.
+        # XXX may be problem later if we have to handle multiple Projects
+        if not self.project_entity:
+            self.project_entity = sequence_data["project"]
+            self._popup_utils.set_project(self.project_entity)
 
-        # get info from first shot in sequence
-        item = self.tray_proxyModel.index(0, 0)
-        sg_item_orig = shotgun_model.get_sg_data(item)
-        sg = self.convert_sg_dict(sg_item_orig)
-        
-        if 'cut.Cut.entity' in sg:
-            # self.create_related_cuts_menu(sg['cut.Cut.entity'], sg['shot'])
+        # Set or reset the UI Name of the sequence node
+        rve.setUIName(seq_group_node, sequence_data["ui_name"])
+        self.tray_main_frame.tray_button_browse_cut.setText(sequence_data["ui_name"])
+
+        # make sure RV doesn't automatically create the EDL
+        rvc.setIntProperty(seq_node + ".mode.autoEDL",    [0])
+        rvc.setIntProperty(seq_node + ".mode.useCutInfo", [0])
+
+        rvc.setNodeInputs(seq_group_node, seq_inputs)
+
+        edl_source_nums.append(0)
+        edl_ins.append(0)
+        edl_outs.append(0)
+        edl_frames.append(accumulated_frames + 1)
+
+        rvc.setIntProperty(seq_node + ".edl.source", edl_source_nums, True)
+        rvc.setIntProperty(seq_node + ".edl.frame",  edl_frames,      True)
+        rvc.setIntProperty(seq_node + ".edl.in",     edl_ins,         True)
+        rvc.setIntProperty(seq_node + ".edl.out",    edl_outs,        True)
+
+        setProp(seq_group_node + ".cut_support.sequence_data", json.dumps(sequence_data))
+        setProp(seq_group_node + ".cut_support.edit_data", edit_data_list)
+
+        # make sure we're looking at it
+        rvc.setViewNode(seq_group_node)
+
+        # XXX
+        ## if we had a selection coming in, we move to that
+        ## not sure if these even works EXAMINE
+        #if final_selection:
+        #    self.tray_list.selectionModel().select(final_selection, self.tray_list.selectionModel().ClearAndSelect)
+        #else:            
+        #    zero_index = self.tray_model.createIndex(0, 0)
+        #    self.tray_list.selectionModel().select(zero_index, self.tray_list.selectionModel().ClearAndSelect)
+        #
+        #self.tray_list.scrollTo(self.tray_proxyModel.index(0, 0), QtGui.QAbstractItemView.EnsureVisible)
+
+        # XXX manage pinned_items for sequence
+        # seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
+        # if not rvc.propertyExists(seq_pinned_name):
+        #     rvc.newProperty(seq_pinned_name, rvc.IntType, 1)
+        # rvc.setIntProperty(seq_pinned_name, self.pinned_items, True)
+
+        rve.displayFeedback("Loading complete", 2.0)
+
+        # highlight the first clip
+        self.frameChanged(None)
+
+        if self.target_entity["type"] == "Cut":
+            # self.create_related_cuts_menu(sequence_data["entity"], None)
             self.request_related_cuts_from_models()
         else:
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
-                print "NAME? %r" % tray_seq_name
+
         self.get_approval_status()
+
+    def edit_data_from_session(self):
+        data = None
+
+        seq_group = rvc.viewNode()
+
+        if rvc.nodeType(seq_group) == "RVSequenceGroup":
+            edit_prop = seq_group + ".cut_support.edit_data"
+            if rvc.propertyExists(edit_prop):
+                edit_data_list = getStringProperty(edit_prop)
+                clip_index = self.clip_index_from_frame()
+                if clip_index < len(edit_data_list):
+                    data = json.loads(edit_data_list[clip_index])
+
+        return data
+
            
     def tray_double_clicked(self, index):
+        # XXX go over
         sg_item = shotgun_model.get_sg_data(index)
         single_source = []
         single_frames = []
@@ -1766,19 +1952,19 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         single_source.append(0)
         single_ins.append(0)
         single_outs.append(0)
-        rv.commands.setIntProperty('%s.edl.frame' % self.cut_seq_name, single_frames, True)
-        rv.commands.setIntProperty('%s.edl.in' % self.cut_seq_name, single_ins, True)
-        rv.commands.setIntProperty('%s.edl.out' % self.cut_seq_name, single_outs, True)
+        rvc.setIntProperty('%s.edl.frame' % self.cut_seq_name, single_frames, True)
+        rvc.setIntProperty('%s.edl.in' % self.cut_seq_name, single_ins, True)
+        rvc.setIntProperty('%s.edl.out' % self.cut_seq_name, single_outs, True)
         
-        rv.commands.setIntProperty("%s.mode.autoEDL" % self.cut_seq_name, [0])
-        rv.commands.setIntProperty("%s.mode.useCutInfo" % self.cut_seq_name, [0])
+        rvc.setIntProperty("%s.mode.autoEDL" % self.cut_seq_name, [0])
+        rvc.setIntProperty("%s.mode.useCutInfo" % self.cut_seq_name, [0])
 
-        sources = rv.commands.nodesOfType("RVSourceGroup")
+        sources = rvc.nodesOfType("RVSourceGroup")
         single = [ sources[index.row()] ]
-        rv.commands.setNodeInputs(self.cut_seq, single)
-        rv.commands.setViewNode(self.cut_seq)
-        rv.commands.setFrame(1)
-        rv.commands.play()
+        rvc.setNodeInputs(self.cut_seq, single)
+        rvc.setViewNode(self.cut_seq)
+        rvc.setFrame(1)
+        rvc.play()
 
     def get_mini_values(self):
         self._mini_before_shots = self.tray_main_frame.mini_left_spinner.value()
@@ -1854,54 +2040,35 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         mini_frames.append(t)
 
         if not self.mini_cut_seq_node:
-            self.mini_cut_seq_node = rv.commands.newNode("RVSequenceGroup")
-        self._mini_cut_seq_name = rv.extra_commands.nodesInGroupOfType(self.mini_cut_seq_node, 'RVSequence')[0]
+            self.mini_cut_seq_node = rvc.newNode("RVSequenceGroup")
+        self._mini_cut_seq_name = rve.nodesInGroupOfType(self.mini_cut_seq_node, 'RVSequence')[0]
 
-        rv.extra_commands.setUIName(self.mini_cut_seq_node, "MiniCut-" + self._mini_cut_seq_name)     
+        rve.setUIName(self.mini_cut_seq_node, "MiniCut-" + self._mini_cut_seq_name)     
         
-        rv.commands.setIntProperty('%s.edl.source' % self._mini_cut_seq_name, mini_sources, True)
-        rv.commands.setIntProperty('%s.edl.frame' % self._mini_cut_seq_name, mini_frames, True)
-        rv.commands.setIntProperty('%s.edl.in' % self._mini_cut_seq_name, mini_ins, True)
-        rv.commands.setIntProperty('%s.edl.out' % self._mini_cut_seq_name, mini_outs, True)
+        rvc.setIntProperty('%s.edl.source' % self._mini_cut_seq_name, mini_sources, True)
+        rvc.setIntProperty('%s.edl.frame' % self._mini_cut_seq_name, mini_frames, True)
+        rvc.setIntProperty('%s.edl.in' % self._mini_cut_seq_name, mini_ins, True)
+        rvc.setIntProperty('%s.edl.out' % self._mini_cut_seq_name, mini_outs, True)
         
-        rv.commands.setIntProperty("%s.mode.autoEDL" % self._mini_cut_seq_name, [0])
-        rv.commands.setIntProperty("%s.mode.useCutInfo" % self._mini_cut_seq_name, [0])
+        rvc.setIntProperty("%s.mode.autoEDL" % self._mini_cut_seq_name, [0])
+        rvc.setIntProperty("%s.mode.useCutInfo" % self._mini_cut_seq_name, [0])
 
-        rv.commands.setNodeInputs(self.mini_cut_seq_node, mini_source_names)
-        rv.commands.setViewNode(self.mini_cut_seq_node)
-        rv.commands.setFrame(shot_start + shot_offset)
+        rvc.setNodeInputs(self.mini_cut_seq_node, mini_source_names)
+        rvc.setViewNode(self.mini_cut_seq_node)
+        rvc.setFrame(shot_start + shot_offset)
         self.tray_list.repaint()
 
     def tray_clicked(self, index):
 
-        sg_item = shotgun_model.get_sg_data(index)
-        sg_item = self.convert_sg_dict(sg_item) 
-        
-        # the version the playhead is parked on
-        ph_version = self.load_version_id_from_session()
-        if 'version.Version.id' not in ph_version:
-            ph_version['version.Version.id'] = ph_version['id']
-        #print "CLICK"
-        #print "\nph: %r" % ph_version
-        
-        f = self.get_media_path(sg_item)
-        fk = sg_item['version.Version.id']
-        # fk = urllib.quote_plus(f)
-        source_obj = self.loaded_sources[fk]
-        sel_version = self.load_version_id_from_session(source_obj['group_name'])
-        #print "sel: %r\n" % sel_version
-        if sel_version:
-            if sel_version['version.Version.id'] != ph_version['version.Version.id']:
-                tl = None
-                fno = 0
+        if rvc.nodeType(rvc.viewNode()) == "RVSequenceGroup":
+            seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
+            if seq_node:
+                tl = rvc.getIntProperty(seq_node + ".edl.frame")
                 if self.mini_cut:
-                    tl =  rv.commands.getIntProperty('%s.edl.frame' % self._mini_cut_seq_name)
-                    x = index.row() - (self.last_mini_center.row() - self._mini_before_shots)
-                    fno = tl[x]
+                    x  = index.row() - (self.last_mini_center.row() - self._mini_before_shots)
+                    rvc.setFrame(tl[x])
                 else:    
-                    tl =  rv.commands.getIntProperty('%s.edl.frame' % self.cut_seq_name)
-                    fno = tl[sel_version['ui_index']]
-                rv.commands.setFrame(fno)
+                    rvc.setFrame(tl[index.row()])
 
         self.tray_list.repaint()
 

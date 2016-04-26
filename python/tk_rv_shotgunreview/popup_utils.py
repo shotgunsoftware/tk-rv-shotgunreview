@@ -98,6 +98,9 @@ class PopupUtils(QtCore.QObject):
             ]
         self._rel_cuts_model.load_data(entity_type="Cut", filters=cut_filters, fields=cut_fields, order=cut_orders)        
 
+        if not shot_entity:
+            return
+
         shot_conditions = ['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }]
         shot_filters = [ shot_conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]]
         shot_fields = ['id', 'entity', 'code', 'cached_display_name']
