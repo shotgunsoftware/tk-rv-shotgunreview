@@ -31,20 +31,26 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
     :ivar filter_by_fields: A list of string Shotgun field names to filter on.
     :ivar sort_by_field:    A string Shotgun field name to sort by.
     """
-    def __init__(self, parent, filter_by_fields, sort_by_field):
+    def __init__(self, parent, filter_by_fields, sort_by_fields, shotgun_field_manager=None):
         """
         Initializes a new VersionSortFilterProxyModel.
 
-        :param parent:              The Qt parent of the proxy model.
-        :param filter_by_fields:    A list of string Shotgun field names
-                                    to filter on.
-        :param sort_by_field:       A string Shotgun field name to sort
-                                    by.
+        :param parent:                  The Qt parent of the proxy model.
+        :param filter_by_fields:        A list of string Shotgun field names
+                                        to filter on.
+        :param sort_by_fields:          A list of string Shotgun field names to sort
+                                        by.
+        :param shotgun_field_manager:   An option ShotgunFieldManager object, which will
+                                        be used to aid in filtering against certain types
+                                        of fields. If not provided, what is searched for
+                                        those field types might not match what the user
+                                        sees in the GUI.
         """
         super(VersionSortFilterProxyModel, self).__init__(parent)
 
         self.filter_by_fields = list(filter_by_fields)
-        self.sort_by_field = sort_by_field
+        self.sort_by_fields = list(sort_by_fields)
+        self.shotgun_field_manager = shotgun_field_manager
 
     def lessThan(self, left, right):
         """
@@ -61,25 +67,27 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
         sg_left = shotgun_model.get_sg_data(left)
         sg_right = shotgun_model.get_sg_data(right)
 
-        # This might be overkill, because we could be calling
-        # the base class' lessThan method, which supports sorting
-        # a number of different data types. However, we're dealing
-        # with a lot of different types of fields, including some
-        # that might not exist as of this writing, and we can't
-        # guarantee that all data pulled from Shotgun will be
-        # supported by the base-level lessThan. As such, we'll
-        # let Python handle the sorting and use the results of
-        # that, which should work with a wider variety of data
-        # types.
-        try:
-            return sg_left[self.sort_by_field] is sorted(
-                [
-                    sg_left[self.sort_by_field],
-                    sg_right[self.sort_by_field],
-                ]
-            )[0]
-        except KeyError:
-            return True
+        # Sorting by multiple columns, where each column is given a chance
+        # to say that the items are out of order. This isn't a stable sort,
+        # because we have no way of knowing the current position of left
+        # and right in the list, and we have no way to tell Qt that they're
+        # equal. That's going to be consistent across Qt, though, so nothing
+        # we can/should do about it.
+        for sort_by_field in self.sort_by_fields:
+            left_data = self._get_processable_field_data(sg_left, sort_by_field)
+            right_data = self._get_processable_field_data(sg_right, sort_by_field)
+
+            try:
+                if left_data == right_data:
+                    continue
+                elif left_data < right_data:
+                    continue
+                else:
+                    return False
+            except KeyError:
+                pass
+
+        return True
 
     def filterAcceptsRow(self, row, source_parent):
         """
@@ -105,29 +113,12 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
             return True
 
         for field in self.filter_by_fields:
-            # We will attempt to detect bubble fields and also check those
-            # to see if it's an entity and handle it appropriately.
-            if "." in field:
-                (field_entity_type, short_name) = field.split(".")[-2:]
-            else:
-                (field_entity_type, short_name) = ("Version", field)
-
-            data_type = shotgun_globals.get_data_type(field_entity_type, short_name)
-
             try:
-                # If this is an entity field, then we'll attempt to take the
-                # name from that and match against it. If not, we take the
-                # data as is and stringify it before matching.
-                #
-                # TODO: Do we need to make this more robust? There might be
-                # other complex data types that won't behave as expected with
-                # the simple stringify here.
-                if data_type == "entity":
-                    match_data = sg_data[field]["name"]
-                elif data_type == "status_list":
-                    match_data = shotgun_globals.get_status_display_name(sg_data[field])
-                else:
-                    match_data = sg_data[field]
+                match_data = self._get_processable_field_data(sg_data, field)
+
+                # No support for boolean fields.
+                if isinstance(match_data, bool):
+                    continue
 
                 # We'll make this a looser match by making it case insensitive
                 # and bounding it with wildcards. This makes using the search
@@ -143,3 +134,51 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
                 pass
 
         return False
+
+    def _get_processable_field_data(self, sg_data, field):
+        """
+        For a given entity dictionary and field name, returns sortable
+        and/or searchable data.
+
+        :param sg_data: An entity dictionary.
+        :param field:   A string Shotgun field to process.
+        """
+        data_type = shotgun_globals.get_data_type(
+            self.sourceModel().get_entity_type(),
+            field,
+        )
+
+        # Certain field data types will need to be treated specially
+        # in order to properly search them. Those are handled here,
+        # though it's possible additional types will need to be
+        # specifically handled. Of the data types listed in the SG
+        # Python API at the time of this writing, the below represents
+        # those that will not stringify well for this purpose.
+        if data_type == "entity":
+            processable_data = sg_data[field]["name"]
+        elif data_type == "status_list":
+            processable_data = shotgun_globals.get_status_display_name(sg_data[field])
+        elif data_type == "multi_entity":
+            processable_data = "".join([e.get("name", "") for e in sg_data[field]])
+        elif data_type == "date_time":
+            # Most likely what's being displayed is a field widget
+            # out of the qtwidgets framework. The implementation there
+            # has special logic for how to format the date_time data
+            # that we want to match when searching. The easiest way
+            # to do that is to just get a label and use its text. If
+            # we don't have a field manager, we'll just end up stringifying
+            # the datetime object that the API returns and using that.
+            if self.shotgun_field_manager:
+                processable_data = self.shotgun_field_manager.create_display_widget(
+                    sg_entity_type=self.sourceModel().get_entity_type(),
+                    field_name=field,
+                    entity=sg_data,
+                ).text()
+            else:
+                processable_data = sg_data[field]
+        elif data_type == "tag_list":
+            processable_data = "".join(sg_data[field])
+        else:
+            processable_data = sg_data[field]
+
+        return processable_data

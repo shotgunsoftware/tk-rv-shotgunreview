@@ -58,4 +58,8 @@ QToolButton#more_fields_button:menu-indicator, QToolButton#version_fields_button
     image: none;
 }
 
+QMenu::item#version_sort_menu:checked {
+    color: {{SG_HIGHLIGHT_COLOR}};
+}
+
 

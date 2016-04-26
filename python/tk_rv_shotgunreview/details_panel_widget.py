@@ -64,6 +64,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._pinned = False
         self._requested_entity = None
         self._current_entity = None
+        self._sort_versions_ascending = False
 
         self.ui = Ui_DetailsPanelWidget() 
         self.ui.setupUi(self)
@@ -137,7 +138,8 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.version_proxy_model = VersionSortFilterProxyModel(
             parent=self.ui.entity_version_view,
             filter_by_fields=self._version_list_persistent_fields,
-            sort_by_field="id",
+            sort_by_fields=["id"],
+            shotgun_field_manager=self._shotgun_field_manager,
         )
         self.version_proxy_model.setFilterWildcard("*")
         self.version_proxy_model.setSourceModel(self.version_model)
@@ -298,7 +300,14 @@ class DetailsPanelWidget(QtGui.QWidget):
             fields=self._fields,
         )
 
-        self.version_proxy_model.sort(0, QtCore.Qt.AscendingOrder)
+        self.version_proxy_model.sort(
+            0, 
+            (
+                QtCore.Qt.AscendingOrder if 
+                self._sort_versions_ascending else 
+                QtCore.Qt.DescendingOrder
+            ),
+        )
 
     def set_note_screenshot(self, image_path):
         """
@@ -382,6 +391,7 @@ class DetailsPanelWidget(QtGui.QWidget):
                         self,
                     )
                     new_action.setData(field_name)
+                    self._version_sort_menu_fields.addAction(new_action)
                     self._version_sort_menu.addAction(new_action)
             else:
                 self.version_delegate.remove_field(field_name)
@@ -394,6 +404,7 @@ class DetailsPanelWidget(QtGui.QWidget):
                     sort_actions = self._version_sort_menu.actions()
                     remove_action = [a for a in sort_actions if a.data() == field_name][0]
                     self._version_sort_menu.removeAction(remove_action)
+                    self._version_sort_menu_fields.removeAction(remove_action)
 
             self.version_proxy_model.filter_by_fields = self.version_delegate.fields
             self.version_proxy_model.setFilterWildcard(self.ui.version_search.search_text)
@@ -472,17 +483,39 @@ class DetailsPanelWidget(QtGui.QWidget):
         Sets up the sort-by menu in the Versions tab.
         """
         self._version_sort_menu = QtGui.QMenu(self)
+        self._version_sort_menu.setObjectName("version_sort_menu")
 
         ascending = QtGui.QAction("Sort Ascending", self)
         descending = QtGui.QAction("Sort Descending", self)
         ascending.setCheckable(True)
         descending.setCheckable(True)
         descending.setChecked(True)
-        ascending.setIcon(QtGui.QIcon(":tk-rv-shotgunreview/sort_up.png"))
-        descending.setIcon(QtGui.QIcon(":tk-rv-shotgunreview/sort_down.png"))
 
-        self._version_sort_menu_directions = [ascending, descending]
-        self._version_sort_menu.addActions(self._version_sort_menu_directions)
+        up_icon = QtGui.QIcon(":tk-rv-shotgunreview/sort_up.png")
+        up_icon.addPixmap(
+            QtGui.QPixmap(":tk-rv-shotgunreview/sort_up_on.png"),
+            QtGui.QIcon.Active,
+            QtGui.QIcon.On,
+        )
+
+        down_icon = QtGui.QIcon(":tk-rv-shotgunreview/sort_down.png")
+        down_icon.addPixmap(
+            QtGui.QPixmap(":tk-rv-shotgunreview/sort_down_on.png"),
+            QtGui.QIcon.Active,
+            QtGui.QIcon.On,
+        )
+
+        ascending.setIcon(up_icon)
+        descending.setIcon(down_icon)
+
+        self._version_sort_menu_directions = QtGui.QActionGroup(self)
+        self._version_sort_menu_fields = QtGui.QActionGroup(self)
+        self._version_sort_menu_directions.setExclusive(True)
+        self._version_sort_menu_fields.setExclusive(False)
+
+        self._version_sort_menu_directions.addAction(ascending)
+        self._version_sort_menu_directions.addAction(descending)
+        self._version_sort_menu.addActions([ascending, descending])
         self._version_sort_menu.addSeparator()
 
         for field_name in self._version_list_sort_by_fields:
@@ -501,9 +534,11 @@ class DetailsPanelWidget(QtGui.QWidget):
             action.setData(field_name)
             action.setCheckable(True)
             action.setChecked((field_name == "id"))
+            self._version_sort_menu_fields.addAction(action)
             self._version_sort_menu.addAction(action)
 
-        self._version_sort_menu.triggered.connect(self._sort_version_list)
+        self._version_sort_menu_directions.triggered.connect(self._toggle_sort_order)
+        self._version_sort_menu_fields.triggered.connect(self._sort_version_list)
         self.ui.version_sort_button.setMenu(self._version_sort_menu)
 
     def _show_version_context_menu(self, point):
@@ -584,6 +619,25 @@ class DetailsPanelWidget(QtGui.QWidget):
     ##########################################################################
     # version list actions
 
+    def _toggle_sort_order(self):
+        """
+        Toggles ascending/descending sort ordering in the version list view.
+        """
+        self._sort_versions_ascending = not self._sort_versions_ascending
+        self.version_proxy_model.sort(
+            0, 
+            (
+                QtCore.Qt.AscendingOrder if 
+                self._sort_versions_ascending else 
+                QtCore.Qt.DescendingOrder
+            ),
+        )
+
+        # We need to force a reselection after sorting. This will
+        # remove edit widgets and allow a full repaint of the view,
+        # and then reselect to go back to editing.
+        self.version_delegate.force_reselection()
+
     def _compare_with_current(self, versions):
         """
         Builds a new RV view that compares the given version entity
@@ -641,8 +695,20 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param action:  The QAction chosen by the user from the menu.
         """
         field = action.data() or "id"
-        self.version_proxy_model.sort_by_field = field
-        self.version_proxy_model.sort(0, QtCore.Qt.AscendingOrder)
+
+        if action.isChecked():
+            self.version_proxy_model.sort_by_fields.append(field)
+        else:
+            fields = self.version_proxy_model.sort_by_fields.remove(field)
+
+        self.version_proxy_model.sort(
+            0, 
+            (
+                QtCore.Qt.AscendingOrder if 
+                self._sort_versions_ascending else 
+                QtCore.Qt.DescendingOrder
+            ),
+        )
 
         # We need to force a reselection after sorting. This will
         # remove edit widgets and allow a full repaint of the view,

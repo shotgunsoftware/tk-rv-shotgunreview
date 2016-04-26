@@ -1,5 +1,7 @@
 <RCC>
   <qresource prefix="tk-rv-shotgunreview">
+    <file>sort_down_on.png</file>
+    <file>sort_up_on.png</file>
     <file>sort_down.png</file>
     <file>sort_up.png</file>
     <file>arrow.png</file>
