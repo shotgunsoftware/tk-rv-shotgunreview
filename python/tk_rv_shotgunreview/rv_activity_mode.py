@@ -390,6 +390,7 @@ class RvActivityMode(rv.rvtypes.MinorMode):
         rv.rvtypes.MinorMode.__init__(self)
         self._bundle = sgtk.platform.current_bundle()
         
+        self.cuts_action = None
         self.note_dock = None
         self.tray_dock = None
         self.tab_widget = None
@@ -470,7 +471,40 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
     ################################################################################### qt stuff down here. 
 
+    def show_cuts_action(self, show=True):
+        '''
+        Adds a cuts clapper button to the far left of the RV toolbar.
+        If show is false an attempt to remove any exisitng button is made.
+        '''
+        btb = rv.qtutils.sessionBottomToolBar()
+        actions = btb.actions()
+        text = "Enable Cuts"
+        if show:
+            cicon = QtGui.QIcon(":/tk-rv-shotgunreview/icon_player_cut_action_small_dark.png")
+            self.cuts_action = QtGui.QAction(cicon, text, btb)
+            self.cuts_action.triggered.connect(self.sample_cuts_action_listener)
+            btb.insertAction(actions[0],self.cuts_action)
+        else:
+            if (actions[0].text() == text):
+                btb.removeAction(actions[0])
+
+    def enable_cuts_action(self, enable=True):
+        '''
+        Enables cuts toolbar button. If enable is false the button
+        is disabled.
+        '''
+        self.cuts_action.setEnabled(enable)
+
+    def sample_cuts_action_listener(self):
+        '''
+        Sample cuts toolbar button listener
+        '''
+        print("Clapper clicked!")
+
     def submit_note_attachments (self, attachments):
+        '''
+        Send the created and collected annotation exports off for saving
+        '''
         self.details_panel.add_note_attachments(attachments)
 
     def load_data(self, entity):
@@ -490,6 +524,9 @@ class RvActivityMode(rv.rvtypes.MinorMode):
 
         self.related_cuts_menu = None
         
+        # Add a cuts button to the bottom toolbar
+        self.show_cuts_action(True)
+
         # Setup the details panel.
         self.details_panel = DetailsPanelWidget()
         self.note_dock.setWidget(self.details_panel)

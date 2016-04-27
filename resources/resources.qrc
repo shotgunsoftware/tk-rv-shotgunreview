@@ -3,11 +3,12 @@
     <file>blank.png</file>
     <file>close.png</file>
     <file>close_hover.png</file>
-    <file>undock.png</file>
-    <file>undock_hover.png</file>
+    <file>icon_player_cut_action_small_dark.png</file>
+    <file>navigate_out.png</file>
     <file>navigate_out_hover.png</file>
     <file>tack_hover.png</file>
-    <file>navigate_out.png</file>
     <file>tack_up.png</file>
+    <file>undock.png</file>
+    <file>undock_hover.png</file>
   </qresource>
 </RCC>
