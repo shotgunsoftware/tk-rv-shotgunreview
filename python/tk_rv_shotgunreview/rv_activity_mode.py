@@ -159,8 +159,7 @@ class RvActivityMode(rvt.MinorMode):
     def replaceWithSelected(self, event):
         try:
             data = json.loads(event.contents())[0]
-            self.target_entity = data
-            self.load_tray_with_version_ids([data["id"]])
+            self.load_tray_with_something_new(data)
         except Exception as e:
             print "ERROR: replaceWithSelected %r" % e
         finally:
@@ -784,6 +783,11 @@ class RvActivityMode(rvt.MinorMode):
     def on_filter_refreshed(self, really_changed):
         self._app.engine.log_info("on_filter_refreshed: really_changed is %r" % really_changed)
         if really_changed:
+            # XXX this will rely on self.target_entity still being set
+            # correctly _and_ on us still looking at the corresponding node.
+            # maybe we should be constructing a target_entity here from
+            # whatever node we are looking at now ?   And not do anything if
+            # it's not a Cut node, etc ...
             self.on_data_refreshed(True)
 
     def filter_tray(self):
@@ -935,44 +939,21 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
 
-        try:
+        #try:
+        if(True):
             
-            d = json.loads(event.contents())
-            # we save the request so that we know what exactly was requested
-            # when we get down to loading the tray asynchronously
-            self.target_entity = d
-            self.target_entity["server"] = self._app.tank.shotgun_url
+            target_entity = json.loads(event.contents())
 
-            type_string = d["type"]
-            if "ids" in d and len(d["ids"]) > 1:
-                type_string += "s"
-            rve.displayFeedback("Loading " + type_string +  " ...", 6.5)
+            # XXX should check here that incoming server matches server to
+            # which we are currently authenticated
+            target_entity["server"] = self._app.tank.shotgun_url
 
-            if d['type'] == "Cut":
-                # self.tray_dock.setVisible(True)
-                self.tray_dock.show()
-                self.load_tray_with_cut_id(d['id'])
-            if d['type'] == "Version":
-                if "ids" in d:
-                    ids = d["ids"]
-                else:
-                    ids = [ d["id"] ]
-                self.load_tray_with_version_ids(ids)
+            self.load_tray_with_something_new(target_entity)
 
-            if d['type'] == "Playlist":
-                self.tray_dock.show()
-                # self.tray_dock.setVisible(True)
-                # playlist = self._bundle.shotgun.find_one("Playlist", [['id', 'is', d['id']]], fields=['versions'])
-                # print "PLAYLIST: %r" % playlist
-                # for v in playlist['versions']:
-                #     p = self._bundle.shotgun.find_one("Version", [['id', 'is', v['id']]], fields=['sg_path_to_frames'])
-                #     print p
-                #plist = self._bundle.shotgun.find("Version", [["playlists", "is", {"type": "Playlist", "id": d["id"]}]], fields=['sg_path_to_frames'])
-                #print "PLIST: %r" % plist
-                self.load_tray_with_playlist_id(d['id'])
-
+        """
         except Exception as e:
             print "ERROR: on_id_from_gma %r" % e
+            """
 
     def replace_version_in_sequence(self, versions):
         self._app.engine.log_info('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
@@ -1124,19 +1105,50 @@ class RvActivityMode(rvt.MinorMode):
 
         # rvc.setFrame(shot_start + shot_offset)
 
+    def load_tray_with_something_new(self, target_entity):
+
+        # notify user we're loading ...
+        type_string = target_entity["type"]
+        if "ids" in target_entity and len(target_entity["ids"]) > 1:
+            type_string += "s"
+        rve.displayFeedback("Loading " + type_string +  " ...", 6.5)
+
+        # XXX get rid of "id"
+        if "id" in target_entity and "ids" not in target_entity:
+            target_entity["ids"] = [ target_entity["id"] ]
+        self.target_entity = target_entity
+
+        t_type = target_entity["type"]
+
+        if   t_type == "Version":
+            self.load_tray_with_version_ids(target_entity["ids"])
+        elif t_type == "Playlist":
+            self.load_tray_with_playlist_id(target_entity["ids"][0])
+        elif t_type == "Cut":
+            self.load_tray_with_cut_id(target_entity["ids"][0])
+        else:
+            self._app.engine.log_error("Tray does not support entity type '%s'." % t_type)
+        
     def load_tray_with_version_ids(self, ids):
         vfilters = [["id", "in", ids]]
         vfields =  [ "project", "playlists", "image" ] + required_version_fields
         self.tray_model.load_data(entity_type="Version", filters=vfilters, fields=vfields)
 
     def load_tray_with_playlist_id(self, playlist_id=None):
+        #  XXX need to figure out rules for hide/show tray, centralize
+        self.tray_dock.show()
+
         plist_filters = [["playlists", "is", {"type": "Playlist", "id": playlist_id}]]
         plist_fields =  [ "project", "playlists", "image" ] + required_version_fields
         self.tray_model.load_data(entity_type="Version", filters=plist_filters, fields=plist_fields)
 
     def load_tray_with_cut_id(self, cut_id=None):
         self._app.engine.log_info('load_tray_with_cut_id %r' % QtCore.QThread.currentThread() )
+
+        #  XXX need to figure out rules for hide/show tray, centralize
+        self.tray_dock.show()
         
+        # XXX we shouldn't be storing this here, come back to this
         if cut_id:
             self.tray_cut_id = cut_id
         
@@ -1358,7 +1370,7 @@ class RvActivityMode(rvt.MinorMode):
         self._app.engine.log_info("handle_related_menu called with action %r" % action)
         if action.data():
             self._app.engine.log_info("action.data: %r" % action.data()) 
-            self.load_tray_with_cut_id(action.data()['id'])
+            self.load_tray_with_something_new({"type":"Cut", "ids":[action.data()['id']]})
 
     def request_related_cuts_from_models(self):
         self._app.engine.log_info( "request_related_cuts_from_model" )
@@ -1371,7 +1383,7 @@ class RvActivityMode(rvt.MinorMode):
 
 
         cut_link = seq_data['entity']
-        cut_id   = seq_data["target_entity"]["id"]
+        cut_id   = seq_data["target_entity"]["ids"][0]
 
         version_data = self.version_data_from_source()
         if version_data:
@@ -1406,7 +1418,7 @@ class RvActivityMode(rvt.MinorMode):
         #     self.related_cuts_menu.clear()
 
         seq_data = self.sequence_data_from_session()
-        cut_id = seq_data["target_entity"]["id"] if seq_data else None
+        cut_id = seq_data["target_entity"]["ids"][0] if seq_data else None
 
         seq_cuts = self._popup_utils.merge_rel_models_for_menu()
         if seq_cuts == self.last_related_cuts:
@@ -1607,7 +1619,7 @@ class RvActivityMode(rvt.MinorMode):
         # XXX handle subTarget, target_entity["server"]
 
         t_type = target_entity["type"]
-        t_id   = target_entity["id"]
+        t_id   = target_entity["ids"][0]
 
         for s in rvc.nodesOfType("RVSequenceGroup"):
             # for Playlist and Cut, we stick with one Sequence node per entity.
@@ -1684,7 +1696,7 @@ class RvActivityMode(rvt.MinorMode):
             data["ui_name"] = sg_item["cut.Cut.cached_display_name"]
             data["entity"]  = sg_item["cut.Cut.entity"]
         elif target_entity["type"] == "Playlist":
-            data["ui_name"] = "Playlist %d" % target_entity["id"]
+            data["ui_name"] = "Playlist %d" % target_entity["ids"][0]
             data["entity"]  = "No Entity"
         elif target_entity["type"] == "Version":
             data["ui_name"] = "%d Versions" % len(target_entity.get("ids", [1]))
@@ -1717,10 +1729,9 @@ class RvActivityMode(rvt.MinorMode):
         version_data = {}
         edit_data = {}
 
-        # We prefer the Version attached to the CutItem, and fallback to the
-        # one attached to the Cut.   XXX eventually we will start with any
-        # Version that results from filtering, fallback to the CutItem Version,
-        # then to the Cut Version.
+        # We prefer the Version that resulted from filtering, fall back to the
+        # one attached to the CutItem, then fallback to the one attached to the
+        # Cut. 
 
         if   rv and rv.get("id"):
 
