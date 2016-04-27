@@ -137,10 +137,10 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.version_model = shotgun_model.SimpleShotgunModel(self.ui.entity_version_tab)
         self.version_proxy_model = VersionSortFilterProxyModel(
             parent=self.ui.entity_version_view,
-            filter_by_fields=self._version_list_persistent_fields,
-            sort_by_fields=["id"],
             shotgun_field_manager=self._shotgun_field_manager,
         )
+        self.version_proxy_model.filter_by_fields = self._version_list_persistent_fields
+        self.version_proxy_model.sort_by_fields = self._version_list_sort_by_fields
         self.version_proxy_model.setFilterWildcard("*")
         self.version_proxy_model.setSourceModel(self.version_model)
         self.ui.entity_version_view.setModel(self.version_proxy_model)
@@ -391,8 +391,10 @@ class DetailsPanelWidget(QtGui.QWidget):
                         self,
                     )
                     new_action.setData(field_name)
+                    new_action.setCheckable(True)
                     self._version_sort_menu_fields.addAction(new_action)
                     self._version_sort_menu.addAction(new_action)
+                    self._sort_version_list()
             else:
                 self.version_delegate.remove_field(field_name)
 
@@ -403,6 +405,14 @@ class DetailsPanelWidget(QtGui.QWidget):
                     self._version_list_sort_by_fields.remove(field_name)
                     sort_actions = self._version_sort_menu.actions()
                     remove_action = [a for a in sort_actions if a.data() == field_name][0]
+
+                    # If it's the current primary sort field, then we need to
+                    # fall back on "id" to take its place.
+                    if remove_action.isChecked():
+                        actions = self._version_sort_menu_fields.actions()
+                        id_action = [a for a in actions if a.data() == "id"][0]
+                        id_action.setChecked(True)
+                        self._sort_version_list(id_action)
                     self._version_sort_menu.removeAction(remove_action)
                     self._version_sort_menu_fields.removeAction(remove_action)
 
@@ -511,7 +521,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._version_sort_menu_directions = QtGui.QActionGroup(self)
         self._version_sort_menu_fields = QtGui.QActionGroup(self)
         self._version_sort_menu_directions.setExclusive(True)
-        self._version_sort_menu_fields.setExclusive(False)
+        self._version_sort_menu_fields.setExclusive(True)
 
         self._version_sort_menu_directions.addAction(ascending)
         self._version_sort_menu_directions.addAction(descending)
@@ -519,13 +529,10 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._version_sort_menu.addSeparator()
 
         for field_name in self._version_list_sort_by_fields:
-            if field_name == "id":
-                display_name = "Age"
-            else:
-                display_name = shotgun_globals.get_field_display_name(
-                    "Version",
-                    field_name,
-                )
+            display_name = shotgun_globals.get_field_display_name(
+                "Version",
+                field_name,
+            )
 
             action = QtGui.QAction(display_name, self)
 
@@ -685,7 +692,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             json.dumps(versions),
         )
 
-    def _sort_version_list(self, action):
+    def _sort_version_list(self, action=None):
         """
         Sorts the version list by the field chosen in the sort-by
         menu. This also triggers a reselection in the view in
@@ -694,12 +701,13 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         :param action:  The QAction chosen by the user from the menu.
         """
-        field = action.data() or "id"
-
-        if action.isChecked():
-            self.version_proxy_model.sort_by_fields.append(field)
-        else:
-            fields = self.version_proxy_model.sort_by_fields.remove(field)
+        if action:
+            # The action group containing these actions is set to
+            # exclusive activation, so we're always dealing with a
+            # checked action when this slot is called. We can just
+            # set the primary sort field, sort, and move on.
+            field = action.data() or "id"
+            self.version_proxy_model.primary_sort_field = field
 
         self.version_proxy_model.sort(
             0, 

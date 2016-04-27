@@ -28,18 +28,16 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
     data in a ShotgunModel by given Shotgun fields on the entities
     stored therein.
 
-    :ivar filter_by_fields: A list of string Shotgun field names to filter on.
-    :ivar sort_by_field:    A string Shotgun field name to sort by.
+    :ivar filter_by_fields:     A list of string Shotgun field names to filter on.
+    :ivar sort_by_fields:       A list of string Shotgun field names to sort by.
+    :ivar primary_sort_field:   A string Shotgun field name that acts as the primary
+                                field to sort on.
     """
-    def __init__(self, parent, filter_by_fields, sort_by_fields, shotgun_field_manager=None):
+    def __init__(self, parent, shotgun_field_manager=None):
         """
         Initializes a new VersionSortFilterProxyModel.
 
         :param parent:                  The Qt parent of the proxy model.
-        :param filter_by_fields:        A list of string Shotgun field names
-                                        to filter on.
-        :param sort_by_fields:          A list of string Shotgun field names to sort
-                                        by.
         :param shotgun_field_manager:   An option ShotgunFieldManager object, which will
                                         be used to aid in filtering against certain types
                                         of fields. If not provided, what is searched for
@@ -48,8 +46,9 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
         """
         super(VersionSortFilterProxyModel, self).__init__(parent)
 
-        self.filter_by_fields = list(filter_by_fields)
-        self.sort_by_fields = list(sort_by_fields)
+        self.filter_by_fields = ["id"]
+        self.sort_by_fields = ["id"]
+        self.primary_sort_field = "id"
         self.shotgun_field_manager = shotgun_field_manager
 
     def lessThan(self, left, right):
@@ -73,21 +72,35 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
         # and right in the list, and we have no way to tell Qt that they're
         # equal. That's going to be consistent across Qt, though, so nothing
         # we can/should do about it.
-        for sort_by_field in self.sort_by_fields:
-            left_data = self._get_processable_field_data(sg_left, sort_by_field)
-            right_data = self._get_processable_field_data(sg_right, sort_by_field)
+        #
+        # We push the primary sort field to the beginning of the list of
+        # fields that we're going to sort on, then least the rest in their
+        # existing order to act as secondary sort fields.
+        secondary_sort_fields = [f for f in self.sort_by_fields if f != self.primary_sort_field]
 
+        # We are also going to shove "id" to the end of the secondary list
+        # if it is present. This is because it will never be equal between
+        # two entities, and thus will act as a wall to any secondary fields
+        # we might want to sort by lower in the list. As such, we'll treat
+        # it as the lowest priority.
+        if "id" in secondary_sort_fields:
+            secondary_sort_fields = [f for f in secondary_sort_fields if f != "id"] + ["id"]
+
+        sort_fields = [self.primary_sort_field] + secondary_sort_fields
+
+        for sort_by_field in sort_fields:
             try:
-                if left_data == right_data:
-                    continue
-                elif left_data < right_data:
-                    continue
-                else:
-                    return False
+                left_data = self._get_processable_field_data(sg_left, sort_by_field)
+                right_data = self._get_processable_field_data(sg_right, sort_by_field)
             except KeyError:
-                pass
+                continue
 
-        return True
+            if left_data == right_data:
+                continue
+            else:
+                return (left_data < right_data)
+
+        return False
 
     def filterAcceptsRow(self, row, source_parent):
         """
@@ -115,23 +128,23 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
         for field in self.filter_by_fields:
             try:
                 match_data = self._get_processable_field_data(sg_data, field)
-
-                # No support for boolean fields.
-                if isinstance(match_data, bool):
-                    continue
-
-                # We'll make this a looser match by making it case insensitive
-                # and bounding it with wildcards. This makes using the search
-                # feature much more like a "search" and less like a regex
-                # experiment.
-                regex = self.filterRegExp()
-                regex.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
-                regex.setPattern("*%s*" % regex.pattern())
-
-                if regex.exactMatch(str(match_data)):
-                    return True
             except KeyError:
-                pass
+                continue
+
+            # No support for boolean fields.
+            if isinstance(match_data, bool):
+                continue
+
+            # We'll make this a looser match by making it case insensitive
+            # and bounding it with wildcards. This makes using the search
+            # feature much more like a "search" and less like a regex
+            # experiment.
+            regex = self.filterRegExp()
+            regex.setCaseSensitivity(QtCore.Qt.CaseInsensitive)
+            regex.setPattern("*%s*" % regex.pattern())
+
+            if regex.exactMatch(str(match_data)):
+                return True
 
         return False
 
@@ -157,7 +170,17 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
         if data_type == "entity":
             processable_data = sg_data[field]["name"]
         elif data_type == "status_list":
-            processable_data = shotgun_globals.get_status_display_name(sg_data[field])
+            status_name = shotgun_globals.get_status_display_name(sg_data[field])
+            statuses = shotgun_globals.get_ordered_status_list(display_names=True)
+            try:
+                processable_data = statuses.index(status_name)
+            except Exception:
+                # This is unlikely to ever be the case unless there's
+                # possibly a status cache sync issue, but if it does
+                # we can just give it a number less than 0 so that a
+                # status that we don't have information on will just
+                # end up sorting before the others.
+                processable_data = -1
         elif data_type == "multi_entity":
             processable_data = "".join([e.get("name", "") for e in sg_data[field]])
         elif data_type == "date_time":
