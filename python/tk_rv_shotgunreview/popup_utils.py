@@ -9,6 +9,26 @@ shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "sho
 from .filter_steps_model import FilterStepsModel
 from .rel_cuts_model import RelCutsModel
 from .rel_shots_model import RelShotsModel
+from .filtered_versions_model import FilteredVersionsModel
+
+
+# XXX not sure how to share this? copied from the mode
+required_version_fields = [
+    "code",
+    "id",
+    "entity",
+    "sg_first_frame",
+    "sg_last_frame",
+    "sg_frames_aspect_ratio",
+    "sg_frames_have_slate",
+    "sg_movie_aspect_ratio",
+    "sg_movie_has_slate",
+    "sg_path_to_frames",
+    "sg_path_to_movie",
+    "sg_status_list",
+    "sg_uploaded_movie_frame_rate"
+    ]
+
 
 class PopupUtils(QtCore.QObject):
 
@@ -34,6 +54,8 @@ class PopupUtils(QtCore.QObject):
         self._last_rel_shot_entity = None
         self._last_rel_cut_entity = None
 
+        # models
+
         self._steps_task_manager = task_manager.BackgroundTaskManager(parent=None,
                                                                     start_processing=True,
                                                                     max_threads=2)
@@ -50,15 +72,26 @@ class PopupUtils(QtCore.QObject):
                                                                     start_processing=True,
                                                                     max_threads=2)
 
-        self._rel_shots_model = RelShotsModel(None, self._rel_cuts_task_manager)
+        self._rel_shots_model = RelShotsModel(None, self._rel_shots_task_manager)
 
         
+        self._filtered_versions_task_manager = task_manager.BackgroundTaskManager(parent=None,
+                                                                    start_processing=True,
+                                                                    max_threads=2)
+
+        self._filtered_versions_model = FilteredVersionsModel(None, self._filtered_versions_task_manager)
+
         # connections
+        
         self._rel_cuts_model.data_refreshed.connect(self.on_rel_cuts_refreshed)
         self._rel_shots_model.data_refreshed.connect(self.on_rel_shots_refreshed)
         
         self._steps_model.data_refreshed.connect(self.handle_pipeline_steps_refreshed)
         self.related_cuts_ready.connect(self.create_related_cuts_from_models)
+
+        self._filtered_versions_model.data_refreshed.connect(self.filter_tray)
+
+    # related cuts menu menthods
 
     def find_rel_cuts_with_model(self, entity_in, shot_entity=None):
         """
@@ -141,13 +174,11 @@ class PopupUtils(QtCore.QObject):
             self.find_rel_cuts_with_model(cut_link, version_link['shot'])
             return
 
-
     def handle_related_menu(self, action=None):
         self._engine.log_info("handle_related_menu called with action %r" % action)
         if action.data():
             self._engine.log_info("action.data: %r" % action.data()) 
             self._rv_mode.load_tray_with_something_new({"type":"Cut", "ids":[action.data()['id']]})
-
 
     def on_rel_cuts_refreshed(self):
         self._rel_cuts_done = True
@@ -216,7 +247,6 @@ class PopupUtils(QtCore.QObject):
 
         return sorted_cuts
  
-
     def create_related_cuts_from_models(self):
         self._engine.log_info( "create_related_cuts_from_models")
         if not self._related_cuts_menu:
@@ -298,10 +328,7 @@ class PopupUtils(QtCore.QObject):
             last_menu.addAction(action)
             last_code = x['code']
 
-
-
-
-
+    # approval status menu methods
 
     def get_status_list(self, project_entity=None):
         """
@@ -368,7 +395,6 @@ class PopupUtils(QtCore.QObject):
             action.setData(status)
             menu.addAction(action)
 
-
     def handle_status_menu(self, event):
         print "handle_status_menu event: %r" % event.data()
         # if 'any status' is picked, then the other
@@ -401,14 +427,15 @@ class PopupUtils(QtCore.QObject):
         if count > 1:
             self._tray_frame.status_filter_button.setText("%d Statuses" % count)
         
-        self._rv_mode.filter_tray()
+        self.request_versions_for_statuses_and_steps()
+
+    # pipeline steps menu
 
     def get_pipeline_steps_with_model(self):
         step_filters = [['entity_type', 'is', 'Shot' ]]
         step_fields = ['code', 'list_order', 'short_name', 'id', 'cached_display_name']
         step_orders = [ {'field_name': 'list_order', 'direction': 'desc'} ]
         self._steps_model.load_data(entity_type="Step", filters=step_filters, fields=step_fields, order=step_orders)        
-
 
     def handle_pipeline_steps_refreshed(self, refreshed):
         """
@@ -478,6 +505,75 @@ class PopupUtils(QtCore.QObject):
             self._tray_frame.pipeline_filter_button.setText(name)
         if count > 1:
             self._tray_frame.pipeline_filter_button.setText("%d steps" % count)
-        self._rv_mode.filter_tray()
+        self.request_versions_for_statuses_and_steps()
 
+    # methods for 'the crazy query', find versions that match criteria in steps and statuses
 
+    def filter_tray(self):
+
+        rows = self._filtered_versions_model.rowCount()
+        if rows < 1:
+            self._engine.log_warning( "Filtering query returned nothing." )
+            return None
+
+        shot_map = {}
+        for x in range(0, rows):
+            item = self._filtered_versions_model.index(x, 0)
+            sg = shotgun_model.get_sg_data(item)
+            shot_map[sg['entity']['id']] = sg 
+
+        # roll thru the tray and replace
+        rows = self._tray_frame.tray_proxyModel.rowCount()
+        if rows < 1:
+             self._engine.log_warning( "Tray is empty." )
+             return None
+
+        for x in range(0,rows):
+            item = self._tray_frame.tray_proxyModel.index(x, 0)
+            sg = shotgun_model.get_sg_data(item)
+            # cut item may not be linked to shot
+            if sg['shot'] and sg['shot']['id'] in shot_map:
+                v = shot_map[sg['shot']['id']]
+                self._tray_frame.tray_delegate.update_rv_role(item, v)
+            else:
+                self._tray_frame.tray_delegate.update_rv_role(item, None)
+
+        self._tray_frame.tray_model.notify_filter_data_refreshed(True)
+
+    def get_tray_filters(self):
+        rows = self._tray_frame.tray_proxyModel.rowCount()
+        if rows < 1:
+            return []
+        shot_list = []
+        for x in range(0,rows):
+            item = self._tray_frame.tray_proxyModel.index(x, 0)
+            sg = shotgun_model.get_sg_data(item)
+            if sg['shot']:
+                # cut item may not be linked to shot
+                shot_list.append(sg['shot'])
+        entity_list = [ 'entity', 'in', shot_list ]
+        if self._status_list and self._pipeline_steps:
+            status_list = ['sg_status_list', 'in', self._status_list ]
+            step_list = ['sg_task.Task.step', 'in', self._pipeline_steps]
+            filters = [ step_list, status_list, entity_list ]
+            return filters
+        if self._status_list:
+            status_list = ['sg_status_list', 'in', self._status_list ]
+            filters = [ status_list, entity_list ]
+            return filters
+        if self._pipeline_steps:
+            step_list = ['sg_task.Task.step', 'in', self._pipeline_steps]
+            filters = [ step_list, entity_list ]
+            return filters
+        return []
+
+    def request_versions_for_statuses_and_steps(self):
+        full_filters = self.get_tray_filters()
+        version_fields = ["image"] + required_version_fields
+        version_filter_presets = [
+                {"preset_name": "LATEST", "latest_by": "BY_PIPELINE_STEP_NUMBER_AND_ENTITIES_CREATED_AT" }
+            ]
+
+        self._filtered_versions_model.load_data(entity_type='Version', filters=full_filters, 
+            fields=version_fields, additional_filter_presets=version_filter_presets)
+        
