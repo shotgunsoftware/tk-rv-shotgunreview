@@ -14,16 +14,21 @@ class PopupUtils(QtCore.QObject):
 
     related_cuts_ready = QtCore.Signal()
 
-    def __init__(self, engine, shotgun, project_entity):
+    def __init__(self, rv_mode):
         QtCore.QObject.__init__(self)
-        self._engine = engine
-        self._shotgun = shotgun
-        self._project_entity = project_entity
+        self._engine = rv_mode._app.engine
+        self._shotgun = rv_mode._bundle.shotgun
+        self._project_entity = rv_mode.project_entity
         self._sequence_cuts = []
         self._sequence_entity = None
         self._shot_steps = None
         self._status_schema = None
-        # self._steps_list = QtGui.QListView()
+        self._tray_frame = rv_mode.tray_main_frame
+        self._status_menu = None
+        self._status_list = []
+        self._rv_mode = rv_mode
+        self._pipeline_steps_menu = None
+        self._pipeline_steps = []
 
         self._steps_task_manager = task_manager.BackgroundTaskManager(parent=None,
                                                                     start_processing=True,
@@ -43,49 +48,26 @@ class PopupUtils(QtCore.QObject):
 
         self._rel_shots_model = RelShotsModel(None, self._rel_cuts_task_manager)
 
+        
+        # connections
         self._rel_cuts_model.data_refreshed.connect(self.on_rel_cuts_refreshed)
         self._rel_shots_model.data_refreshed.connect(self.on_rel_shots_refreshed)
-        # self._related_timer = QTimer(rv.qtutils.sessionWindow())
-        # self.connect(self._related_timer, SIGNAL("timeout()"), self.watch_rel_models)
- 
-     
-    def cached_find_cuts(self, conditions):
-        # conditions is an array, with 3 vals
-        # [ <field>, 'is', dict ]
-        if conditions[2]['type'] == 'Sequence' or conditions[2]['type'] == 'Scene':
-            if self._sequence_entity:
-                if self._sequence_entity['id'] != conditions[2]['id']:
-                    self._sequence_entity =  conditions[2]
-                    self._sequence_cuts = self.find_cuts(conditions)
-                else:
-                    return self._sequence_cuts
-            else:
-                self._sequence_entity = conditions[2]
-                self._sequence_cuts = self.find_cuts(conditions)
+        
+        self._steps_model.data_refreshed.connect(self.handle_pipeline_steps_refreshed)
+        
 
-            return self._sequence_cuts
-        else:
-            # not something we cache anyway
-            return self.find_cuts(conditions)
-
-    def find_cuts(self, conditions):
+    def find_rel_cuts_with_model(self, entity_in, shot_entity=None):
+        """
+        This initiates two queries, one for all related cuts, and the other
+        for all related cuts that the shot_entity is in.
+        
+        XXX we might call this without the shot_entity if we are playing?
+        """
         # conditions is an array, with 3 vals
         # [ <field>, 'is', dict ]
         # ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
         # ['cut_items.CutItem.shot', 'is', {'type': 'Shot', 'id': 1237}]
-        print "DB CALL: find_cuts with conditions: %r" % conditions
-        cuts = self._shotgun.find('Cut',
-                filters=[ conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]],
-                fields=['id', 'entity', 'code', 'cached_display_name'],
-                order=[
-                    {'field_name': 'code', 'direction': 'asc'}, 
-                    {'field_name': 'cached_display_name', 'direction': 'asc'}
-                    ])
-       
-        return cuts
-
-    def find_rel_cuts_with_model(self, entity_in, shot_entity):
-        print "find_rel_cuts_with_model %r %r %r" % (entity_in, shot_entity, self._project_entity['id'])
+        # print "find_rel_cuts_with_model %r %r %r" % (entity_in, shot_entity, self._project_entity['id'])
         self._rel_cuts_done = False
         self._rel_shots_done = False
 
@@ -99,6 +81,9 @@ class PopupUtils(QtCore.QObject):
         self._rel_cuts_model.load_data(entity_type="Cut", filters=cut_filters, fields=cut_fields, order=cut_orders)        
 
         if not shot_entity:
+            # XXX if there is no shot, then clear the shot model and set the shots done
+            self._rel_shots_model.clear()
+            self._rel_shots_done = True
             return
 
         shot_conditions = ['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }]
@@ -113,7 +98,6 @@ class PopupUtils(QtCore.QObject):
 
 
     def on_rel_cuts_refreshed(self):
-        print "on_rel_cuts_refreshed"
         self._rel_cuts_done = True
         if self._rel_cuts_done and self._rel_shots_done:
             self._rel_shots_done = False
@@ -121,18 +105,28 @@ class PopupUtils(QtCore.QObject):
             self.related_cuts_ready.emit()
 
     def on_rel_shots_refreshed(self):
-        print "on_rel_shots_refreshed"
         self._rel_shots_done = True
         if self._rel_cuts_done and self._rel_shots_done:
             self._rel_shots_done = False
             self._rel_cuts_done = False
             self.related_cuts_ready.emit()
         
-
     def set_project(self, entity):
+        # XXX invalidate queries? auto-load status? 
         self._project_entity = entity
 
     def merge_rel_models_for_menu(self):
+        """
+        - examine the contents of the shot model and build a map keyed on related shot cut id,
+          and an array of related shot cut ids.
+        - build an array from the contents of the cuts model,
+          and an array of cut ids.
+        - if there are ids in the related shots model not present in the related cuts, add them.
+        - sort the merged cuts array by the 'cached_display_name' field.
+        - examine the sorted array for duplicate 'code' fields. this indicates that several cuts
+          are 'revisions' and need to be grouped by this code. add a 'count' column to the dict
+          so that the menu creation code can group these together in a sub-menu.
+        """
         shot_map = {}
         shot_ids = []
 
@@ -157,10 +151,8 @@ class PopupUtils(QtCore.QObject):
             if n not in seq_ids:
                 seq_cuts.append(shot_map[n])
 
-        # resort seq_cuts by 'code'
         sorted_cuts = sorted(seq_cuts, key=lambda x: x['cached_display_name'], reverse=False)
  
-        # count the dups
         dup_map = {}
         for x in sorted_cuts:
             if x['code'] not in dup_map:
@@ -171,81 +163,38 @@ class PopupUtils(QtCore.QObject):
             x['count'] = dup_map[x['code']]
 
         return sorted_cuts
-
-
-    def merge_cuts_for_menu(self, seq_cuts, shot_cuts):
-
-        shot_map = {}
-        shot_ids = []
-
-        if shot_cuts:
-            for x in shot_cuts:
-                shot_ids.append(x['id'])
-                shot_map[x['id']] = x
-        
-        seq_ids = []
-        for x in seq_cuts:
-            seq_ids.append(x['id'])
-
-        for n in shot_ids:
-            if n not in seq_ids:
-                seq_cuts.append(shot_map[n])
-
-        # resort seq_cuts by 'code'
-        sorted_cuts = sorted(seq_cuts, key=lambda x: x['cached_display_name'], reverse=False)
  
-        # count the dups
-        dup_map = {}
-        for x in sorted_cuts:
-            if x['code'] not in dup_map:
-                dup_map[x['code']] = 1
-            else:
-                dup_map[x['code']] = dup_map[x['code']] + 1
-        for x in sorted_cuts:
-            x['count'] = dup_map[x['code']]
-
-        # print "merge_cuts_for_menu:"
-        # for x in sorted_cuts:
-        #     for keys in x:
-        #         print "\t%r: %r" % (keys, x[keys])
-        #     print "-----------------------------------"
-        # print "%d ENTRIES IN SORTED" % len(sorted_cuts)
-        return sorted_cuts
-
-    # Pipeline filtering
-
-    def get_pipeline_steps_with_model(self):
-        step_filters = [['entity_type', 'is', 'Shot' ]]
-        step_fields = ['code', 'list_order', 'short_name', 'id', 'cached_display_name']
-        step_orders = [ {'field_name': 'list_order', 'direction': 'desc'} ]
-        self._steps_model.load_data(entity_type="Step", filters=step_filters, fields=step_fields, order=step_orders)        
 
     def get_status_list(self, project_entity=None):
-        print "get_status_list %r" % project_entity
-        if project_entity:
-            if project_entity['id'] != self._project_entity['id']:
-                self._project_entity = project_entity
-                project_id = self._project_entity['id']
-                print "DB CALL: get_status_list - new project id"
-                self._status_schema = self._shotgun.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
-        
-        if not self._status_schema:
-            project_id = self._project_entity['id']
-            print "DB CALL: get_status_list - load schema"
-            self._status_schema = self._shotgun.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
+        """
+        This query needs to be run only when the project changes.
+        We cache the last query in memory.
+        """
+        # XXX - cache all queries in a map for bouncing between projects?
+        if not project_entity:
+            project_entity = self._project_entity
 
+        if not self._status_schema or project_entity['id'] != self._project_entity['id']:
+            self._project_entity = project_entity
+            project_id = self._project_entity['id']
+            self._status_schema = self._shotgun.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
+                
+        return self._status_schema
+
+    def get_status_menu(self, project_entity=None):
+        """
+            status_schema is a large, complicated dictionary of dictionaries.
+            this method extracts the bits we are interested in, and builds
+            a list of them. 
+            below are some examples of interesting things in the schema:
+        """
         # print "status_list: %r" % self._status_schema['sg_status_list']
         # print "properties: %r" % self._status_schema['sg_status_list']['properties']
         # print "values: %r" % self._status_schema['sg_status_list']['properties']['valid_values']['value']
-        #for x in self._status_schema['sg_status_list']:
+        # for x in self._status_schema['sg_status_list']:
             #print "%r" % x
         # print "display values: %r" % self._status_schema['sg_status_list']['properties']['display_values']['value']
-
-        return self._status_schema
-        #shot_filters = None
-        #self.request_data(shot_filters)
-
-    def get_status_menu(self, project_entity=None):
+        
         s = self.get_status_list(project_entity)
         d = s['sg_status_list']['properties']['display_values']['value']
         status_list = []
@@ -255,243 +204,177 @@ class PopupUtils(QtCore.QObject):
             status_list.append(e)
         return status_list
 
+    def build_status_menu(self):
+        statii = self.get_status_menu(self._project_entity)
+        if not self._status_menu:
+            self._status_menu = QtGui.QMenu(self._tray_frame.status_filter_button)
+            self._tray_frame.status_filter_button.setMenu(self._status_menu)        
+            self._status_menu.triggered.connect(self.handle_status_menu)
+        menu = self._status_menu
+        menu.clear()
+        action = QtGui.QAction(self._tray_frame.status_filter_button)
+        action.setCheckable(True)
+        action.setChecked(False)
+        action.setText('Any Status')
+        # XXX what object here?
+        action.setData(None)
+        menu.addAction(action)
+        menu.addSeparator()
 
-    ##################################################################################################################
-
-    ##################################################################################################################
-    # popup right side menu stuff from eric BELOW  ... tested but not integrated yet.
-
-    ##########################################################
-    # the following came from cuts_helpers.js
-    ##########################################################
-    def get_default_version_entity_for_cut_item(self, cut_item, parent_cut):
-        version = cut_item.get('version')
-        if ( version == None ):
-            if ( parent_cut and parent_cut.type == 'Cut' ):
-                # If there is a cut, let's see if it has a version
-                version = parent_cut.get('version')
-                if version != None:
-                    # for some reason the javascript code already has the status set in the entity hash!
-                    # but in python we don't :-(
-                    # The following will probably not work since we didnt query for that field on the parent cut!
-                    # version['status'] = parent_cut.get('version.Version.sg_status_list')
-                    version['status'] = 'Unknown'
-        else:
-            # for some reason the javascript code already has the status set in the entity hash!
-            # but in python we don't :-(
-            version['status'] = cut_item.get('version.Version.sg_status_list')
-
-        return version
+        for status in statii:
+            action = QtGui.QAction(self._tray_frame.status_filter_button)
+            action.setCheckable(True)
+            action.setChecked(False)
+            for x in status:
+                action.setText(status[x])
+            action.setData(status)
+            menu.addAction(action)
 
 
-    # I dont really use this one but...
-    def get_version_image_for_record(self, record, parent_record):
-        # If no valid version is in record, return -1
-        image = None
+    def handle_status_menu(self, event):
+        print "handle_status_menu event: %r" % event.data()
+        # if 'any status' is picked, then the other
+        # choices are zeroed out. event.data will be None for any status
 
-        if ( record.get('type') == 'Version' ):
-            image = record.get('image')
-        elif ( record.get('type') == 'CutItem' ):
-            # the version image is in the version field
-            version = record.get('version')
-            if ( version ):
-                image = record.get('version.Version.image')
-            elif ( parent_record ):
-                version = parent_record.get('version')
-                if ( version ):
-                    #hum not sure this will work if we didnt query for that field while doing the query for the cut
-                    image = parent_record.get('version.Version.image')
-        return image
+        self._status_list = []
+        actions = self._status_menu.actions()
+        if not event.data():
+            print 'clearing out status list'
+            for a in actions:
+                a.setChecked(False)
+            self._tray_frame.status_filter_button.setText("Filter by Status")
+            return
 
-    def find_filter(self, shot_filters, filter_path):
-        for filter in shot_filters:
-            if filter[0] == filter_path:
-                if len(filter)>2:
-                    return filter[2]
-                else:
-                    return None
-        return None
+        name = 'Error'
+        count = 0
+ 
+        for a in actions:
+            if a.isChecked():
+                e = a.data()
+                for k in e:
+                    self._status_list.append(k)
+                    name = e[k]
+                    count = count + 1
+ 
+        if count == 0:
+            self._tray_frame.status_filter_button.setText("Filter by Status")
+        if count == 1:
+            self._tray_frame.status_filter_button.setText(name)
+        if count > 1:
+            self._tray_frame.status_filter_button.setText("%d Statuses" % count)
+        
+        self._rv_mode.filter_tray()
 
-    def show_menus(self, shot_filters):
-        sg = self._bundle.shotgun
-        project_id = 76
-        print 'Status Menu:'
-        print ''
-        print '[ ] Any Status'
-        print '-------------------'
-
-        schema = sg.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
-
-        schema = schema.get('sg_status_list')
-        schema = schema.get('properties')
-
-        values = schema.get('valid_values').get('value')
-        display_values = schema.get('display_values').get('value')
-
-        filter = self.find_filter(shot_filters, 'sg_status_list')
-
-        for value in values:
-            display_value = display_values.get(value)
-            if filter and value in filter:
-                print '[x] %s (%s)' %(display_value, value)
-            else:
-                print '[ ] %s (%s)' %(display_value, value)
-
-        print ''
-
-        print 'Step Menu:'
-        print ''
-        print 'PIPELINE STEP PRIORITY'
-        print '---------------------------'
-
-        filter = self.find_filter(shot_filters, 'sg_task.Task.step')
-
-        if len(filter) == 0:
-            print '[x] Latest in Pipeline'
-        else:
-            print '[ ] Latest in Pipeline'
-
-        shot_steps = sg.find('Step', 
-            filters=[['entity_type', 'is', 'Shot' ]], 
-            fields=['code', 'list_order', 'short_name', 'id'], 
-            order=[{'field_name': 'list_order', 'direction': 'desc'}])
-
-        for step in shot_steps:
-            found = False
-            if filter:
-                for current_step in filter:
-                    if current_step.get('id') == step.get('id'):
-                        found = True
-                        break
-            if found:
-                print '[x] %s' %step.get('code')
-            else:
-                print '[ ] %s' %step.get('code')
-
-        print ''
-
-    def request_data(self, shot_filters):
-
-        print 'Here are the default versions used by that cut in the cut order:'
-        print 'They should all be the ANIM ones, 15, 14, ..., 2, 1'
-        print ''
+    def get_pipeline_steps_with_model(self):
+        step_filters = [['entity_type', 'is', 'Shot' ]]
+        step_fields = ['code', 'list_order', 'short_name', 'id', 'cached_display_name']
+        step_orders = [ {'field_name': 'list_order', 'direction': 'desc'} ]
+        self._steps_model.load_data(entity_type="Step", filters=step_filters, fields=step_fields, order=step_orders)        
 
 
-        sg = self._shotgun
-        cut_id = 6
-        cut = sg.find_one('Cut', [['id', 'is', cut_id]], fields=['code', 'cached_display_name', 'entity'])
+    def handle_pipeline_steps_refreshed(self, refreshed):
+        """
+        This loads the menu with values returned when the _steps_model returns data_refreshed
+        """
+        self._engine.log_info('================handle_pipeline_steps_refreshed')
 
-        cut_items = sg.find('CutItem',
-                            filters=[['cut', 'is', [{ 'id': cut_id, 'type': 'Cut' }]]],
-                            # there might be too many fields requested here but that will do for now
-                            fields=['code', 'cut_item_in', 'cut_item_out', 'cut_order', 'shot', 'version', 'version.Version.sg_status_list', 'version.Version.image'],
-                            order=[{'field_name': 'cut_order', 'direction': 'asc'}])
+        if not self._pipeline_steps_menu:
+            self._pipeline_steps_menu = QtGui.QMenu(self._tray_frame.pipeline_filter_button)
+            self._tray_frame.pipeline_filter_button.setMenu(self._pipeline_steps_menu)        
+            self._pipeline_steps_menu.triggered.connect(self.handle_pipeline_menu)
+        menu = self._pipeline_steps_menu
+        menu.clear()
 
-        map = {}
+        action = QtGui.QAction(self._tray_frame.pipeline_filter_button)
+        action.setCheckable(False)
+        action.setChecked(False)
+        action.setText('Pipeline Steps Priority')
+        # XXX what object do we want here?
+        action.setData( None )
+        menu.addAction(action)
+        menu.addSeparator()
 
-        if shot_filters != None:
+        # XXX latest in pipeline means an empty steps list?
+        action = QtGui.QAction(self._tray_frame.pipeline_filter_button)
+        action.setCheckable(True)
+        action.setChecked(False)
+        action.setText('Latest in Pipeline')
+        # XXX what object do we want here?
+        action.setData( { 'cached_display_name' : 'Latest in Pipeline' } )
+        menu.addAction(action)
 
-            # project_entity = { 'id': project_id, 'type': 'Project' }
+        rows = self._steps_model.rowCount()
 
-            shots = []
+        for x in range(0, rows):
+            item = self._steps_model.index(x, 0)
+            sg = shotgun_model.get_sg_data(item)
+            action = QtGui.QAction(self._tray_frame.pipeline_filter_button)
+            action.setCheckable(True)
+            action.setChecked(False)
+            action.setText(sg['cached_display_name'])
+            action.setData(sg)
+            menu.addAction(action)
 
-            for cut_item in cut_items:
-                shot = cut_item.get('shot')
-                if shot != None:
-                    shots.append( { 'id': shot.get('id'), 'type': 'Shot' } )
-
-            full_filters = self.build_version_filters( self.project_entity, shot_filters, shots)
-
-            versions = sg.find('Version',
-                                filters=full_filters,
-                                fields=['id', 'code', 'image', 'sg_status_list', 'entity'],
-                                additional_filter_presets = [
-                                    {"preset_name": "LATEST", "latest_by": "BY_PIPELINE_STEP_NUMBER_AND_ENTITIES_CREATED_AT" }
-                                ]
-                                )
-
-            for version in versions:
-                shot = version.get('entity')
-                if shot != None:
-                    map[shot.get('id')] = version
-
-        for cut_item in cut_items:
-            shot = cut_item.get('shot')
-            shot_id = None
-            if shot != None:
-                shot_id = shot.get('id')
-
-            if shot_id in map:
-                version = map[shot_id]
-                version_entity = { 'id': version.get('id'), 'name': version.get('code'), 'type': 'Version', 'status': version.get('sg_status_list') }
-                version_image = version.get('image')
-            else:
-                version_entity = self.get_default_version_entity_for_cut_item(cut_item, cut)
-                version_image = self.get_version_image_for_record(cut_item, cut)
-
-            status = version_entity.get('status')
-            if status == None:
-                status = "unknown"
-
-            print 'version: name=%s, id=%s, status=%s' %(version_entity.get('name'), version_entity.get('id'), status )
-
-
-    ##########################################################
-    # the following came from review_app_data_manager.js
-    ##########################################################
-    def build_version_filters(self, project, shot_version_filters, shots):
-        conditions = []
-        # this.shot_version_filters is always defined when we get here but let's check anyway
-        if ( shot_version_filters ):
-            # let's use this.shot_version_filters but first let's remove the "ANY" filter
-
-            for filter in shot_version_filters:
-                # filter is like [ 'sg_task.Task.step', 'in', [ { 'id': 6, 'name': 'FX', 'type': 'Step' } ]
-
-                # By convention an empty array for sub-array means ANY like "any status" or "latest in pipeline" etc
-                # so let's just ignore this filter since it's any!
-                if len(filter) > 2 and len(filter[2]) > 0:
-                    conditions.append(filter)
-
-        conditions.append(['entity', 'in', shots])
-
-        if ( project ):
-            conditions.append( [ 'project', 'is', [ { 'id': project.get('id'), 'type': 'Project' } ] ] )
-
-        return conditions
+    def handle_pipeline_menu(self, event):
+        """
+        This is run after the user makes a selection in the Pipeline Steps menu
+        """
+        # you only get the latest one clicked here. there could be more.
+        # you might also get a roll off event that you dont want.
+        # so check the widget and then update the button text
+        # if event.data():
+        #     print "handle_pipeline_menu: %r" % event.data()
+        actions = self._pipeline_steps_menu.actions()
+        count = 0
+        name = 'Error'
+        # for later filtering
+        self._pipeline_steps = []
+        for a in actions:
+            if a.isChecked():
+                count = count + 1
+                name = a.data()['cached_display_name']
+                self._pipeline_steps.append(a.data())
+        if count == 0:
+            self._tray_frame.pipeline_filter_button.setText("Filter by Pipeline")
+        if count == 1:
+            self._tray_frame.pipeline_filter_button.setText(name)
+        if count > 1:
+            self._tray_frame.pipeline_filter_button.setText("%d steps" % count)
+        self._rv_mode.filter_tray()
 
 
-    def popup_test(self, shot_filters):
+   # def merge_cuts_for_menu(self, seq_cuts, shot_cuts):
 
-        self.request_data(shot_filters)
+    #     shot_map = {}
+    #     shot_ids = []
 
-        print ''
-        print 'Now we will use the following shot filters:'
-        print ''
+    #     if shot_cuts:
+    #         for x in shot_cuts:
+    #             shot_ids.append(x['id'])
+    #             shot_map[x['id']] = x
+        
+    #     seq_ids = []
+    #     for x in seq_cuts:
+    #         seq_ids.append(x['id'])
 
-        shot_filters = [ [ 'sg_task.Task.step', 'in', [ { 'id': 7, 'name': 'Light', 'type': 'Step' } ] ],
-                         [ 'sg_status_list', 'in', ['rev'] ] ]
+    #     for n in shot_ids:
+    #         if n not in seq_ids:
+    #             seq_cuts.append(shot_map[n])
 
+    #     # resort seq_cuts by 'code'
+    #     sorted_cuts = sorted(seq_cuts, key=lambda x: x['cached_display_name'], reverse=False)
+ 
+    #     # count the dups
+    #     dup_map = {}
+    #     for x in sorted_cuts:
+    #         if x['code'] not in dup_map:
+    #             dup_map[x['code']] = 1
+    #         else:
+    #             dup_map[x['code']] = dup_map[x['code']] + 1
+    #     for x in sorted_cuts:
+    #         x['count'] = dup_map[x['code']]
 
-        self.show_menus(shot_filters)
+    #     return sorted_cuts
 
-        print 'Here are shot versions found in the cut order: '
-        print 'Only a few LIGHT (aka TD) ones will be found because we also check for status=reviewed!'
-        print 'when the query does not find anything we use the default version'
+    # Pipeline filtering
 
-        print ''
-
-        self.request_data(shot_filters)
-
-        print ''
-        print 'Finally we will use the latest-in-pipeline step:'
-        print ''
-
-        shot_filters = [ [ 'sg_task.Task.step', 'in', [] ],
-                         [ 'sg_status_list', 'in', ['rev'] ] ]
-
-        self.show_menus(shot_filters)
-
-        print ''
-
-        self.request_data(shot_filters)

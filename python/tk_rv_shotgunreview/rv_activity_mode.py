@@ -610,8 +610,7 @@ class RvActivityMode(rvt.MinorMode):
         self._cuts_model = shotgun_model.SimpleShotgunModel(rvqt.sessionWindow())
 
         self._app = app
-        self._popup_utils = PopupUtils(app.engine, self._bundle.shotgun, self.project_entity)
-
+ 
         self.init("RvActivityMode", None,
                 [ 
                 ("after-session-read", self.afterSessionRead, ""),
@@ -673,7 +672,7 @@ class RvActivityMode(rvt.MinorMode):
 
         self.related_cuts_menu = None
         self.pipeline_steps_menu = None
-        self.status_menu = None
+        # self.status_menu = None
         
         # Setup the details panel.
         self.details_panel = DetailsPanelWidget()
@@ -688,7 +687,8 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_main_frame = TrayMainFrame(self.tray_dock)
         self.tray_main_frame.set_rv_mode(self)
 
-
+        # popup utils will try to handle all popup menu related things...
+        self._popup_utils = PopupUtils(self)
         
         # just map these back for the moment...
         self.tray_model = self.tray_main_frame.tray_model
@@ -711,74 +711,21 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
         
-        #self.tray_main_frame.status_filter_button.clicked.connect(self.get_approval_status)
-
-#        from .filter_model import FilterModel
-#        task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
-#        self.filter_task_manager = task_manager.BackgroundTaskManager(parent=self.tray_list,
-#                                                                start_processing=True,
-#                                                                max_threads=2)
-
-#        self.filter_model = FilterModel(self.tray_list, bg_task_manager=self.filter_task_manager)
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
         
-        self._popup_utils._steps_model.data_refreshed.connect(self.handle_pipeline_steps_refreshed)
         self._popup_utils.related_cuts_ready.connect(self.create_related_cuts_from_models)
+
+        # async cached request for pipeline steps.
+        # XXX pipeline steps are 'global' to shotgun? so this only needs to happen once?
+        self._popup_utils.get_pipeline_steps_with_model()
 
         self.details_timer = QTimer(rvqt.sessionWindow())
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
         self.details_timer.start(1000)
-        #self.get_pipeline_step()
-        self.request_pipeline_steps()
+
         self.last_rel_cut_entity = None
         self.last_rel_shot_entity = None
         self.last_related_cuts = None
-
-    def handle_status_menu(self, event):
-        #print "handle_status_menu"
-        # if event.data():
-        #     print "handle_pipeline_menu: %r" % event.data()
-        actions = self.status_menu.actions()
-        name = 'Error'
-
-        # for later filtering
-        self.status_list = []
-        count = 0
-        name = 'Error'
-        for a in actions:
-            if a.isChecked():
-                e = a.data()
-                for k in e:
-                    self.status_list.append(k)
-                    name = e[k]
-                    count = count + 1
-        # print "status list: %r" % self.status_list
-        if count == 0:
-            self.tray_main_frame.status_filter_button.setText("Filter by Status")
-        if count == 1:
-            self.tray_main_frame.status_filter_button.setText(name)
-        if count > 1:
-            self.tray_main_frame.status_filter_button.setText("%d Statuses" % count)
-
-        self.filter_tray()
-
-    def get_approval_status(self):
-        # print "get_approval_status"
-        statii = self._popup_utils.get_status_menu(self.project_entity)
-        if not self.status_menu:
-            self.status_menu = QtGui.QMenu(self.tray_main_frame.status_filter_button)
-            self.tray_main_frame.status_filter_button.setMenu(self.status_menu)        
-            self.status_menu.triggered.connect(self.handle_status_menu)
-        menu = self.status_menu
-        menu.clear()
-        for status in statii:
-            action = QtGui.QAction(self.tray_main_frame.status_filter_button)
-            action.setCheckable(True)
-            action.setChecked(False)
-            for x in status:
-                action.setText(status[x])
-            action.setData(status)
-            menu.addAction(action)
 
     def on_filter_refreshed(self, really_changed):
         self._app.engine.log_info("on_filter_refreshed: really_changed is %r" % really_changed)
@@ -793,7 +740,7 @@ class RvActivityMode(rvt.MinorMode):
     def filter_tray(self):
         full_filters = self.get_tray_filters()
         if full_filters:
-            #print "full filters: %r" % full_filters
+            # XXX this will move out soon when ShotgunModel can do additional_filter_presets
             versions = self._bundle.shotgun.find( 'Version',
                         filters=full_filters,
                         fields=["image"] + required_version_fields,
@@ -835,76 +782,25 @@ class RvActivityMode(rvt.MinorMode):
                 shot_list.append(sg['shot'])
         entity_list = [ 'entity', 'in', shot_list ]
         if self.status_list and self.pipeline_steps:
-            status_list = ['sg_status_list', 'in', self.status_list ]
-            step_list = ['sg_task.Task.step', 'in', self.pipeline_steps]
+            status_list = ['sg_status_list', 'in', self._popup_utils._status_list ]
+            step_list = ['sg_task.Task.step', 'in', self._popup_utils._pipeline_steps]
             filters = [ step_list, status_list, entity_list ]
             return filters
         if self.status_list:
-            status_list = ['sg_status_list', 'in', self.status_list ]
+            status_list = ['sg_status_list', 'in', self._popup_utils._status_list ]
             filters = [ status_list, entity_list ]
             return filters
         if self.pipeline_steps:
-            step_list = ['sg_task.Task.step', 'in', self.pipeline_steps]
+            step_list = ['sg_task.Task.step', 'in', self._popup_utils._pipeline_steps]
             filters = [ step_list, entity_list ]
             return filters
         return None
 
-    def handle_pipeline_menu(self, event):
-        """
-        This is run after the user makes a selection in the Pipeline Steps menu
-        """
-        # you only get the latest one clicked here. there could be more.
-        # you might also get a roll off event that you dont want.
-        # so check the widget and then update the button text
-        # if event.data():
-        #     print "handle_pipeline_menu: %r" % event.data()
-        actions = self.pipeline_steps_menu.actions()
-        count = 0
-        name = 'Error'
-        # for later filtering
-        self.pipeline_steps = []
-        for a in actions:
-            if a.isChecked():
-                count = count + 1
-                name = a.data()['cached_display_name']
-                self.pipeline_steps.append(a.data())
-        if count == 0:
-            self.tray_main_frame.pipeline_filter_button.setText("Filter by Pipeline")
-        if count == 1:
-            self.tray_main_frame.pipeline_filter_button.setText(name)
-        if count > 1:
-            self.tray_main_frame.pipeline_filter_button.setText("%d steps" % count)
-        self.filter_tray()
-
-    def handle_pipeline_steps_refreshed(self, refreshed):
-        """
-        This loads the menu with values returned when the model returns data_refreshed
-        """
-        self._app.engine.log_info('================handle_pipeline_steps_refreshed')
-
-        if not self.pipeline_steps_menu:
-            self.pipeline_steps_menu = QtGui.QMenu(self.tray_main_frame.pipeline_filter_button)
-            self.tray_main_frame.pipeline_filter_button.setMenu(self.pipeline_steps_menu)        
-            self.pipeline_steps_menu.triggered.connect(self.handle_pipeline_menu)
-        menu = self.pipeline_steps_menu
-        menu.clear()
-
-        rows = self._popup_utils._steps_model.rowCount()
-        for x in range(0, rows):
-            item = self._popup_utils._steps_model.index(x, 0)
-            sg = shotgun_model.get_sg_data(item)
-            action = QtGui.QAction(self.tray_main_frame.pipeline_filter_button)
-            action.setCheckable(True)
-            action.setChecked(False)
-            action.setText(sg['cached_display_name'])
-            action.setData(sg)
-            menu.addAction(action)
-
-    def request_pipeline_steps(self):
-        """
-        This initiates a asynch request for data to eventually load the pipeline steps menu
-        """
-        self._popup_utils.get_pipeline_steps_with_model()
+    # def request_pipeline_steps(self):
+    #     """
+    #     This initiates a asynch request for data to eventually load the pipeline steps menu
+    #     """
+    #     self._popup_utils.get_pipeline_steps_with_model()
 
     def right_spinner_clicked(self, event):
         self.get_mini_values()
@@ -1347,25 +1243,6 @@ class RvActivityMode(rvt.MinorMode):
 
         return sg_dict
 
-    # def on_browse_cut(self):
-    #     self._app.engine.log_info("on_browse_cut called")
-    #     sg_data = self.load_version_id_from_session()
-
-    #     if 'cut.Cut.entity' not in sg_data:
-    #         self._app.engine.log_info('No cut info available. Playlist?')
-    #         return
-
-    #     # are we stopped? on a selected item? mix in second related shots
-    #     print "on_browse_cut: %r %r" % (sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
-    #     if sg_data['version.Version.entity']:
-    #         if sg_data['version.Version.entity']['type'] == "Shot":
-    #             self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['version.Version.entity'])
-    #             return
-
-    #     if sg_data['cut.Cut.entity']['type'] == "Scene":
-    #         self.create_related_cuts_menu(sg_data['cut.Cut.entity'], sg_data['shot'])
-    #         return
-
     def handle_related_menu(self, action=None):
         self._app.engine.log_info("handle_related_menu called with action %r" % action)
         if action.data():
@@ -1402,6 +1279,7 @@ class RvActivityMode(rvt.MinorMode):
                     return
 
         # XXX don't get this ? -- alan
+        # XXX there was a cut based on a Scene and the query returned the entity we want in a different column - sb.
         if cut_link['type'] == "Scene":
             edit_data = self.edit_data_from_session()
             self._popup_utils.find_rel_cuts_with_model(cut_link, version_link['shot'])
@@ -1928,7 +1806,7 @@ class RvActivityMode(rvt.MinorMode):
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
 
-        self.get_approval_status()
+        self._popup_utils.build_status_menu()
 
     def edit_data_from_session(self):
         data = None
