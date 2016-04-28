@@ -109,11 +109,11 @@ class PopupUtils(QtCore.QObject):
             self._engine.log_info('request_related_cuts_from_models: No cut info available')
             return
 
-
         cut_link = seq_data['entity']
         cut_id   = seq_data["target_entity"]["ids"][0]
 
         version_data = self._rv_mode.version_data_from_source()
+
         if version_data:
             # mix in second related shots
             version_link = version_data['entity']
@@ -122,6 +122,7 @@ class PopupUtils(QtCore.QObject):
                 # base-layer, etc)
                 if version_link['type'] != "Shot":
                     version_link = None
+
                 # XXX does this allow for cut_link == None ?
                 # XXX no it doesnt, what do we do with a cut with no entity link? - sb
                 if cut_link != self._last_rel_cut_entity or version_link != self._last_rel_shot_entity:
@@ -129,6 +130,9 @@ class PopupUtils(QtCore.QObject):
                     self._last_rel_cut_entity = cut_link
                     self._last_rel_shot_entity = version_link
                     return
+                else:
+                    # we already have it cached.
+                    self.related_cuts_ready.emit()
 
         # XXX don't get this ? -- alan
         # XXX there was a cut based on a Scene and the query returned the entity we want in a different column - sb.
@@ -136,6 +140,7 @@ class PopupUtils(QtCore.QObject):
             edit_data = self._rv_mode.edit_data_from_session()
             self.find_rel_cuts_with_model(cut_link, version_link['shot'])
             return
+
 
     def handle_related_menu(self, action=None):
         self._engine.log_info("handle_related_menu called with action %r" % action)
@@ -232,17 +237,15 @@ class PopupUtils(QtCore.QObject):
                 x = a.data()
                 if x:
                     if x['id'] == cut_id:
-                        print "checking %r" % a.text()
                         a.setChecked(True)
 
                 if a.menu(): # as in a sub-menu
+                    a.setChecked(False)
                     sub_acts = a.menu().actions()
                     for b in sub_acts:
                         b.setChecked(False)
                         bd = b.data()
                         if bd['id'] == cut_id:
-                            print "checking %r" % a.text()
-                            print "checking %r" % b.text()
                             b.setChecked(True)
                             a.setChecked(True)
 
@@ -284,12 +287,14 @@ class PopupUtils(QtCore.QObject):
                 action.setChecked(True)
                 if parent_menu:
                     a = parent_menu.menuAction()
+                    a.setCheckable(True)
                     a.setChecked(True)
             else:
                 action.setChecked(False)
-
+ 
             action.setText(x['cached_display_name'])
             action.setData(en)
+ 
             last_menu.addAction(action)
             last_code = x['code']
 
