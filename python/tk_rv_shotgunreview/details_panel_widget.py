@@ -168,9 +168,6 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.shot_info_widget.label_exempt_fields = self._persistent_fields
 
         # Signal handling.
-        self._task_manager.task_group_finished.connect(
-            self._task_group_finished
-        )
         self.ui.pin_button.toggled.connect(self.set_pinned)
         self.ui.more_info_button.toggled.connect(self._more_info_toggled)
         self.ui.shotgun_nav_button.clicked.connect(
@@ -180,6 +177,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             self._show_version_context_menu,
         )
         self.ui.version_search.search_edited.connect(self._set_version_list_filter)
+        self.shot_info_model.data_refreshed.connect(self._version_entity_data_refreshed)
 
         # The fields menu attached to the "Fields..." buttons
         # when "More info" is active as well as in the Versions
@@ -246,9 +244,10 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param entity:  The Shotgun entity to load. This is a dict in
                         the form returned by the Shotgun Python API.
         """
+        self._requested_entity = entity
+
         # If we're pinned, then we don't allow loading new entities.
         if self._pinned:
-            self._requested_entity = entity
             return
 
         # If we got an "empty" entity from the mode, then we need
@@ -280,35 +279,6 @@ class DetailsPanelWidget(QtGui.QWidget):
             fields=self._fields,
         )
 
-        item = self.shot_info_model.item_from_entity(
-            "Version",
-            entity["id"],
-        )
-
-        if not item:
-            return
-
-        sg_data = item.get_sg_data()
-
-        self.ui.shot_info_widget.set_entity(sg_data)
-        self._more_info_toggled(self.ui.more_info_button.isChecked())
-
-        version_filters = [["entity", "is", sg_data["entity"]]]
-        self.version_model.load_data(
-            "Version",
-            filters=version_filters,
-            fields=self._fields,
-        )
-
-        self.version_proxy_model.sort(
-            0, 
-            (
-                QtCore.Qt.AscendingOrder if 
-                self._sort_versions_ascending else 
-                QtCore.Qt.DescendingOrder
-            ),
-        )
-
     def set_note_screenshot(self, image_path):
         """
         Takes the given file path to an image and sets the new note
@@ -338,7 +308,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_up.png"))
             if self._requested_entity:
                 self.load_data(self._requested_entity)
-                self._requested_entity = None
+                # self._requested_entity = None
 
     ##########################################################################
     # internal utilities
@@ -362,6 +332,42 @@ class DetailsPanelWidget(QtGui.QWidget):
                 self.ui.shot_info_widget.remove_field(field_name)
 
             self._active_fields = self.ui.shot_info_widget.fields
+
+    def _version_entity_data_refreshed(self):
+        """
+        Takes the currently-requested entity and sets various widgets
+        to display it.
+        """
+        entity = self._requested_entity
+
+        item = self.shot_info_model.item_from_entity(
+            "Version",
+            entity["id"],
+        )
+
+        if not item:
+            return
+
+        sg_data = item.get_sg_data()
+
+        self.ui.shot_info_widget.set_entity(sg_data)
+        self._more_info_toggled(self.ui.more_info_button.isChecked())
+
+        version_filters = [["entity", "is", sg_data["entity"]]]
+        self.version_model.load_data(
+            "Version",
+            filters=version_filters,
+            fields=self._fields,
+        )
+
+        self.version_proxy_model.sort(
+            0, 
+            (
+                QtCore.Qt.AscendingOrder if 
+                self._sort_versions_ascending else 
+                QtCore.Qt.DescendingOrder
+            ),
+        )
 
     def _version_list_field_menu_triggered(self, action):
         """
@@ -600,18 +606,6 @@ class DetailsPanelWidget(QtGui.QWidget):
         # chosen from the menu will have its callback executed.
         action = menu.exec_(self.ui.entity_version_view.mapToGlobal(point))
         menu.execute_callback(action)
-
-    def _task_group_finished(self, group):
-        """
-        Repaints the necessary widgets and views when a task is completed
-        by the ShotgunFieldManager object. This will ensure that all widgets
-        making use of Shotgun field widgets will be repainted once all data
-        has been queried from Shotgun.
-
-        :param group:   The task group that was completed.
-        """
-        self.ui.shot_info_widget.repaint()
-        self.ui.entity_version_view.repaint()
 
     def _trigger_rv_screen_grab(self):
         """
