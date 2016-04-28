@@ -178,6 +178,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         )
         self.ui.version_search.search_edited.connect(self._set_version_list_filter)
         self.shot_info_model.data_refreshed.connect(self._version_entity_data_refreshed)
+        self._task_manager.task_group_finished.connect(self.ui.entity_version_view.repaint)
 
         # The fields menu attached to the "Fields..." buttons
         # when "More info" is active as well as in the Versions
