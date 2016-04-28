@@ -735,7 +735,7 @@ class RvActivityMode(rvt.MinorMode):
             # maybe we should be constructing a target_entity here from
             # whatever node we are looking at now ?   And not do anything if
             # it's not a Cut node, etc ...
-            self.on_data_refreshed(True)
+            self.on_data_refreshed_internal(True, True)
 
     def right_spinner_clicked(self, event):
         self.get_mini_values()
@@ -1407,8 +1407,13 @@ class RvActivityMode(rvt.MinorMode):
         else:
             return self.data_from_version(sg_item)
 
-    # the way data from shotgun gets into the tray
+    # signal from model so filter_query_finished is False (we need to run follow-on
+    # query, if any)
     def on_data_refreshed(self, was_refreshed):
+        self.on_data_refreshed_internal(was_refreshed, False)
+        
+    # the way data from shotgun gets into the tray
+    def on_data_refreshed_internal(self, was_refreshed, filter_query_finished):
         """
         The tray_model has one item per clip in sequence; each clip's data
         comes from a CutItem (when loading a Cut) or straight from a Version
@@ -1423,7 +1428,7 @@ class RvActivityMode(rvt.MinorMode):
                 pp.pprint(sg_item)
                 #pp.pprint(rv_item)
                 return
-        self._app.engine.log_info('on_data_refreshed: %r' % str(QtCore.QThread.currentThread()))
+        self._app.engine.log_info('on_data_refreshed_internal: %r' % str(QtCore.QThread.currentThread()))
 
         # XXX eventually we want to enter min-cut mode directly in some cases,
         # in which case we want to start with corresponding Sequence node.
@@ -1547,7 +1552,19 @@ class RvActivityMode(rvt.MinorMode):
         #     rvc.newProperty(seq_pinned_name, rvc.IntType, 1)
         # rvc.setIntProperty(seq_pinned_name, self.pinned_items, True)
 
-        rve.displayFeedback("Loading complete", 2.0)
+        # filter query logic
+        # 
+        # Test here if we need to run filtering query automatically. IE if we
+        # have non-trivial filtering parameters and filter_query_finished is
+        # false (because we are not _responding_ to a filter update).  If so,
+        # initiate that query.  If not, display completion feedback 
+
+        filter_query_required = True # XXX this should only be true if we have some filtering params stored
+        if (not filter_query_finished and filter_query_required):
+            # trigger filter query
+            pass
+        else :
+            rve.displayFeedback("Loading complete", 2.0)
 
         # highlight the first clip
         self.frameChanged(None)
