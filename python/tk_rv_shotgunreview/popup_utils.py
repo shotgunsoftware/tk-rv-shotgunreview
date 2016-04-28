@@ -487,18 +487,38 @@ class PopupUtils(QtCore.QObject):
         # you only get the latest one clicked here. there could be more.
         # you might also get a roll off event that you dont want.
         # so check the widget and then update the button text
-        # if event.data():
-        #     print "handle_pipeline_menu: %r" % event.data()
+        want_latest = False
+        if event.data():
+            print "handle_pipeline_menu: %r" % event.data()
+            e = event.data()
+            if e['cached_display_name'] == 'Latest in Pipeline':
+                want_latest = True
+        
         actions = self._pipeline_steps_menu.actions()
         count = 0
         name = 'Error'
         # for later filtering
         self._pipeline_steps = []
+        last_name = None
         for a in actions:
             if a.isChecked():
                 count = count + 1
                 name = a.data()['cached_display_name']
-                self._pipeline_steps.append(a.data())
+                # XXX better way?
+                if name == 'Latest in Pipeline' and not want_latest:
+                    a.setChecked(False)
+                    count = count - 1
+                    name = last_name
+                if a.data()['cached_display_name'] != 'Latest in Pipeline':
+                    self._pipeline_steps.append(a.data())
+                    if want_latest:
+                        a.setChecked(False)
+                last_name = name
+        if want_latest:
+            self._pipeline_steps = []
+            name = 'Latest in Pipeline'
+            count = 1
+
         if count == 0:
             self._tray_frame.pipeline_filter_button.setText("Filter by Pipeline")
         if count == 1:
