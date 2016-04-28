@@ -713,7 +713,7 @@ class RvActivityMode(rvt.MinorMode):
         
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
         
-        self._popup_utils.related_cuts_ready.connect(self.create_related_cuts_from_models)
+        # self._popup_utils.related_cuts_ready.connect(self.create_related_cuts_from_models)
 
         # async cached request for pipeline steps.
         # XXX pipeline steps are 'global' to shotgun? so this only needs to happen once?
@@ -1243,188 +1243,6 @@ class RvActivityMode(rvt.MinorMode):
 
         return sg_dict
 
-    def handle_related_menu(self, action=None):
-        self._app.engine.log_info("handle_related_menu called with action %r" % action)
-        if action.data():
-            self._app.engine.log_info("action.data: %r" % action.data()) 
-            self.load_tray_with_something_new({"type":"Cut", "ids":[action.data()['id']]})
-
-    def request_related_cuts_from_models(self):
-        self._app.engine.log_info( "request_related_cuts_from_model" )
-        
-        seq_data = self.sequence_data_from_session()
-
-        if (not seq_data or seq_data["target_entity"]["type"] != "Cut"):
-            self._app.engine.log_info('request_related_cuts_from_models: No cut info available')
-            return
-
-
-        cut_link = seq_data['entity']
-        cut_id   = seq_data["target_entity"]["ids"][0]
-
-        version_data = self.version_data_from_source()
-        if version_data:
-            # mix in second related shots
-            version_link = version_data['entity']
-            if version_link:
-                # version_link might not be a Shot (because version is
-                # base-layer, etc)
-                if version_link['type'] != "Shot":
-                    version_link = None
-                # XXX does this allow for cut_link == None ?
-                if cut_link != self.last_rel_cut_entity or version_link != self.last_rel_shot_entity:
-                    self._popup_utils.find_rel_cuts_with_model(cut_link, version_link)
-                    self.last_rel_cut_entity = cut_link
-                    self.last_rel_shot_entity = version_link
-                    return
-
-        # XXX don't get this ? -- alan
-        # XXX there was a cut based on a Scene and the query returned the entity we want in a different column - sb.
-        if cut_link['type'] == "Scene":
-            edit_data = self.edit_data_from_session()
-            self._popup_utils.find_rel_cuts_with_model(cut_link, version_link['shot'])
-            return
-
-    def create_related_cuts_from_models(self):
-        self._app.engine.log_info( "create_related_cuts_from_models")
-        if not self.related_cuts_menu:
-            self.related_cuts_menu = QtGui.QMenu(self.tray_button_browse_cut)
-            self.tray_button_browse_cut.setMenu(self.related_cuts_menu)        
-            self.related_cuts_menu.aboutToShow.connect(self.request_related_cuts_from_models)
-            self.related_cuts_menu.triggered.connect(self.handle_related_menu)
-        # else:
-        #     self.related_cuts_menu.clear()
-
-        seq_data = self.sequence_data_from_session()
-        cut_id = seq_data["target_entity"]["ids"][0] if seq_data else None
-
-        seq_cuts = self._popup_utils.merge_rel_models_for_menu()
-        if seq_cuts == self.last_related_cuts:
-            actions = self.related_cuts_menu.actions()
-            for a in actions:
-                a.setChecked(False)
-                x = a.data()
-                if x:
-                    if x['id'] == cut_id:
-                        a.setChecked(True)
-
-                if a.menu():
-                    sub_acts = a.menu().actions()
-                    for b in sub_acts:
-                        b.setChecked(False)
-                        x = b.data()
-
-                        if x['id'] == cut_id:
-                            b.setChecked(True)
-                            a.setChecked(True)
-
-            return
-
-        self.last_related_cuts = seq_cuts
-        self.related_cuts_menu.clear()
-
-        menu = self.related_cuts_menu
-        action = QtGui.QAction(self.tray_button_browse_cut)
-        action.setText('Related Cuts')
-        menu.addAction(action)
-        menu.addSeparator()
-
-        last_menu = menu
-        parent_menu = None
-        last_code = None
-        en = {}
-
-        for x in seq_cuts:
-            action = QtGui.QAction(self.tray_button_browse_cut)
-            action.setCheckable(True)
-            en['id'] = x['id']
-            en['type'] = 'Cut'
-
-            if last_code != x['code']: # this is the first time weve seen this code
-                if x['count'] > 1: # make a submenu
-                    last_menu = last_menu.addMenu(x['code'])
-                    a = last_menu.menuAction()
-                    a.setCheckable(True)
-                    parent_menu = last_menu
-                else:
-                    last_menu = menu
-                    parent_menu = None
- 
-            if x['id'] == cut_id:
-                action.setChecked(True)
-                if parent_menu:
-                    a = parent_menu.menuAction()
-                    a.setChecked(True)
-            else:
-                action.setChecked(False)
-
-            action.setText(x['cached_display_name'])
-            action.setData(en)
-            last_menu.addAction(action)
-            last_code = x['code']
-
-
-
-    # def create_related_cuts_menu(self, entity_in, shot_entity=None):
-    #     self._app.engine.log_info( "create_related_cuts_menu: %r %r" % (entity_in, shot_entity))
-        
-    #     conditions = ['entity', 'is', entity_in]
-    #     seq_cuts = self._popup_utils.find_cuts(conditions)
-        
-    #     shot_cuts = None
-    #     if shot_entity:
-    #         shot_cuts = self._popup_utils.find_cuts(['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }])
-    #     seq_cuts = self._popup_utils.merge_cuts_for_menu(seq_cuts, shot_cuts)
-        
-    #     if not self.related_cuts_menu:
-    #         self.related_cuts_menu = QtGui.QMenu(self.tray_button_browse_cut)
-    #         self.tray_button_browse_cut.setMenu(self.related_cuts_menu)        
-    #         self.related_cuts_menu.aboutToShow.connect(self.on_browse_cut)
-    #         self.related_cuts_menu.triggered.connect(self.handle_related_menu)
-    #     else:
-    #         self.related_cuts_menu.clear()
-    #     menu = self.related_cuts_menu
-    #     action = QtGui.QAction(self.tray_button_browse_cut)
-    #     action.setText('Related Cuts')
-    #     menu.addAction(action)
-    #     menu.addSeparator()
-
-    #     last_menu = menu
-    #     parent_menu = None
-    #     last_code = None
-    #     en = {}
-
-    #     sg = self.load_version_id_from_session()
-
-    #     for x in seq_cuts:
-    #         action = QtGui.QAction(self.tray_button_browse_cut)
-    #         action.setCheckable(True)
-    #         en['id'] = x['id']
-    #         en['type'] = 'Cut'
-
-    #         if last_code != x['code']: # this is the first time weve seen this code
-    #             if x['count'] > 1: # make a submenu
-    #                 last_menu = last_menu.addMenu(x['code'])
-    #                 a = last_menu.menuAction()
-    #                 a.setCheckable(True)
-    #                 parent_menu = last_menu
-    #             else:
-    #                 last_menu = menu
-    #                 parent_menu = None
- 
-    #         if x['id'] == sg['cut.Cut.id']:
-    #             action.setChecked(True)
-    #             if parent_menu:
-    #                 a = parent_menu.menuAction()
-    #                 a.setChecked(True)
-    #         else:
-    #             action.setChecked(False)
-
-    #         action.setText(x['cached_display_name'])
-    #         action.setData(en)
-    #         last_menu.addAction(action)
-    #         last_code = x['code']
-
     def find_base_version_for_cut(self, entity):
         self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED! %r' % entity)
         pass
@@ -1801,7 +1619,7 @@ class RvActivityMode(rvt.MinorMode):
 
         if self.target_entity["type"] == "Cut":
             # self.create_related_cuts_menu(sequence_data["entity"], None)
-            self.request_related_cuts_from_models()
+            self._popup_utils.request_related_cuts_from_models()
         else:
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
