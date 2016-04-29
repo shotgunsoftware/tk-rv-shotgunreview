@@ -721,7 +721,7 @@ class RvActivityMode(rvt.MinorMode):
 
         self.details_timer = QTimer(rvqt.sessionWindow())
         self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
-        self.details_timer.start(1000)
+        self.details_timer.start(500)
 
         self.last_rel_cut_entity = None
         self.last_rel_shot_entity = None
@@ -1293,10 +1293,12 @@ class RvActivityMode(rvt.MinorMode):
 
         # We failed to find our RVSourceGroup, so make one.
 
+        path = None
         m_type = self.media_type_fallback(version_data, media_type)
         if m_type: 
             path = version_data[standard_media_types[media_type].path_field]
-        else:
+
+        if not path:
             self._app.engine.log_warning("Version '%s' has no local media" % version_data["code"])
             path = "black,start=%d,end=%d.movieproc"
             m_type = "Movie"
