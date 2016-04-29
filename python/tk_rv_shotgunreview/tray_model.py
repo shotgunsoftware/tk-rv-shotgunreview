@@ -13,9 +13,7 @@ class TrayModel(ShotgunModel):
     # signal which gets emitted whenever the model has been updated with fresh FILTERED data.
     filter_data_refreshed = QtCore.Signal(bool)
 
-
     def __init__(self, parent, bg_task_manager=None):
-        # SimpleShotgunModel.__init__(self, parent)
 
         ShotgunModel.__init__(self, 
                   parent = parent,
@@ -43,13 +41,14 @@ class TrayModel(ShotgunModel):
         return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
 
     def swap_in_thumbnail(self, item, field, image, path):
-        print "swap in thumbnail for %r, field: %r, path: %r" % (item, field, path)
+        """
+        The params coming into this function are from ANOTHER MODEL!
+        To do the actual swap out, we look at the SG data from the other
+        model, find the matching shot in this model, and then set the
+        thumbnail in this model with the other models data.
+        """
         if not image:
             return 
-
-        # XXX this item is FROM THE OTHER MODEL!!! so you have to 
-        # examine the sg of THAT model to figure out what item in
-        # THIS model to mess wioth
 
         sgv = item.data(self.SG_DATA_ROLE)
         shot = sgv['entity']
@@ -63,18 +62,6 @@ class TrayModel(ShotgunModel):
                     thumb = QtGui.QPixmap.fromImage(image)
                     t_item = self.itemFromIndex(m_idx)
                     t_item.setIcon(thumb)
-            else:
-                print "DiFFERENT THUMBNAIL... %r" % sg
-
-
-        #thumb = QtGui.QPixmap.fromImage(image)
-        #item.setIcon(thumb)
-        #self.dataChanged.emit(item, item)
-        #self._populate_thumbnail_image(item, field, image, path)
-        #self._parent.update()
-
-        #QtGui.QApplication.processEvents()
-
 
 
     def _set_tooltip(self, item, sg_item):
@@ -212,8 +199,7 @@ class TrayModel(ShotgunModel):
         :param image: QImage object with the thumbnail loaded
         :param path: A path on disk to the thumbnail. This is a file in jpeg format.
         """
-        # the default implementation sets the icon
-        print "tray: _populate_thumbnail_image %r" % field
+        
         thumb = QtGui.QPixmap.fromImage(image)
         item.setIcon(thumb)
 

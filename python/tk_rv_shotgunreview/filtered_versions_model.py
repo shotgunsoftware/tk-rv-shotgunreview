@@ -10,7 +10,6 @@ ShotgunModel = shotgun_model.ShotgunModel
 class FilteredVersionsModel(ShotgunModel):
 
     def __init__(self, parent, bg_task_manager=None, tray_model=None):
-        # SimpleShotgunModel.__init__(self, parent)
 
         ShotgunModel.__init__(self, 
                   parent = parent,
@@ -23,14 +22,6 @@ class FilteredVersionsModel(ShotgunModel):
         self._tray_model = tray_model
 
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
-
-
-    # current ShotgunModel inmplentation for reference
-    # def _load_data(
-    #     self, entity_type, filters, hierarchy, fields, order=None, seed=None, limit=None,
-    #     columns=None, additional_filter_presets=None
-    # ):
-
 
     def load_data(self, entity_type, filters=None, fields=None, hierarchy=None, order=None, additional_filter_presets=None):
         filters = filters or []
@@ -68,8 +59,8 @@ class FilteredVersionsModel(ShotgunModel):
         :param entity_type: Shotgun entity type
         :param entity_id: Shotgun entity id
         """
+        # XXX this actually is default behavior, but if the query changes this might need additional logic.
         sg = item.data(self.SG_DATA_ROLE)
-
         super(FilteredVersionsModel, self)._request_thumbnail_download(item, 'image', sg['image'], 'Version', sg['id'])
 
 
@@ -119,8 +110,7 @@ class FilteredVersionsModel(ShotgunModel):
             This has been primed with the standard settings that the ShotgunModel handles.
         """
         # the default implementation does nothing
-        # print "_populate_default_thumbnail"
-        # XXX this does gest called but kinda useless here...
+        # XXX this does get called but kinda useless here... as there is no view attached
         pass
 
 
@@ -156,9 +146,7 @@ class FilteredVersionsModel(ShotgunModel):
         :param path: A path on disk to the thumbnail. This is a file in jpeg format.
         """
         # the default implementation sets the icon
-        # print "_populate_thumbnail"
         # XXX does not get called... but if it does...
-        sg = item.data(self.SG_DATA_ROLE)
         self._tray_model.swap_in_thumbnail(item, field, image, path)
  
     def _populate_thumbnail_image(self, item, field, image, path):
@@ -175,8 +163,6 @@ class FilteredVersionsModel(ShotgunModel):
         :param image: QImage object with the thumbnail loaded
         :param path: A path on disk to the thumbnail. This is a file in jpeg format.
         """
-        # the default implementation sets the icon
         # XXX we use this one
-        # instead of this, call the tray model
-        sg = item.data(self.SG_DATA_ROLE)
+        # call the tray model with the data in this model to update the thumbnail there.
         self._tray_model.swap_in_thumbnail(item, field, image, path)
