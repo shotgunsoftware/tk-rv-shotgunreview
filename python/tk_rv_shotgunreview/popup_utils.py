@@ -575,7 +575,7 @@ class PopupUtils(QtCore.QObject):
         for x in range(0,rows):
             item = self._tray_frame.tray_proxyModel.index(x, 0)
             sg = shotgun_model.get_sg_data(item)
-            if sg['shot']:
+            if sg.get('shot'):
                 # cut item may not be linked to shot
                 shot_list.append(sg['shot'])
         entity_list = [ 'entity', 'in', shot_list ]
