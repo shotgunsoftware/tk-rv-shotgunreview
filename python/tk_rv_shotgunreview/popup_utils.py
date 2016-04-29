@@ -79,7 +79,7 @@ class PopupUtils(QtCore.QObject):
                                                                     start_processing=True,
                                                                     max_threads=2)
 
-        self._filtered_versions_model = FilteredVersionsModel(None, self._filtered_versions_task_manager)
+        self._filtered_versions_model = FilteredVersionsModel(None, self._filtered_versions_task_manager, self._tray_frame.tray_model)
 
         # connections
         
@@ -407,6 +407,7 @@ class PopupUtils(QtCore.QObject):
             for a in actions:
                 a.setChecked(False)
             self._tray_frame.status_filter_button.setText("Filter by Status")
+            self.request_versions_for_statuses_and_steps()
             return
 
         name = 'Error'

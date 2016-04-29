@@ -38,6 +38,23 @@ class TrayMainFrame(QtGui.QFrame):
         # set up the UI
         self.init_ui()
 
+        #self._task_manager.task_completed.connect(self.on_task_complete)
+        #self._task_manager.task_group_finished.connect(self.on_task_group_finished)
+        #self._task_manager.task_failed.connect(self.on_task_failed)
+
+
+    def on_task_complete(self, uid, group, result):
+        """
+        result is the result set from the query
+        """
+        print "TASK COMPLETE - uid: %r group: %r result: %r" %( uid, group, result)
+
+    def on_task_group_finished(self, group):
+        print "TASK GROUP FINISHED: %r" % group
+
+    def on_task_failed(self, uid, group, message, traceback_str):
+        print "TASK FAILED!! %r" % message
+
     def set_rv_mode(self, rv_mode):
         """
         reference to application state
