@@ -48,7 +48,7 @@ class PopupUtils(QtCore.QObject):
         self._status_list = []
         self._rv_mode = rv_mode
         self._pipeline_steps_menu = None
-        self._pipeline_steps = []
+        self._pipeline_steps = None
         self._related_cuts_menu = None
         self._last_related_cuts = None
         self._last_rel_shot_entity = None
@@ -489,7 +489,6 @@ class PopupUtils(QtCore.QObject):
         # so check the widget and then update the button text
         want_latest = False
         if event.data():
-            print "handle_pipeline_menu: %r" % event.data()
             e = event.data()
             if e['cached_display_name'] == 'Latest in Pipeline':
                 want_latest = True
@@ -497,8 +496,8 @@ class PopupUtils(QtCore.QObject):
         actions = self._pipeline_steps_menu.actions()
         count = 0
         name = 'Error'
-        # for later filtering
-        self._pipeline_steps = []
+        # for later filtering, None tells us no step is selected vs [] which means latest in pipeline
+        self._pipeline_steps = None
         last_name = None
         for a in actions:
             if a.isChecked():
@@ -510,11 +509,14 @@ class PopupUtils(QtCore.QObject):
                     count = count - 1
                     name = last_name
                 if a.data()['cached_display_name'] != 'Latest in Pipeline':
+                    if self._pipeline_steps == None:
+                        self._pipeline_steps = []
                     self._pipeline_steps.append(a.data())
                     if want_latest:
                         a.setChecked(False)
                 last_name = name
         if want_latest:
+            # an empty list is what the query wants for 'latest in pipeline'
             self._pipeline_steps = []
             name = 'Latest in Pipeline'
             count = 1
@@ -528,6 +530,11 @@ class PopupUtils(QtCore.QObject):
         self.request_versions_for_statuses_and_steps()
 
     # methods for 'the crazy query', find versions that match criteria in steps and statuses
+
+    def filters_exist(self):
+        if self._status_list or self._pipeline_steps != None:
+            return True
+        return False
 
     def filter_tray(self):
 

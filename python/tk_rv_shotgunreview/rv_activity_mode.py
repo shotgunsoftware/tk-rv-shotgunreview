@@ -1559,10 +1559,11 @@ class RvActivityMode(rvt.MinorMode):
         # false (because we are not _responding_ to a filter update).  If so,
         # initiate that query.  If not, display completion feedback 
 
-        filter_query_required = True # XXX this should only be true if we have some filtering params stored
+
+        filter_query_required = self._popup_utils.filters_exist()
         if (not filter_query_finished and filter_query_required):
             # trigger filter query
-            pass
+            self._popup_utils.request_versions_for_statuses_and_steps()
         else :
             rve.displayFeedback("Loading complete", 2.0)
 
