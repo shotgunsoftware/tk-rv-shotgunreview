@@ -403,7 +403,6 @@ class PopupUtils(QtCore.QObject):
         self._status_list = []
         actions = self._status_menu.actions()
         if not event.data():
-            print 'clearing out status list'
             for a in actions:
                 a.setChecked(False)
             self._tray_frame.status_filter_button.setText("Filter by Status")

@@ -42,6 +42,9 @@ class TrayMainFrame(QtGui.QFrame):
         #self._task_manager.task_group_finished.connect(self.on_task_group_finished)
         #self._task_manager.task_failed.connect(self.on_task_failed)
 
+    def show_steps_and_statuses(self, visible):
+        self.pipeline_filter_button.setVisible( visible )
+        self.status_filter_button.setVisible( visible )
 
     def on_task_complete(self, uid, group, result):
         """

@@ -990,10 +990,13 @@ class RvActivityMode(rvt.MinorMode):
 
         if   t_type == "Version":
             self.load_tray_with_version_ids(target_entity["ids"])
+            self.tray_main_frame.show_steps_and_statuses(False)
         elif t_type == "Playlist":
             self.load_tray_with_playlist_id(target_entity["ids"][0])
+            self.tray_main_frame.show_steps_and_statuses(False)
         elif t_type == "Cut":
             self.load_tray_with_cut_id(target_entity["ids"][0])
+            self.tray_main_frame.show_steps_and_statuses(True)
         else:
             self._app.engine.log_error("Tray does not support entity type '%s'." % t_type)
         

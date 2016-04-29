@@ -44,7 +44,8 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         # self._alpha_brush = QtGui.QBrush(QtGui.QColor(0,0,0,64))
                    
     def _handle_entered(self, index):
-        print "ITEM ENTERED: %r" % index
+        # print "ITEM ENTERED: %r" % index
+        pass
         # if index is None:
         #         self.tray_view.selectionModel().clear()
         # else:
@@ -56,7 +57,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         # item.repaint()
 
     def _handle_double_clicked(self, action=None):
-        print "DOUBLE CLICK on ITEM %r" % action
+        # print "DOUBLE CLICK on ITEM %r" % action
         cur_index = self.tray_view.selectionModel().currentIndex()
         (_, item, model) = self._source_for_index(cur_index)
         
@@ -166,8 +167,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
     # works but not useful?
     def _on_current_changed(self, current_index, previous_index):
         pass
-        #print "CURRENT CHANGED"
-        print "_on_current_changed %d WAS %d" % (current_index.row(), previous_index.row())
+        # print "_on_current_changed %d WAS %d" % (current_index.row(), previous_index.row())
 
     def paint(self, painter, style_options, model_index):
         """

@@ -45,7 +45,6 @@ class TrayModel(ShotgunModel):
     def swap_in_thumbnail(self, item, field, image, path):
         print "swap in thumbnail for %r, field: %r, path: %r" % (item, field, path)
         if not image:
-            print "NO IMAGE"
             return 
 
         # XXX this item is FROM THE OTHER MODEL!!! so you have to 
@@ -171,12 +170,10 @@ class TrayModel(ShotgunModel):
         sg = item.data(self.SG_DATA_ROLE)
         rv_data = item.data(self._RV_DATA_ROLE)
 
+        # XXX - is this needed? sb
         if rv_data:
-            print "tray: downloading RV_DATA_ROLE thumb %r" % rv_data['image']
             if rv_data['image']:
                 super(TrayModel, self)._request_thumbnail_download(item, 'image', rv_data['image'], 'Version', rv_data['id'])
-        else:
-            print "tray: NO RV ROLE YET"
 
 
         if 'shot' not in sg:
