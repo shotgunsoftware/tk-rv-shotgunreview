@@ -27,6 +27,7 @@ class ListItemWidget(QtGui.QWidget):
     :vartype show_labels:   bool
     :ivar field_manager:    The accompanying ShotgunFieldManager object
                             used to construct all Shotgun field widgets.
+    :ivar entity:           The currently loaded Shotgun entity.
     """
     WIDTH_HINT = 300
     HEIGHT_HINT_PADDING = 8
@@ -56,7 +57,7 @@ class ListItemWidget(QtGui.QWidget):
 
         self._field_manager = shotgun_field_manager
 
-        self._entity = None
+        self.entity = None
         self._show_border = show_border
 
         # TODO: Note that OrderedDict is only in Python 2.7. If we move
@@ -170,7 +171,7 @@ class ListItemWidget(QtGui.QWidget):
         for field_name, field_data in self._fields.iteritems():
             now_exempt = (field_name in fields)
 
-            if self._entity:
+            if self.entity:
                 previously_exempt = field_data["label_exempt"]
 
                 # If the state is changing for this field, then we
@@ -196,7 +197,7 @@ class ListItemWidget(QtGui.QWidget):
 
         self._show_labels = bool(state)
 
-        if not self._entity:
+        if not self.entity:
             return
 
         # Re-add all of the current fields. This will cause the item to
@@ -235,13 +236,13 @@ class ListItemWidget(QtGui.QWidget):
 
         # If we've not yet loaded an entity, then we don't need to
         # do any widget work.
-        if not self._entity:
+        if not self.entity:
             return
 
         field_widget = self.field_manager.create_display_widget(
-            self._entity.get("type"),
+            self.entity.get("type"),
             field_name,
-            self._entity,
+            self.entity,
         )
 
         self._fields[field_name]["widget"] = field_widget
@@ -260,7 +261,7 @@ class ListItemWidget(QtGui.QWidget):
                 # We have a label, so we put that in column 0 and the
                 # field widget in column 1.
                 field_label = self.field_manager.create_label(
-                    self._entity.get("type"),
+                    self.entity.get("type"),
                     field_name,
                 )
                 self._fields[field_name]["label"] = field_label
@@ -277,8 +278,8 @@ class ListItemWidget(QtGui.QWidget):
         """
         Clears all data out of the widget.
         """
-        if self._entity:
-            self._entity = None
+        if self.entity:
+            self.entity = None
             self.clear_fields()
             self.thumbnail.hide()
             self.ui.left_layout.removeWidget(self.thumbnail)
@@ -300,7 +301,7 @@ class ListItemWidget(QtGui.QWidget):
         """
         # If we have no entity, we have no widgets. If we have no widgets
         # then we definitely don't have anything visible.
-        if not self._entity:
+        if not self.entity:
             return []
 
         return [f for f, d in self._fields.iteritems() if d["widget"].isVisible()]
@@ -350,15 +351,15 @@ class ListItemWidget(QtGui.QWidget):
             raise RuntimeError("No ShotgunFieldManager has been set, unable to set entity.")
 
         # Don't bother if it's the same entity we already have.
-        if self._entity and self._entity == entity:
+        if self.entity and self.entity == entity:
             return
 
         # If we've already been populated previously, then we will
         # set the values of the existing field widgets. Otherwise
         # this is a first-time setup and we need to create and place
         # the field widgets into the layout.
-        if self._entity:
-            self._entity = entity
+        if self.entity:
+            self.entity = entity
             self.thumbnail.set_value(entity.get("image"))
 
             for field, field_data in self._fields.iteritems():
@@ -367,11 +368,11 @@ class ListItemWidget(QtGui.QWidget):
                 if field_widget:
                     field_widget.set_value(entity.get(field))
         else:
-            self._entity = entity
+            self.entity = entity
             self.thumbnail = self.field_manager.create_display_widget(
                 entity.get("type"),
                 "image",
-                self._entity,
+                self.entity,
             )
 
             # The stretch factor helps the item widget scale horizontally
@@ -391,7 +392,7 @@ class ListItemWidget(QtGui.QWidget):
                 field_widget = self.field_manager.create_display_widget(
                     entity.get("type"),
                     field,
-                    self._entity,
+                    self.entity,
                 )
 
                 # If we've been asked to show labels for the fields, then
@@ -430,7 +431,7 @@ class ListItemWidget(QtGui.QWidget):
 
         # If the field isn't registered with the item or if we've
         # not loaded an entity, then there's nothing to do.
-        if field_name not in self._fields or not self._entity:
+        if field_name not in self._fields or not self.entity:
             return
 
         self._fields[field_name]["widget"].setVisible(bool(state))
