@@ -1403,9 +1403,18 @@ class RvActivityMode(rvt.MinorMode):
 
     def data_from_query_item(self, sg_item, rv_item, target_entity):
         if target_entity["type"] == "Cut":
-            return self.data_from_cut_item(sg_item, rv_item)
+            (version_data, edit_data) = self.data_from_cut_item(sg_item, rv_item)
         else:
-            return self.data_from_version(sg_item)
+            (version_data, edit_data) = self.data_from_version(sg_item)
+
+        #  Try to recover from cases with missing data
+        #
+        if edit_data["in"] is None:
+            edit_data["in"] = 1
+        if edit_data["out"] is None:
+            edit_data["out"] = edit_data["in"] + 24
+
+        return (version_data, edit_data)
 
     # signal from model so filter_query_finished is False (we need to run follow-on
     # query, if any)
