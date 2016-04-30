@@ -178,10 +178,13 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
         elif data_type == "multi_entity":
             processable_data = "".join([e.get("name", "") for e in sg_data[field]])
         elif data_type == "date_time":
-            processable_data = shotgun_globals.create_human_readable_timestamp(
-                sg_data[field],
-                " %I:%M%p",
-            )
+            if sg_data[field] is not None:
+                processable_data = shotgun_globals.create_human_readable_timestamp(
+                    sg_data[field],
+                    " %I:%M%p",
+                )
+            else:
+                processable_data = ""
         elif data_type == "tag_list":
             processable_data = "".join(sg_data[field])
         else:
