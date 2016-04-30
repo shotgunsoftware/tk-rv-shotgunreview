@@ -309,14 +309,101 @@
            <number>0</number>
           </property>
           <item>
-           <widget class="QToolButton" name="version_fields_button">
-            <property name="text">
-             <string>Fields...</string>
+           <layout class="QHBoxLayout" name="horizontalLayout_3">
+            <property name="spacing">
+             <number>10</number>
             </property>
-            <property name="popupMode">
-             <enum>QToolButton::InstantPopup</enum>
+            <property name="rightMargin">
+             <number>0</number>
             </property>
-           </widget>
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_6">
+              <property name="spacing">
+               <number>0</number>
+              </property>
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <item>
+               <widget class="QToolButton" name="version_fields_button">
+                <property name="text">
+                 <string>Fields</string>
+                </property>
+                <property name="popupMode">
+                 <enum>QToolButton::InstantPopup</enum>
+                </property>
+                <property name="toolButtonStyle">
+                 <enum>Qt::ToolButtonTextBesideIcon</enum>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="label">
+                <property name="maximumSize">
+                 <size>
+                  <width>8</width>
+                  <height>8</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+                <property name="pixmap">
+                 <pixmap resource="resources.qrc">:/tk-rv-shotgunreview/arrow.png</pixmap>
+                </property>
+                <property name="scaledContents">
+                 <bool>true</bool>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignCenter</set>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+            <item>
+             <layout class="QHBoxLayout" name="horizontalLayout_7">
+              <property name="spacing">
+               <number>0</number>
+              </property>
+              <property name="leftMargin">
+               <number>0</number>
+              </property>
+              <property name="rightMargin">
+               <number>0</number>
+              </property>
+              <item>
+               <widget class="QToolButton" name="version_sort_button">
+                <property name="text">
+                 <string>Sort</string>
+                </property>
+                <property name="popupMode">
+                 <enum>QToolButton::InstantPopup</enum>
+                </property>
+               </widget>
+              </item>
+              <item>
+               <widget class="QLabel" name="label_2">
+                <property name="maximumSize">
+                 <size>
+                  <width>8</width>
+                  <height>8</height>
+                 </size>
+                </property>
+                <property name="text">
+                 <string/>
+                </property>
+                <property name="pixmap">
+                 <pixmap resource="resources.qrc">:/tk-rv-shotgunreview/arrow.png</pixmap>
+                </property>
+                <property name="scaledContents">
+                 <bool>true</bool>
+                </property>
+               </widget>
+              </item>
+             </layout>
+            </item>
+           </layout>
           </item>
           <item>
            <spacer name="horizontalSpacer">
@@ -330,6 +417,9 @@
              </size>
             </property>
            </spacer>
+          </item>
+          <item>
+           <widget class="SearchWidget" name="version_search" native="true"/>
           </item>
          </layout>
         </widget>
@@ -377,6 +467,12 @@
    <class>ListItemWidget</class>
    <extends>QWidget</extends>
    <header>..list_item_widget</header>
+   <container>1</container>
+  </customwidget>
+  <customwidget>
+   <class>SearchWidget</class>
+   <extends>QWidget</extends>
+   <header>..qtwidgets</header>
    <container>1</container>
   </customwidget>
  </customwidgets>

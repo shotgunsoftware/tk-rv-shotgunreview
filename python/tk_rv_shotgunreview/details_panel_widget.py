@@ -20,6 +20,7 @@ from .list_item_widget import ListItemWidget
 from .list_item_delegate import ListItemDelegate
 from .version_context_menu import VersionContextMenu
 from .qtwidgets import ShotgunFieldManager
+from .version_sort_filter import VersionSortFilterProxyModel
 
 shotgun_view = tank.platform.import_framework(
     "tk-framework-qtwidgets",
@@ -63,6 +64,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._pinned = False
         self._requested_entity = None
         self._current_entity = None
+        self._sort_versions_ascending = False
 
         self.ui = Ui_DetailsPanelWidget() 
         self.ui.setupUi(self)
@@ -129,8 +131,19 @@ class DetailsPanelWidget(QtGui.QWidget):
             "sg_status_list",
         ]
 
+        # Our sort-by list will include "id" at the head.
+        self._version_list_sort_by_fields = ["id"] + self._version_list_persistent_fields
+
         self.version_model = shotgun_model.SimpleShotgunModel(self.ui.entity_version_tab)
-        self.ui.entity_version_view.setModel(self.version_model)
+        self.version_proxy_model = VersionSortFilterProxyModel(
+            parent=self.ui.entity_version_view,
+            shotgun_field_manager=self._shotgun_field_manager,
+        )
+        self.version_proxy_model.filter_by_fields = self._version_list_persistent_fields
+        self.version_proxy_model.sort_by_fields = self._version_list_sort_by_fields
+        self.version_proxy_model.setFilterWildcard("*")
+        self.version_proxy_model.setSourceModel(self.version_model)
+        self.ui.entity_version_view.setModel(self.version_proxy_model)
         self.version_delegate = ListItemDelegate(
             view=self.ui.entity_version_view,
             fields=self._version_list_persistent_fields,
@@ -155,22 +168,24 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.shot_info_widget.label_exempt_fields = self._persistent_fields
 
         # Signal handling.
-        self._task_manager.task_group_finished.connect(
-            self._task_group_finished
-        )
         self.ui.pin_button.toggled.connect(self.set_pinned)
         self.ui.more_info_button.toggled.connect(self._more_info_toggled)
         self.ui.shotgun_nav_button.clicked.connect(
             self.ui.note_stream_widget._load_shotgun_activity_stream
         )
-
-        self.ui.entity_version_view.customContextMenuRequested.connect(self._show_version_context_menu)
+        self.ui.entity_version_view.customContextMenuRequested.connect(
+            self._show_version_context_menu,
+        )
+        self.ui.version_search.search_edited.connect(self._set_version_list_filter)
+        self.shot_info_model.data_refreshed.connect(self._version_entity_data_refreshed)
+        self._task_manager.task_group_finished.connect(self.ui.entity_version_view.update)
 
         # The fields menu attached to the "Fields..." buttons
         # when "More info" is active as well as in the Versions
         # tab.
         self._setup_fields_menu()
         self._setup_version_list_fields_menu()
+        self._setup_version_sort_by_menu()
 
     ##########################################################################
     # properties
@@ -230,9 +245,10 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param entity:  The Shotgun entity to load. This is a dict in
                         the form returned by the Shotgun Python API.
         """
+        self._requested_entity = entity
+
         # If we're pinned, then we don't allow loading new entities.
         if self._pinned:
-            self._requested_entity = entity
             return
 
         # If we got an "empty" entity from the mode, then we need
@@ -261,26 +277,6 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.shot_info_model.load_data(
             entity_type="Version",
             filters=shot_filters,
-            fields=self._fields,
-        )
-
-        item = self.shot_info_model.item_from_entity(
-            "Version",
-            entity["id"],
-        )
-
-        if not item:
-            return
-
-        sg_data = item.get_sg_data()
-
-        self.ui.shot_info_widget.set_entity(sg_data)
-        self._more_info_toggled(self.ui.more_info_button.isChecked())
-
-        version_filters = [["entity", "is", sg_data["entity"]]]
-        self.version_model.load_data(
-            "Version",
-            filters=version_filters,
             fields=self._fields,
         )
 
@@ -313,7 +309,6 @@ class DetailsPanelWidget(QtGui.QWidget):
             self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_up.png"))
             if self._requested_entity:
                 self.load_data(self._requested_entity)
-                self._requested_entity = None
 
     ##########################################################################
     # internal utilities
@@ -333,10 +328,51 @@ class DetailsPanelWidget(QtGui.QWidget):
 
             if action.isChecked():
                 self.ui.shot_info_widget.add_field(field_name)
+                self._fields.append(field_name)
+                self.load_data(self._requested_entity)
             else:
                 self.ui.shot_info_widget.remove_field(field_name)
 
             self._active_fields = self.ui.shot_info_widget.fields
+
+    def _version_entity_data_refreshed(self):
+        """
+        Takes the currently-requested entity and sets various widgets
+        to display it.
+        """
+        entity = self._requested_entity
+
+        item = self.shot_info_model.item_from_entity(
+            "Version",
+            entity["id"],
+        )
+
+        if not item:
+            return
+
+        sg_data = item.get_sg_data()
+
+        self.ui.shot_info_widget.set_entity(sg_data)
+        self._more_info_toggled(self.ui.more_info_button.isChecked())
+
+        if sg_data.get("entity"):
+            version_filters = [["entity", "is", sg_data["entity"]]]
+            self.version_model.load_data(
+                "Version",
+                filters=version_filters,
+                fields=self._fields,
+            )
+
+            self.version_proxy_model.sort(
+                0, 
+                (
+                    QtCore.Qt.AscendingOrder if 
+                    self._sort_versions_ascending else 
+                    QtCore.Qt.DescendingOrder
+                ),
+            )
+        else:
+            self.version_model.clear()
 
     def _version_list_field_menu_triggered(self, action):
         """
@@ -353,9 +389,48 @@ class DetailsPanelWidget(QtGui.QWidget):
 
             if action.isChecked():
                 self.version_delegate.add_field(field_name)
+
+                # When a field is added to the list, then we also need to
+                # add it to the sort-by menu.
+                if field_name not in self._version_list_sort_by_fields:
+                    self._version_list_sort_by_fields.append(field_name)
+                    self._fields.append(field_name)
+                    self.load_data(self._requested_entity)
+                    new_action = QtGui.QAction(
+                        shotgun_globals.get_field_display_name(
+                            "Version",
+                            field_name,
+                        ),
+                        self,
+                    )
+                    new_action.setData(field_name)
+                    new_action.setCheckable(True)
+                    self._version_sort_menu_fields.addAction(new_action)
+                    self._version_sort_menu.addAction(new_action)
+                    self._sort_version_list()
             else:
                 self.version_delegate.remove_field(field_name)
 
+                # We also need to remove the field from the sort-by menu. We
+                # will leave "id" in the list always, even if it isn't being
+                # displayed by the delegate.
+                if field_name != "id" and field_name in self._version_list_sort_by_fields:
+                    self._version_list_sort_by_fields.remove(field_name)
+                    sort_actions = self._version_sort_menu.actions()
+                    remove_action = [a for a in sort_actions if a.data() == field_name][0]
+
+                    # If it's the current primary sort field, then we need to
+                    # fall back on "id" to take its place.
+                    if remove_action.isChecked():
+                        actions = self._version_sort_menu_fields.actions()
+                        id_action = [a for a in actions if a.data() == "id"][0]
+                        id_action.setChecked(True)
+                        self._sort_version_list(id_action)
+                    self._version_sort_menu.removeAction(remove_action)
+                    self._version_sort_menu_fields.removeAction(remove_action)
+
+            self.version_proxy_model.filter_by_fields = self.version_delegate.fields
+            self.version_proxy_model.setFilterWildcard(self.ui.version_search.search_text)
             self.ui.entity_version_view.repaint()
 
     def _more_info_toggled(self, checked):
@@ -387,6 +462,19 @@ class DetailsPanelWidget(QtGui.QWidget):
         indexes = selection_model.selectedIndexes()
         return [shotgun_model.get_sg_data(i) for i in indexes]
 
+    def _set_version_list_filter(self, filter_text):
+        """
+        Sets the Version list proxy model's filter pattern and forces
+        a reselection of any items in the list.
+
+        :param filter_text: The pattern to set as the proxy model's
+                            filter wildcard.
+        """
+        # Forcing a reselection handles forcing a rebuild of any
+        # editor widgets and will ensure we draw/sort/filter properly.
+        self.version_proxy_model.setFilterWildcard(filter_text)
+        self.version_delegate.force_reselection()
+
     def _setup_fields_menu(self):
         """
         Sets up the EntityFieldMenu and attaches it as the "More fields"
@@ -412,6 +500,66 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._version_list_field_menu = menu
         self._version_list_field_menu.triggered.connect(self._version_list_field_menu_triggered)
         self.ui.version_fields_button.setMenu(menu)
+
+    def _setup_version_sort_by_menu(self):
+        """
+        Sets up the sort-by menu in the Versions tab.
+        """
+        self._version_sort_menu = QtGui.QMenu(self)
+        self._version_sort_menu.setObjectName("version_sort_menu")
+
+        ascending = QtGui.QAction("Sort Ascending", self)
+        descending = QtGui.QAction("Sort Descending", self)
+        ascending.setCheckable(True)
+        descending.setCheckable(True)
+        descending.setChecked(True)
+
+        up_icon = QtGui.QIcon(":tk-rv-shotgunreview/sort_up.png")
+        up_icon.addPixmap(
+            QtGui.QPixmap(":tk-rv-shotgunreview/sort_up_on.png"),
+            QtGui.QIcon.Active,
+            QtGui.QIcon.On,
+        )
+
+        down_icon = QtGui.QIcon(":tk-rv-shotgunreview/sort_down.png")
+        down_icon.addPixmap(
+            QtGui.QPixmap(":tk-rv-shotgunreview/sort_down_on.png"),
+            QtGui.QIcon.Active,
+            QtGui.QIcon.On,
+        )
+
+        ascending.setIcon(up_icon)
+        descending.setIcon(down_icon)
+
+        self._version_sort_menu_directions = QtGui.QActionGroup(self)
+        self._version_sort_menu_fields = QtGui.QActionGroup(self)
+        self._version_sort_menu_directions.setExclusive(True)
+        self._version_sort_menu_fields.setExclusive(True)
+
+        self._version_sort_menu_directions.addAction(ascending)
+        self._version_sort_menu_directions.addAction(descending)
+        self._version_sort_menu.addActions([ascending, descending])
+        self._version_sort_menu.addSeparator()
+
+        for field_name in self._version_list_sort_by_fields:
+            display_name = shotgun_globals.get_field_display_name(
+                "Version",
+                field_name,
+            )
+
+            action = QtGui.QAction(display_name, self)
+
+            # We store the database field name on the action, but
+            # display the "pretty" name for users.
+            action.setData(field_name)
+            action.setCheckable(True)
+            action.setChecked((field_name == "id"))
+            self._version_sort_menu_fields.addAction(action)
+            self._version_sort_menu.addAction(action)
+
+        self._version_sort_menu_directions.triggered.connect(self._toggle_sort_order)
+        self._version_sort_menu_fields.triggered.connect(self._sort_version_list)
+        self.ui.version_sort_button.setMenu(self._version_sort_menu)
 
     def _show_version_context_menu(self, point):
         """
@@ -466,18 +614,6 @@ class DetailsPanelWidget(QtGui.QWidget):
         action = menu.exec_(self.ui.entity_version_view.mapToGlobal(point))
         menu.execute_callback(action)
 
-    def _task_group_finished(self, group):
-        """
-        Repaints the necessary widgets and views when a task is completed
-        by the ShotgunFieldManager object. This will ensure that all widgets
-        making use of Shotgun field widgets will be repainted once all data
-        has been queried from Shotgun.
-
-        :param group:   The task group that was completed.
-        """
-        self.ui.shot_info_widget.repaint()
-        self.ui.entity_version_view.repaint()
-
     def _trigger_rv_screen_grab(self):
         """
         Triggers an RV event instructing the mode running as part of
@@ -490,6 +626,25 @@ class DetailsPanelWidget(QtGui.QWidget):
 
     ##########################################################################
     # version list actions
+
+    def _toggle_sort_order(self):
+        """
+        Toggles ascending/descending sort ordering in the version list view.
+        """
+        self._sort_versions_ascending = not self._sort_versions_ascending
+        self.version_proxy_model.sort(
+            0, 
+            (
+                QtCore.Qt.AscendingOrder if 
+                self._sort_versions_ascending else 
+                QtCore.Qt.DescendingOrder
+            ),
+        )
+
+        # We need to force a reselection after sorting. This will
+        # remove edit widgets and allow a full repaint of the view,
+        # and then reselect to go back to editing.
+        self.version_delegate.force_reselection()
 
     def _compare_with_current(self, versions):
         """
@@ -537,6 +692,37 @@ class DetailsPanelWidget(QtGui.QWidget):
             "replace_with_selected",
             json.dumps(versions),
         )
+
+    def _sort_version_list(self, action=None):
+        """
+        Sorts the version list by the field chosen in the sort-by
+        menu. This also triggers a reselection in the view in
+        order to ensure proper sorting and drawing of items in the
+        list.
+
+        :param action:  The QAction chosen by the user from the menu.
+        """
+        if action:
+            # The action group containing these actions is set to
+            # exclusive activation, so we're always dealing with a
+            # checked action when this slot is called. We can just
+            # set the primary sort field, sort, and move on.
+            field = action.data() or "id"
+            self.version_proxy_model.primary_sort_field = field
+
+        self.version_proxy_model.sort(
+            0, 
+            (
+                QtCore.Qt.AscendingOrder if 
+                self._sort_versions_ascending else 
+                QtCore.Qt.DescendingOrder
+            ),
+        )
+
+        # We need to force a reselection after sorting. This will
+        # remove edit widgets and allow a full repaint of the view,
+        # and then reselect to go back to editing.
+        self.version_delegate.force_reselection()
 
     ##########################################################################
     # fields menu filters

@@ -31,4 +31,7 @@ GlobalSearchWidget = global_search_widget.GlobalSearchWidget
 shotgun_fields = sgtk.platform.import_framework("tk-framework-qtwidgets", "shotgun_fields")
 ShotgunFieldManager = shotgun_fields.ShotgunFieldManager
 
+search_widget = sgtk.platform.import_framework("tk-framework-qtwidgets", "search_widget")
+SearchWidget = search_widget.SearchWidget
+
 
