@@ -54,6 +54,10 @@ class PopupUtils(QtCore.QObject):
         self._last_rel_shot_entity = None
         self._last_rel_cut_entity = None
 
+        self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
+        self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
+
+
         # models
 
         self._steps_task_manager = task_manager.BackgroundTaskManager(parent=None,
@@ -487,15 +491,12 @@ class PopupUtils(QtCore.QObject):
 
         want_latest = False
         if event.data():
-            print "EVENT %r %r" % (event.data(), event)
             e = event.data()
             if e['cached_display_name'] == 'Latest in Pipeline':
                 want_latest = True
                 print "want latest %r" % event.isChecked()
                 if not event.isChecked():
                     want_latest = False
-        else:
-            print "WHAT HAPPENED?"
         
         actions = self._pipeline_steps_menu.actions()
         count = 0
@@ -541,14 +542,13 @@ class PopupUtils(QtCore.QObject):
         return False
 
     def clear_out_rv_roles(self):
-        print "clear_out_rv_roles"
         rows = self._tray_frame.tray_model.rowCount()
 
         for x in range(0,rows):
             index = self._tray_frame.tray_model.index(x, 0)
             self._tray_frame.tray_delegate.update_rv_role(index, None)
 
-            thumb = index.data(QtCore.Qt.DecorationRole)
+            thumb = index.data(self._CUT_THUMB_ROLE)
             item = self._tray_frame.tray_model.itemFromIndex(index)
             item.setIcon(thumb)
                 
@@ -556,7 +556,6 @@ class PopupUtils(QtCore.QObject):
 
 
     def filter_tray(self):
-        print "filter_tray - steps: %r" % self._pipeline_steps
         rows = self._filtered_versions_model.rowCount()
         if rows < 1:
             self.clear_out_rv_roles()
@@ -587,7 +586,6 @@ class PopupUtils(QtCore.QObject):
         self._tray_frame.tray_model.notify_filter_data_refreshed(True)
 
     def get_tray_filters(self):
-        print "get_tray_filters"
         rows = self._tray_frame.tray_proxyModel.rowCount()
         if rows < 1:
             return []
@@ -610,7 +608,6 @@ class PopupUtils(QtCore.QObject):
             return filters
         if self._pipeline_steps != None:
             if self._pipeline_steps == []:
-                print "PS: %r" % self._pipeline_steps
                 return []
             step_list = ['sg_task.Task.step', 'in', self._pipeline_steps]
             filters = [ step_list, entity_list ]
@@ -618,10 +615,8 @@ class PopupUtils(QtCore.QObject):
         return None
 
     def request_versions_for_statuses_and_steps(self):
-        print "request_versions_for_statuses_and_steps"
         full_filters = self.get_tray_filters()
         if full_filters == None:
-            print "CLEARING FILTER MODEL"
             self._filtered_versions_model.clear()
             self._filtered_versions_model.data_refreshed.emit(True)
             return

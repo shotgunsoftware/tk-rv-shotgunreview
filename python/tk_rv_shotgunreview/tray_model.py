@@ -24,6 +24,7 @@ class TrayModel(ShotgunModel):
 
         self._parent = parent
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
+        self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
 
     def notify_filter_data_refreshed(self, modified=True):
         self.filter_data_refreshed.emit(modified)
@@ -205,5 +206,6 @@ class TrayModel(ShotgunModel):
         """
         #print "TRAY _populate_thumbnail_image"
         thumb = QtGui.QPixmap.fromImage(image)
+        item.setData(thumb, self._CUT_THUMB_ROLE)
         item.setIcon(thumb)
 
