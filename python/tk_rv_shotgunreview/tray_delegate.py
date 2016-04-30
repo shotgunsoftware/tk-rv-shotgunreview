@@ -178,10 +178,17 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         :param model_index:     The index in the data model that needs to be painted
         """
         sg_item = shotgun_model.get_sg_data(model_index)
-        rv_item = model_index.data(self._RV_DATA_ROLE)
-        if rv_item:
-            #print "RV ITEM IS HERE %r" % rv_item  
-            pass
+        # rv_item = model_index.data(self._RV_DATA_ROLE)
+        # if rv_item:
+        #     print "RV ITEM IS HERE %r" % rv_item  
+        # else:
+        #     icon = model_index.data(QtCore.Qt.DecorationRole)
+        #     if icon:
+        #         (_, item, model) = self._source_for_index(model_index)
+        #         item.setIcon(icon)
+
+
+        #     print "NO RV ITEM"
         # for performance reasons, we are not creating a widget every time
         # but merely moving the same widget around. 
         paint_widget = self._get_painter_widget(model_index, self.parent())

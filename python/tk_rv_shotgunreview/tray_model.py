@@ -47,8 +47,7 @@ class TrayModel(ShotgunModel):
         model, find the matching shot in this model, and then set the
         thumbnail in this model with the other models data.
         """
-        if not image:
-            return 
+
 
         sgv = item.data(self.SG_DATA_ROLE)
         shot = sgv['entity']
@@ -59,9 +58,14 @@ class TrayModel(ShotgunModel):
             sg = m_idx.data(self.SG_DATA_ROLE)
             if 'shot' in sg:
                 if sg['shot']['id'] == shot['id']:
-                    thumb = QtGui.QPixmap.fromImage(image)
                     t_item = self.itemFromIndex(m_idx)
-                    t_item.setIcon(thumb)
+                    if not image:
+                        # we have no image, then revert to the decorator role 
+                        thumb = m_idx.data(QtCore.Qt.DecorationRole)
+                        t_item.setIcon(thumb)
+                    else:
+                        thumb = QtGui.QPixmap.fromImage(image)
+                        t_item.setIcon(thumb)
 
 
     def _set_tooltip(self, item, sg_item):
@@ -199,7 +203,7 @@ class TrayModel(ShotgunModel):
         :param image: QImage object with the thumbnail loaded
         :param path: A path on disk to the thumbnail. This is a file in jpeg format.
         """
-        
+        #print "TRAY _populate_thumbnail_image"
         thumb = QtGui.QPixmap.fromImage(image)
         item.setIcon(thumb)
 

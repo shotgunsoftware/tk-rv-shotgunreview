@@ -396,7 +396,6 @@ class PopupUtils(QtCore.QObject):
             menu.addAction(action)
 
     def handle_status_menu(self, event):
-        print "handle_status_menu event: %r" % event.data()
         # if 'any status' is picked, then the other
         # choices are zeroed out. event.data will be None for any status
 
@@ -441,8 +440,6 @@ class PopupUtils(QtCore.QObject):
         """
         This loads the menu with values returned when the _steps_model returns data_refreshed
         """
-        self._engine.log_info('================handle_pipeline_steps_refreshed')
-
         if not self._pipeline_steps_menu:
             self._pipeline_steps_menu = QtGui.QMenu(self._tray_frame.pipeline_filter_button)
             self._tray_frame.pipeline_filter_button.setMenu(self._pipeline_steps_menu)        
@@ -487,11 +484,18 @@ class PopupUtils(QtCore.QObject):
         # you only get the latest one clicked here. there could be more.
         # you might also get a roll off event that you dont want.
         # so check the widget and then update the button text
+
         want_latest = False
         if event.data():
+            print "EVENT %r %r" % (event.data(), event)
             e = event.data()
             if e['cached_display_name'] == 'Latest in Pipeline':
                 want_latest = True
+                print "want latest %r" % event.isChecked()
+                if not event.isChecked():
+                    want_latest = False
+        else:
+            print "WHAT HAPPENED?"
         
         actions = self._pipeline_steps_menu.actions()
         count = 0
@@ -536,11 +540,26 @@ class PopupUtils(QtCore.QObject):
             return True
         return False
 
-    def filter_tray(self):
+    def clear_out_rv_roles(self):
+        print "clear_out_rv_roles"
+        rows = self._tray_frame.tray_model.rowCount()
 
+        for x in range(0,rows):
+            index = self._tray_frame.tray_model.index(x, 0)
+            self._tray_frame.tray_delegate.update_rv_role(index, None)
+
+            thumb = index.data(QtCore.Qt.DecorationRole)
+            item = self._tray_frame.tray_model.itemFromIndex(index)
+            item.setIcon(thumb)
+                
+        self._tray_frame.tray_model.notify_filter_data_refreshed(True)
+
+
+    def filter_tray(self):
+        print "filter_tray - steps: %r" % self._pipeline_steps
         rows = self._filtered_versions_model.rowCount()
         if rows < 1:
-            self._engine.log_warning( "Filtering query returned nothing." )
+            self.clear_out_rv_roles()
             return None
 
         shot_map = {}
@@ -568,6 +587,7 @@ class PopupUtils(QtCore.QObject):
         self._tray_frame.tray_model.notify_filter_data_refreshed(True)
 
     def get_tray_filters(self):
+        print "get_tray_filters"
         rows = self._tray_frame.tray_proxyModel.rowCount()
         if rows < 1:
             return []
@@ -579,7 +599,7 @@ class PopupUtils(QtCore.QObject):
                 # cut item may not be linked to shot
                 shot_list.append(sg['shot'])
         entity_list = [ 'entity', 'in', shot_list ]
-        if self._status_list and self._pipeline_steps:
+        if self._status_list and self._pipeline_steps != None:
             status_list = ['sg_status_list', 'in', self._status_list ]
             step_list = ['sg_task.Task.step', 'in', self._pipeline_steps]
             filters = [ step_list, status_list, entity_list ]
@@ -588,14 +608,23 @@ class PopupUtils(QtCore.QObject):
             status_list = ['sg_status_list', 'in', self._status_list ]
             filters = [ status_list, entity_list ]
             return filters
-        if self._pipeline_steps:
+        if self._pipeline_steps != None:
+            if self._pipeline_steps == []:
+                print "PS: %r" % self._pipeline_steps
+                return []
             step_list = ['sg_task.Task.step', 'in', self._pipeline_steps]
             filters = [ step_list, entity_list ]
             return filters
-        return []
+        return None
 
     def request_versions_for_statuses_and_steps(self):
+        print "request_versions_for_statuses_and_steps"
         full_filters = self.get_tray_filters()
+        if full_filters == None:
+            print "CLEARING FILTER MODEL"
+            self._filtered_versions_model.clear()
+            self._filtered_versions_model.data_refreshed.emit(True)
+            return
         version_fields = ["image"] + required_version_fields
         version_filter_presets = [
                 {"preset_name": "LATEST", "latest_by": "BY_PIPELINE_STEP_NUMBER_AND_ENTITIES_CREATED_AT" }
