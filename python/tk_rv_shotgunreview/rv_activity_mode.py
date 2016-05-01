@@ -1557,6 +1557,7 @@ class RvActivityMode(rvt.MinorMode):
         # needed for menus.
         # XXX may be problem later if we have to handle multiple Projects
         if not self.project_entity:
+            # print "SEQUENCE_DATA: %r" % sequence_data
             self.project_entity = sequence_data["project"]
             self._popup_utils.set_project(self.project_entity)
 

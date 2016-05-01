@@ -167,13 +167,13 @@ class TrayModel(ShotgunModel):
             if rv_data['image']:
                 super(TrayModel, self)._request_thumbnail_download(item, 'image', rv_data['image'], 'Version', rv_data['id'])
 
-
+        # XXX - having no 'shot' key means that the incoming query was for a version or playlist, so we want the version image - sb
         if 'shot' not in sg:
             super(TrayModel, self)._request_thumbnail_download(item, 'image', sg['image'], 'Version', sg['id'])
             return
 
         if not sg['shot']:
-
+            # XXX we are assuming that this is a cut query. Althought this works im not sure why 'shot' is the best way to detect - sb
             if sg['image']: # the cutitem image
                 super(TrayModel, self)._request_thumbnail_download(item, 'image', sg['image'], 'CutItem', sg['id'])
                 return
@@ -183,11 +183,10 @@ class TrayModel(ShotgunModel):
                 return
 
             if sg['cut.Cut.version.Version.image']:
-                #print "hi"
                 super(TrayModel, self)._request_thumbnail_download(item, 'cut.Cut.version.Version.image', sg['cut.Cut.version.Version.image'], 'Version', sg['cut.Cut.version.Version.id'])
                 return
 
-        
+        # XXX if we get this far, 'version.Version.image' seems to only appear in a cut query - sb
         super(TrayModel, self)._request_thumbnail_download(item, 'version.Version.image', sg['version.Version.image'], 'Version', sg['version.Version.id'])
 
     def _populate_thumbnail_image(self, item, field, image, path):
