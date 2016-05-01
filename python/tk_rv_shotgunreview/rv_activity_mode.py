@@ -1364,7 +1364,7 @@ class RvActivityMode(rvt.MinorMode):
 
     def sequence_data_from_query_item(self, sg_item, target_entity):
         data = {}
-
+        print "TARGET: %r" % target_entity
         if   target_entity["type"] == "Cut":
             data["ui_name"] = sg_item["cut.Cut.cached_display_name"]
             data["entity"]  = sg_item["cut.Cut.entity"]
@@ -1504,6 +1504,7 @@ class RvActivityMode(rvt.MinorMode):
         edl_outs = []
 
         rows = self.tray_proxyModel.rowCount()
+        # XXX handle sequence_data for queries that return no rows? - sb
 
         for index in range(0, rows):
             item = self.tray_proxyModel.index(index, 0)
@@ -1557,7 +1558,6 @@ class RvActivityMode(rvt.MinorMode):
         # needed for menus.
         # XXX may be problem later if we have to handle multiple Projects
         if not self.project_entity:
-            # print "SEQUENCE_DATA: %r" % sequence_data
             self.project_entity = sequence_data["project"]
             self._popup_utils.set_project(self.project_entity)
 
