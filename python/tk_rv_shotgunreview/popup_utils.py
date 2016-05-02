@@ -10,6 +10,7 @@ from .filter_steps_model import FilterStepsModel
 from .rel_cuts_model import RelCutsModel
 from .rel_shots_model import RelShotsModel
 from .filtered_versions_model import FilteredVersionsModel
+from .steps_sort_filter import StepsSortFilter
 
 
 # XXX not sure how to share this? copied from the mode
@@ -65,6 +66,10 @@ class PopupUtils(QtCore.QObject):
                                                                     max_threads=2)
 
         self._steps_model = FilterStepsModel(None, self._steps_task_manager)
+
+        self._steps_proxyModel =  StepsSortFilter(None)
+        self._steps_proxyModel.setSourceModel(self._steps_model)
+
 
         self._rel_cuts_task_manager = task_manager.BackgroundTaskManager(parent=None,
                                                                     start_processing=True,
@@ -468,11 +473,11 @@ class PopupUtils(QtCore.QObject):
         # XXX what object do we want here?
         action.setData( { 'cached_display_name' : 'Latest in Pipeline' } )
         menu.addAction(action)
-
-        rows = self._steps_model.rowCount()
+        self._steps_proxyModel.sort(0, QtCore.Qt.DescendingOrder)
+        rows = self._steps_proxyModel.rowCount()
 
         for x in range(0, rows):
-            item = self._steps_model.index(x, 0)
+            item = self._steps_proxyModel.index(x, 0)
             sg = shotgun_model.get_sg_data(item)
             action = QtGui.QAction(self._tray_frame.pipeline_filter_button)
             action.setCheckable(True)
