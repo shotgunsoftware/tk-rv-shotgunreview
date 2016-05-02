@@ -38,6 +38,21 @@ def groupMemberOfType(node, memberType):
             return n
     return None
 
+class Preferences:
+    def __init__(self):
+        g = "sg_review_mode"
+        self.group = g
+
+        self.preferred_media_type = rvc.readSettings(g, "preferred_media_type", "Movie")
+        self.startup_view_details = rvc.readSettings(g, "startup_view_details", True)
+        self.startup_view_tray    = rvc.readSettings(g, "startup_view_tray", True)
+
+    def save(self):
+        g = self.group
+        rvc.writeSettings(g, "preferred_media_type", self.preferred_media_type)
+        rvc.writeSettings(g, "startup_view_details", self.startup_view_details)
+        rvc.writeSettings(g, "startup_view_tray",    self.startup_view_tray)
+
 class MediaType:
     def __init__(self, name, path_field, slate_field, aspect_field):
         self.name = name
@@ -346,17 +361,51 @@ class RvActivityMode(rvt.MinorMode):
             rvc.setFrame(self._queued_frame_change)
             self._queued_frame_change = -1
 
+    def set_default_media_type_movie(self, event):
+        self._prefs.preferred_media_type = "Movie"
+        self._prefs.save()
+
+    def set_default_media_type_frames(self, event):
+        self._prefs.preferred_media_type = "Frames"
+        self._prefs.save()
+
+    def default_media_type_state_movie(self):
+        return rvc.CheckedMenuState if self._prefs.preferred_media_type == "Movie" else rvc.UncheckedMenuState
+
+    def default_media_type_state_frames(self):
+        return rvc.CheckedMenuState if self._prefs.preferred_media_type == "Frames" else rvc.UncheckedMenuState
+
+    def toggle_startup_view_details(self, event):
+        self._prefs.startup_view_details = not self._prefs.startup_view_details
+        self._prefs.save()
+
+    def toggle_startup_view_tray(self, event):
+        self._prefs.startup_view_tray = not self._prefs.startup_view_tray
+        self._prefs.save()
+
+    def startup_view_details_state(self):
+        return rvc.CheckedMenuState if self._prefs.startup_view_details else rvc.UncheckedMenuState
+
+    def startup_view_tray_state(self):
+        return rvc.CheckedMenuState if self._prefs.startup_view_tray else rvc.UncheckedMenuState
+
     def toggle_view_details(self, event):
         if not self.note_dock:
             return
 
-        self.note_dock.setVisible(not self.note_dock.isVisible())
+        vis = not self.note_dock.isVisible()
+        self.note_dock.setVisible(vis)
+        if not vis:
+            self.details_hidden_this_session = True
 
     def toggle_view_tray(self, event):
         if not self.tray_dock:
             return
 
-        self.tray_dock.setVisible(not self.tray_dock.isVisible())
+        vis = not self.tray_dock.isVisible()
+        self.tray_dock.setVisible(vis)
+        if not vis:
+            self.tray_hidden_this_session = True
 
     def view_state_details(self):
         return rvc.CheckedMenuState if (self.note_dock and self.note_dock.isVisible()) else rvc.UncheckedMenuState
@@ -695,6 +744,8 @@ class RvActivityMode(rvt.MinorMode):
 
         self._app = app
         self._queued_frame_change = -1
+
+        self._prefs = Preferences()
  
         self.init("RvActivityMode", None,
                 [ 
@@ -725,10 +776,19 @@ class RvActivityMode(rvt.MinorMode):
                     ("    Frames", self.swap_media_factory("Frames", "all"), None, lambda: rvc.UncheckedMenuState),
                     ("_", None),
                     ("View", None, None, lambda: rvc.DisabledMenuState),
-                    ("    Details Pane",  self.toggle_view_details,  None, self.view_state_details),
-                    ("    Thumbnail Timeline",  self.toggle_view_tray,  None, self.view_state_tray),
+                    ("    Details Pane",       self.toggle_view_details, None, self.view_state_details),
+                    ("    Thumbnail Timeline", self.toggle_view_tray,    None, self.view_state_tray),
                     ("_", None),
                     ("Submit Tool", self.launchSubmitTool, None, lambda: rvc.UncheckedMenuState),
+                    ("_", None),
+                    ("Preferences", [
+                        ("Default Media Type", None, None, lambda: rvc.DisabledMenuState),
+                        ("    Movie",  self.set_default_media_type_movie,  None, self.default_media_type_state_movie),
+                        ("    Frames", self.set_default_media_type_frames, None, self.default_media_type_state_frames),
+                        ("View On Startup", None, None, lambda: rvc.DisabledMenuState),
+                        ("    Details Pane",       self.toggle_startup_view_details, None, self.startup_view_details_state),
+                        ("    Thumbnail Timeline", self.toggle_startup_view_tray,    None, self.startup_view_tray_state)
+                        ]),
                     ("_", None)]
                 )],
                 None)
@@ -813,6 +873,9 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_main_frame = TrayMainFrame(self.tray_dock)
         self.tray_main_frame.set_rv_mode(self)
 
+        self.tray_hidden_this_session = False
+        self.details_hidden_this_session = False
+
         # popup utils will try to handle all popup menu related things...
         self._popup_utils = PopupUtils(self)
         
@@ -852,6 +915,9 @@ class RvActivityMode(rvt.MinorMode):
         self.last_rel_cut_entity = None
         self.last_rel_shot_entity = None
         self.last_related_cuts = None
+
+        self.tray_dock.setVisible(self._prefs.startup_view_tray)
+        self.note_dock.setVisible(self._prefs.startup_view_details)
 
     def on_filter_refreshed(self, really_changed):
         self._app.engine.log_info("on_filter_refreshed: really_changed is %r" % really_changed)
@@ -927,8 +993,7 @@ class RvActivityMode(rvt.MinorMode):
         input_indices = rvc.getIntProperty(seq_node + ".edl.source")
         
         # make or find source group
-        media_type = "Frames" # XXX should come from preference
-        src_group = self.source_group_from_version_data(version_data, media_type)
+        src_group = self.source_group_from_version_data(version_data)
 
         # Version/source of current clip is destination for this version, so
         # first find index of current clip 
@@ -1091,9 +1156,6 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_model.load_data(entity_type="Version", filters=vfilters, fields=vfields)
 
     def load_tray_with_playlist_id(self, playlist_id=None):
-        #  XXX need to figure out rules for hide/show tray, centralize
-        self.tray_dock.show()
-
         plist_filters = [["playlists", "is", {"type": "Playlist", "id": playlist_id}]]
         plist_fields =  [ "project", "playlists", "image" ] + required_version_fields
         self.tray_model.load_data(entity_type="Version", filters=plist_filters, fields=plist_fields)
@@ -1101,9 +1163,6 @@ class RvActivityMode(rvt.MinorMode):
     def load_tray_with_cut_id(self, cut_id=None):
         self._app.engine.log_info('load_tray_with_cut_id %r' % QtCore.QThread.currentThread() )
 
-        #  XXX need to figure out rules for hide/show tray, centralize
-        self.tray_dock.show()
-        
         # XXX we shouldn't be storing this here, come back to this
         if cut_id:
             self.tray_cut_id = cut_id
@@ -1428,7 +1487,7 @@ class RvActivityMode(rvt.MinorMode):
 
         return group
 
-    def source_group_from_version_data(self, version_data, media_type):
+    def source_group_from_version_data(self, version_data, media_type=None):
 
         if (False):
             print "source_group_from_version_data() data:"
@@ -1440,13 +1499,16 @@ class RvActivityMode(rvt.MinorMode):
 
         # We failed to find our RVSourceGroup, so make one.
 
+        if media_type is None:
+            media_type = self._prefs.preferred_media_type
+
         path = None
         m_type = self.media_type_fallback(version_data, media_type)
         if m_type: 
             path = version_data[standard_media_types[m_type].path_field]
 
         if not path:
-            self._app.engine.log_warning("Version '%s' has no local media" % version_data["code"])
+            self._app.engine.log_error("Version '%s' has no local media" % version_data["code"])
             path = "black,start=1,end=24.movieproc"
             m_type = "Movie"
 
@@ -1612,6 +1674,12 @@ class RvActivityMode(rvt.MinorMode):
             # return
         self._app.engine.log_info('on_data_refreshed_internal: %r' % str(QtCore.QThread.currentThread()))
 
+        # Show GUI unless the user has explicitly hidden it this session
+        if not self.tray_hidden_this_session:
+            self.tray_dock.setVisible(True)
+        if not self.details_hidden_this_session:
+            self.note_dock.setVisible(True)
+
         # XXX eventually we want to enter min-cut mode directly in some cases,
         # in which case we want to start with corresponding Sequence node.
         subTarget = "entire-cut" # XXX should come from pref or previous run
@@ -1662,8 +1730,7 @@ class RvActivityMode(rvt.MinorMode):
 
             # Now we have version data, find or create the corresponding
             # RVSourceGroup
-            media_type = "Frames" # XXX should come from preference
-            src_group = self.source_group_from_version_data(version_data, media_type)
+            src_group = self.source_group_from_version_data(version_data)
 
             # input_num for this clip is just the nth input, unless we already have it.
             if src_group in input_map:
