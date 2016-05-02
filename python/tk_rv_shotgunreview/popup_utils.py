@@ -606,6 +606,8 @@ class PopupUtils(QtCore.QObject):
         if self._status_list and self._pipeline_steps != None:
             status_list = ['sg_status_list', 'in', self._status_list ]
             step_list = ['sg_task.Task.step', 'in', self._pipeline_steps]
+            if self._pipeline_steps == []:
+                return [ status_list, entity_list ] 
             filters = [ step_list, status_list, entity_list ]
             return filters
         if self._status_list:
@@ -614,7 +616,7 @@ class PopupUtils(QtCore.QObject):
             return filters
         if self._pipeline_steps != None:
             if self._pipeline_steps == []:
-                return []
+                return [ entity_list ]
             step_list = ['sg_task.Task.step', 'in', self._pipeline_steps]
             filters = [ step_list, entity_list ]
             return filters
@@ -625,6 +627,7 @@ class PopupUtils(QtCore.QObject):
             rve.displayFeedback("Reloading ...", 60.0)
 
         full_filters = self.get_tray_filters()
+        print "full_filters: %r" % full_filters
         if full_filters == None:
             self._filtered_versions_model.clear()
             self._filtered_versions_model.data_refreshed.emit(True)
