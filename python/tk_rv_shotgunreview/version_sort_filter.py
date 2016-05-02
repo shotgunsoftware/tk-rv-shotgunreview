@@ -84,8 +84,16 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
 
         for sort_by_field in sort_fields:
             try:
-                left_data = self._get_processable_field_data(sg_left, sort_by_field)
-                right_data = self._get_processable_field_data(sg_right, sort_by_field)
+                left_data = self._get_processable_field_data(
+                    sg_left,
+                    sort_by_field,
+                    sortable=True,
+                )
+                right_data = self._get_processable_field_data(
+                    sg_right,
+                    sort_by_field,
+                    sortable=True,
+                )
             except KeyError:
                 continue
 
@@ -142,13 +150,16 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
 
         return False
 
-    def _get_processable_field_data(self, sg_data, field):
+    def _get_processable_field_data(self, sg_data, field, sortable=False):
         """
         For a given entity dictionary and field name, returns sortable
         and/or searchable data.
 
-        :param sg_data: An entity dictionary.
-        :param field:   A string Shotgun field to process.
+        :param sg_data:     An entity dictionary.
+        :param field:       A string Shotgun field to process.
+        :param sortable:    If True, sortable data will be returned. If
+                            not, data better suited to searching/filtering
+                            will be returned. Default is False.
         """
         data_type = shotgun_globals.get_data_type(
             self.sourceModel().get_entity_type(),
@@ -165,6 +176,15 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
             processable_data = sg_data[field]["name"]
         elif data_type == "status_list":
             status_name = shotgun_globals.get_status_display_name(sg_data[field])
+
+            # If this isn't needed for sorting, then we just give back
+            # the status display name, which is better suited to filtering.
+            if not sortable:
+                return status_name
+
+            # If we're interested in returning data for sorting, then we
+            # will provide an integer value representing the status' order
+            # as defined in Shotgun.
             statuses = shotgun_globals.get_ordered_status_list(display_names=True)
             try:
                 processable_data = statuses.index(status_name)
