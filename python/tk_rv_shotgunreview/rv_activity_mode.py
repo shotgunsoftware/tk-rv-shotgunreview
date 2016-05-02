@@ -1464,13 +1464,26 @@ class RvActivityMode(rvt.MinorMode):
 
         return s
 
+    def check_media_contents(self, path):
+
+        if not path:
+            return False
+
+        files = rvc.existingFilesInSequence(path)
+        
+        return bool(files)
+
     def media_type_fallback(self, version_data, media_type):
         
-        if version_data[standard_media_types[media_type].path_field]:
+        path = version_data.get(standard_media_types[media_type].path_field)
+
+        if self.check_media_contents(path):
             return media_type
 
         other = "Movie" if (media_type == "Frames") else "Frames"
-        if version_data[standard_media_types[other].path_field]:
+        path = version_data.get(standard_media_types[other].path_field)
+
+        if self.check_media_contents(path):
             return other
 
         return None
