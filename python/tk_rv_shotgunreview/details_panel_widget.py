@@ -95,15 +95,23 @@ class DetailsPanelWidget(QtGui.QWidget):
         # These are the minimum required fields that we need
         # in order to draw all of our widgets with default settings.
         self._fields = [
-            "code",
-            "entity",
             "image",
             "user",
-            "sg_status_list",
-            "sg_path_to_frames",
+            # XXX Below is required list for tray_work, should centralize!
+            "code",
+            "id",
+            "entity",
             "sg_first_frame",
             "sg_last_frame",
-        ]
+            "sg_frames_aspect_ratio",
+            "sg_frames_have_slate",
+            "sg_movie_aspect_ratio",
+            "sg_movie_has_slate",
+            "sg_path_to_frames",
+            "sg_path_to_movie",
+            "sg_status_list",
+            "sg_uploaded_movie_frame_rate"
+    ]
 
         # These are the fields that have been given to the info widget
         # at the top of the Notes tab. This represents all fields that

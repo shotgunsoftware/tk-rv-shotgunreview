@@ -38,6 +38,26 @@ class TrayMainFrame(QtGui.QFrame):
         # set up the UI
         self.init_ui()
 
+        #self._task_manager.task_completed.connect(self.on_task_complete)
+        #self._task_manager.task_group_finished.connect(self.on_task_group_finished)
+        #self._task_manager.task_failed.connect(self.on_task_failed)
+
+    def show_steps_and_statuses(self, visible):
+        self.pipeline_filter_button.setVisible( visible )
+        self.status_filter_button.setVisible( visible )
+
+    def on_task_complete(self, uid, group, result):
+        """
+        result is the result set from the query
+        """
+        print "TASK COMPLETE - uid: %r group: %r result: %r" %( uid, group, result)
+
+    def on_task_group_finished(self, group):
+        print "TASK GROUP FINISHED: %r" % group
+
+    def on_task_failed(self, uid, group, message, traceback_str):
+        print "TASK FAILED!! %r" % message
+
     def set_rv_mode(self, rv_mode):
         """
         reference to application state
@@ -142,13 +162,13 @@ class TrayMainFrame(QtGui.QFrame):
 
         self.tray_button_bar_hlayout.addStretch(1)
 
-        self.tray_button_latest_pipeline = QtGui.QPushButton()
-        self.tray_button_latest_pipeline.setText('Latest in Pipeline')
-        self.tray_button_bar_hlayout.addWidget(self.tray_button_latest_pipeline)
+        self.pipeline_filter_button = QtGui.QPushButton()
+        self.pipeline_filter_button.setText('Filter by Pipeline')
+        self.tray_button_bar_hlayout.addWidget(self.pipeline_filter_button)
 
-        self.tray_button_approved = QtGui.QPushButton()
-        self.tray_button_approved.setText('Approved')
-        self.tray_button_bar_hlayout.addWidget(self.tray_button_approved)
+        self.status_filter_button = QtGui.QPushButton()
+        self.status_filter_button.setText('Filter by Status')
+        self.tray_button_bar_hlayout.addWidget(self.status_filter_button)
 
         self.close_button = QtGui.QToolButton()
         self.float_button = QtGui.QToolButton()

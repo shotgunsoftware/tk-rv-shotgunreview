@@ -2,16 +2,32 @@
 
 # import the shotgun_model module from the shotgun utils framework
 import tank
-from PySide import QtCore
+from PySide import QtCore, QtGui
 
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
 SimpleShotgunModel = shotgun_model.SimpleShotgunModel
 ShotgunModel = shotgun_model.ShotgunModel
 
-class TrayModel(SimpleShotgunModel):
+class TrayModel(ShotgunModel):
+
+    # signal which gets emitted whenever the model has been updated with fresh FILTERED data.
+    filter_data_refreshed = QtCore.Signal(bool)
 
     def __init__(self, parent, bg_task_manager=None):
-        SimpleShotgunModel.__init__(self, parent)
+
+        ShotgunModel.__init__(self, 
+                  parent = parent,
+                  download_thumbs = True,
+                  schema_generation = 0,
+                  bg_load_thumbs = True,
+                  bg_task_manager = bg_task_manager)
+
+        self._parent = parent
+        self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
+        self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
+
+    def notify_filter_data_refreshed(self, modified=True):
+        self.filter_data_refreshed.emit(modified)
 
     def load_data(self, entity_type, filters=None, fields=None, hierarchy=None, order=None):
         filters = filters or []
@@ -24,6 +40,34 @@ class TrayModel(SimpleShotgunModel):
         if not index.isValid():
             return QtCore.Qt.NoItemFlags
         return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
+
+    def swap_in_thumbnail(self, item, field, image, path):
+        """
+        The params coming into this function are from ANOTHER MODEL!
+        To do the actual swap out, we look at the SG data from the other
+        model, find the matching shot in this model, and then set the
+        thumbnail in this model with the other models data.
+        """
+
+
+        sgv = item.data(self.SG_DATA_ROLE)
+        shot = sgv['entity']
+
+        rows = self.rowCount()
+        for x in range(0, rows):
+            m_idx = self.index(x, 0)
+            sg = m_idx.data(self.SG_DATA_ROLE)
+            if 'shot' in sg:
+                if sg['shot']['id'] == shot['id']:
+                    t_item = self.itemFromIndex(m_idx)
+                    if not image:
+                        # we have no image, then revert to the decorator role 
+                        thumb = m_idx.data(QtCore.Qt.DecorationRole)
+                        t_item.setIcon(thumb)
+                    else:
+                        thumb = QtGui.QPixmap.fromImage(image)
+                        t_item.setIcon(thumb)
+
 
     def _set_tooltip(self, item, sg_item):
         """
@@ -92,7 +136,6 @@ class TrayModel(SimpleShotgunModel):
                 )
             )
 
-    # why doesnt this happen?
     def _request_thumbnail_download(self, item, field, url, entity_type, entity_id):
         """
         Request that a thumbnail is downloaded for an item. If a thumbnail is successfully
@@ -118,49 +161,45 @@ class TrayModel(SimpleShotgunModel):
         """
         sg = item.data(self.SG_DATA_ROLE)
 
+        # XXX - having no 'shot' key means that the incoming query was for a
+        # version or playlist, so we want the version image - sb
         if 'shot' not in sg:
             super(TrayModel, self)._request_thumbnail_download(item, 'image', sg['image'], 'Version', sg['id'])
             return
 
-        if not sg['shot']:
+        if sg['image']: # the Cut Item image
+            super(TrayModel, self)._request_thumbnail_download(item, 'image', sg['image'], 'CutItem', sg['id'])
+            return
 
-            if sg['image']: # the cutitem image
-                super(TrayModel, self)._request_thumbnail_download(item, 'image', sg['image'], 'CutItem', sg['id'])
-                return
+        if sg['version.Version.image']: # the Cut Item's Version image
+            super(TrayModel, self)._request_thumbnail_download(item, 'version.Version.image', sg['version.Version.image'], 'Version', sg['version.Version.id'])
+            return
 
-            if sg['cut.Cut.image']: 
-                super(TrayModel, self)._request_thumbnail_download(item, 'cut.Cut.image', sg['cut.Cut.image'], 'Cut', sg['cut.Cut.id'])
-                return
+        if sg['cut.Cut.image']: # the Cut image
+            super(TrayModel, self)._request_thumbnail_download(item, 'cut.Cut.image', sg['cut.Cut.image'], 'Cut', sg['cut.Cut.id'])
+            return
 
-            if sg['cut.Cut.version.Version.image']:
-                #print "hi"
-                super(TrayModel, self)._request_thumbnail_download(item, 'cut.Cut.version.Version.image', sg['cut.Cut.version.Version.image'], 'Version', sg['cut.Cut.version.Version.id'])
-                return
-
-        
-        super(TrayModel, self)._request_thumbnail_download(item, 'version.Version.image', sg['version.Version.image'], 'Version', sg['version.Version.id'])
+        if sg['cut.Cut.version.Version.image']: # the Cut's Version image
+            super(TrayModel, self)._request_thumbnail_download(item, 'cut.Cut.version.Version.image', sg['cut.Cut.version.Version.image'], 'Version', sg['cut.Cut.version.Version.id'])
+            return
 
 
-    # def __process_thumbnail_for_item(self, item):
-    #     """
-    #     Schedule a thumb download for an item
-    #     """
-    #     sg_data = item.data(self.SG_DATA_ROLE)
+    def _populate_thumbnail_image(self, item, field, image, path):
+        """
+        Similar to :meth:`_populate_thumbnail()` but this method is called instead
+        when the bg_load_thumbs parameter has been set to true. In this case, no
+        loading of thumbnail data from disk is necessary - this has already been
+        carried out async and is passed in the form of a QImage object.
 
-    #     if sg_data is None:
-    #         return
+        For further details, see :meth:`_populate_thumbnail()`
 
-    #     #print "PROCESS THUMB %r" % sg_data
-
-    #     for field in sg_data.keys():
-
-    #         if "image" in field and sg_data[field] is not None:
-    #             # we have a thumb we are supposed to download!
-    #             # get the thumbnail - store the unique id we get back from
-    #             # the data retrieve in a dict for fast lookup later
-    #             self._request_thumbnail_download(item,
-    #                                              field,
-    #                                              sg_data[field],
-    #                                              sg_data.get("type"),
-    #                                              sg_data.get("id"))
+        :param item: :class:`~PySide.QtGui.QStandardItem` which is associated with the given thumbnail
+        :param field: The Shotgun field which the thumbnail is associated with.
+        :param image: QImage object with the thumbnail loaded
+        :param path: A path on disk to the thumbnail. This is a file in jpeg format.
+        """
+        #print "TRAY _populate_thumbnail_image"
+        thumb = QtGui.QPixmap.fromImage(image)
+        item.setData(thumb, self._CUT_THUMB_ROLE)
+        item.setIcon(thumb)
 

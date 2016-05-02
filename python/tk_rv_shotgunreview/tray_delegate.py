@@ -44,7 +44,8 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         # self._alpha_brush = QtGui.QBrush(QtGui.QColor(0,0,0,64))
                    
     def _handle_entered(self, index):
-        print "ITEM ENTERED: %r" % index
+        # print "ITEM ENTERED: %r" % index
+        pass
         # if index is None:
         #         self.tray_view.selectionModel().clear()
         # else:
@@ -56,7 +57,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         # item.repaint()
 
     def _handle_double_clicked(self, action=None):
-        print "DOUBLE CLICK on ITEM %r" % action
+        # print "DOUBLE CLICK on ITEM %r" % action
         cur_index = self.tray_view.selectionModel().currentIndex()
         (_, item, model) = self._source_for_index(cur_index)
         
@@ -137,6 +138,9 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         widget.set_selected(True)  
         widget.setStyleSheet("{border: 2px solid #ff0000;}")
 
+    def update_rv_role(self, index, entity):
+        (source_index, item, model) = self._source_for_index(index)
+        item.setData(entity, self._RV_DATA_ROLE)
 
     def sizeHint(self, style_options, model_index):
         """
@@ -163,8 +167,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
     # works but not useful?
     def _on_current_changed(self, current_index, previous_index):
         pass
-        #print "CURRENT CHANGED"
-        print "_on_current_changed %d WAS %d" % (current_index.row(), previous_index.row())
+        # print "_on_current_changed %d WAS %d" % (current_index.row(), previous_index.row())
 
     def paint(self, painter, style_options, model_index):
         """
@@ -174,8 +177,18 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         :param style_options:   The style options to use when painting
         :param model_index:     The index in the data model that needs to be painted
         """
-        sg_item = shotgun_model.get_sg_data(model_index)  
+        sg_item = shotgun_model.get_sg_data(model_index)
+        # rv_item = model_index.data(self._RV_DATA_ROLE)
+        # if rv_item:
+        #     print "RV ITEM IS HERE %r" % rv_item  
+        # else:
+        #     icon = model_index.data(QtCore.Qt.DecorationRole)
+        #     if icon:
+        #         (_, item, model) = self._source_for_index(model_index)
+        #         item.setIcon(icon)
 
+
+        #     print "NO RV ITEM"
         # for performance reasons, we are not creating a widget every time
         # but merely moving the same widget around. 
         paint_widget = self._get_painter_widget(model_index, self.parent())
@@ -209,27 +222,24 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                 #painter.fillRect( self._alpha_size.width() - 10, 0, 10, 10, QtGui.QColor(240,200,50,127) )
 
             # print "image: %r %r %r " % (sg_item['version.Version.id'] ,sg_item['cut.Cut.image'] ,sg_item['cut.Cut.version.Version.image'])
-            # if not sg_item['version.Version.id'] and not sg_item['image'] and not sg_item['cut.Cut.version.Version.image']:
-            #     target = QtCore.QRectF(0.0, 0.0, paint_widget.width(), paint_widget.height() )
-            #     source = QtCore.QRectF(0, 0, self.missing_pixmap.width(), self.missing_pixmap.height())
-            #     painter.drawPixmap(target, self.missing_pixmap, source)
-            #     painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(10,0,0,184) )
-            #     painter.drawText(0,5,100,100, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignCenter, 'MISSING')
+            if not sg_item.get('version.Version.id') and not sg_item.get('image') and not sg_item.get('cut.Cut.version.Version.image'):
+                target = QtCore.QRectF(0.0, 0.0, paint_widget.width(), paint_widget.height() )
+                source = QtCore.QRectF(0, 0, self.missing_pixmap.width(), self.missing_pixmap.height())
+                # painter.drawPixmap(target, self.missing_pixmap, source)
+                painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(10,0,0,255) )
+                painter.drawText(0,5,100,100, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignCenter, 'MISSING')
 
-            if self.tray_view.rv_mode.mini_cut and painter:
-                if self.tray_view.rv_mode.last_mini_center:
-                    if self.tray_view.rv_mode.last_mini_center.row() == model_index.row():
-                        painter.setPen(self._pen)
-                        ws = paint_widget.size()
-                        painter.drawRect( 1, 1, ws.width()-2, ws.height()-2)
 
-                mini_index = self.tray_view.rv_mode.last_mini_center
-                cur_row = 0
-                if mini_index:
-                    cur_row = mini_index.row()
-                    if cur_row - self.tray_view.rv_mode._mini_before_shots > model_index.row() or cur_row + self.tray_view.rv_mode._mini_after_shots < model_index.row():
-                        painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(0,0,0,127) )
+            mini_data = self.tray_view.rv_mode.cached_mini_cut_data
 
+            if mini_data.active and painter:
+                if mini_data.focus_clip == model_index.row():
+                    painter.setPen(self._pen)
+                    ws = paint_widget.size()
+                    painter.drawRect( 1, 1, ws.width()-2, ws.height()-2)
+
+                if mini_data.first_clip > model_index.row() or mini_data.last_clip < model_index.row():
+                    painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(0,0,0,127) )
 
 
         finally:
