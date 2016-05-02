@@ -346,6 +346,23 @@ class RvActivityMode(rvt.MinorMode):
             rvc.setFrame(self._queued_frame_change)
             self._queued_frame_change = -1
 
+    def toggle_view_details(self, event):
+        if not self.note_dock:
+            return
+
+        self.note_dock.setVisible(not self.note_dock.isVisible())
+
+    def toggle_view_tray(self, event):
+        if not self.tray_dock:
+            return
+
+        self.tray_dock.setVisible(not self.tray_dock.isVisible())
+
+    def view_state_details(self):
+        return rvc.CheckedMenuState if (self.note_dock and self.note_dock.isVisible()) else rvc.UncheckedMenuState
+
+    def view_state_tray(self):
+        return rvc.CheckedMenuState if (self.tray_dock and self.tray_dock.isVisible()) else rvc.UncheckedMenuState
 
     def launchSubmitTool(self, event):
         if (self.tray_dock):
@@ -706,6 +723,10 @@ class RvActivityMode(rvt.MinorMode):
                     ("Swap Media - All Clips", None, None, lambda: rvc.DisabledMenuState),
                     ("    Movie",  self.swap_media_factory("Movie", "all"),  None, lambda: rvc.UncheckedMenuState),
                     ("    Frames", self.swap_media_factory("Frames", "all"), None, lambda: rvc.UncheckedMenuState),
+                    ("_", None),
+                    ("View", None, None, lambda: rvc.DisabledMenuState),
+                    ("    Details Pane",  self.toggle_view_details,  None, self.view_state_details),
+                    ("    Thumbnail Timeline",  self.toggle_view_tray,  None, self.view_state_tray),
                     ("_", None),
                     ("Submit Tool", self.launchSubmitTool, None, lambda: rvc.UncheckedMenuState),
                     ("_", None)]
