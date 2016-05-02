@@ -8,16 +8,16 @@
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
-import tank
+import sgtk
 
-from tank.platform.qt import QtCore, QtGui
+from sgtk.platform.qt import QtCore, QtGui
 
-shotgun_model = tank.platform.import_framework(
+shotgun_model = sgtk.platform.import_framework(
     "tk-framework-shotgunutils",
     "shotgun_model",
 )
 
-shotgun_globals = tank.platform.import_framework(
+shotgun_globals = sgtk.platform.import_framework(
     "tk-framework-shotgunutils",
     "shotgun_globals",
 )
@@ -38,18 +38,12 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
         Initializes a new VersionSortFilterProxyModel.
 
         :param parent:                  The Qt parent of the proxy model.
-        :param shotgun_field_manager:   An option ShotgunFieldManager object, which will
-                                        be used to aid in filtering against certain types
-                                        of fields. If not provided, what is searched for
-                                        those field types might not match what the user
-                                        sees in the GUI.
         """
         super(VersionSortFilterProxyModel, self).__init__(parent)
 
         self.filter_by_fields = ["id"]
         self.sort_by_fields = ["id"]
         self.primary_sort_field = "id"
-        self.shotgun_field_manager = shotgun_field_manager
 
     def lessThan(self, left, right):
         """
@@ -184,21 +178,10 @@ class VersionSortFilterProxyModel(QtGui.QSortFilterProxyModel):
         elif data_type == "multi_entity":
             processable_data = "".join([e.get("name", "") for e in sg_data[field]])
         elif data_type == "date_time":
-            # Most likely what's being displayed is a field widget
-            # out of the qtwidgets framework. The implementation there
-            # has special logic for how to format the date_time data
-            # that we want to match when searching. The easiest way
-            # to do that is to just get a label and use its text. If
-            # we don't have a field manager, we'll just end up stringifying
-            # the datetime object that the API returns and using that.
-            if self.shotgun_field_manager:
-                processable_data = self.shotgun_field_manager.create_display_widget(
-                    sg_entity_type=self.sourceModel().get_entity_type(),
-                    field_name=field,
-                    entity=sg_data,
-                ).text()
-            else:
-                processable_data = sg_data[field]
+            processable_data = shotgun_globals.create_human_readable_timestamp(
+                sg_data[field],
+                " %I:%M%p",
+            )
         elif data_type == "tag_list":
             processable_data = "".join(sg_data[field])
         else:

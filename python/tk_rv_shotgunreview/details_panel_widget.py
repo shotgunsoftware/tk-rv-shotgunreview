@@ -186,7 +186,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         )
         self.ui.version_search.search_edited.connect(self._set_version_list_filter)
         self.shot_info_model.data_refreshed.connect(self._version_entity_data_refreshed)
-        self._task_manager.task_group_finished.connect(self.ui.entity_version_view.repaint)
+        self._task_manager.task_group_finished.connect(self.ui.entity_version_view.update)
 
         # The fields menu attached to the "Fields..." buttons
         # when "More info" is active as well as in the Versions
@@ -317,7 +317,6 @@ class DetailsPanelWidget(QtGui.QWidget):
             self.ui.pin_button.setIcon(QtGui.QIcon(":/tk-rv-shotgunreview/tack_up.png"))
             if self._requested_entity:
                 self.load_data(self._requested_entity)
-                # self._requested_entity = None
 
     ##########################################################################
     # internal utilities
@@ -337,6 +336,8 @@ class DetailsPanelWidget(QtGui.QWidget):
 
             if action.isChecked():
                 self.ui.shot_info_widget.add_field(field_name)
+                self._fields.append(field_name)
+                self.load_data(self._requested_entity)
             else:
                 self.ui.shot_info_widget.remove_field(field_name)
 
@@ -362,21 +363,24 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.shot_info_widget.set_entity(sg_data)
         self._more_info_toggled(self.ui.more_info_button.isChecked())
 
-        version_filters = [["entity", "is", sg_data["entity"]]]
-        self.version_model.load_data(
-            "Version",
-            filters=version_filters,
-            fields=self._fields,
-        )
+        if sg_data.get("entity"):
+            version_filters = [["entity", "is", sg_data["entity"]]]
+            self.version_model.load_data(
+                "Version",
+                filters=version_filters,
+                fields=self._fields,
+            )
 
-        self.version_proxy_model.sort(
-            0, 
-            (
-                QtCore.Qt.AscendingOrder if 
-                self._sort_versions_ascending else 
-                QtCore.Qt.DescendingOrder
-            ),
-        )
+            self.version_proxy_model.sort(
+                0, 
+                (
+                    QtCore.Qt.AscendingOrder if 
+                    self._sort_versions_ascending else 
+                    QtCore.Qt.DescendingOrder
+                ),
+            )
+        else:
+            self.version_model.clear()
 
     def _version_list_field_menu_triggered(self, action):
         """
@@ -398,6 +402,8 @@ class DetailsPanelWidget(QtGui.QWidget):
                 # add it to the sort-by menu.
                 if field_name not in self._version_list_sort_by_fields:
                     self._version_list_sort_by_fields.append(field_name)
+                    self._fields.append(field_name)
+                    self.load_data(self._requested_entity)
                     new_action = QtGui.QAction(
                         shotgun_globals.get_field_display_name(
                             "Version",
