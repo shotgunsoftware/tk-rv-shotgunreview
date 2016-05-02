@@ -50,6 +50,37 @@ standard_media_types = dict(
         Frames=MediaType("Frames", "sg_path_to_frames", "sg_frames_have_slate", "sg_frames_aspect_ratio")
     )
 
+class MiniCutData:
+    def __init__(self, active, focus_clip=-1, first_clip=-1, last_clip=-1):
+        self.active     = active
+        self.focus_clip = focus_clip
+        self.first_clip = first_clip
+        self.last_clip  = last_clip
+
+    def store_in_session(self, node):
+        setProp(node + ".mini_cut.active",     int(self.active))
+        setProp(node + ".mini_cut.focus_clip", self.focus_clip)
+        setProp(node + ".mini_cut.first_clip", self.first_clip)
+        setProp(node + ".mini_cut.last_clip",  self.last_clip)
+
+    @staticmethod
+    def load_from_session(seq_node=None):
+
+        if seq_node == None:
+            seq_group = rvc.viewNode()
+            if rvc.nodeType(seq_group) == "RVSequenceGroup":
+                seq_node = groupMemberOfType(seq_group, "RVSequence")
+
+        if seq_node is None:
+            return None
+        
+        active     = bool(getIntProp(seq_node + ".mini_cut.active",     False))
+        focus_clip =      getIntProp(seq_node + ".mini_cut.focus_clip", -1)
+        first_clip =      getIntProp(seq_node + ".mini_cut.first_clip", -1)
+        last_clip  =      getIntProp(seq_node + ".mini_cut.last_clip",  -1)
+
+        return MiniCutData(active, focus_clip, first_clip, last_clip)
+
 required_version_fields = [
     "code",
     "id",
@@ -67,32 +98,53 @@ required_version_fields = [
     ]
 
 def setProp(prop, value):
-
-    if type(value) == int or (type(value) == list and type(value[0]) == int):
+    '''
+    Convenience function to set Int of String proprty, creating it first if
+    necessary.  In coming value can be scalar or list of the appropriate type.
+    '''
+    if type(value) == int or (type(value) == list and len(value) and type(value[0]) == int):
         if not rvc.propertyExists(prop):
             rvc.newProperty(prop, rvc.IntType, 1)
         rvc.setIntProperty(prop, value if (type(value) == list) else [value], True)
 
-    elif ((type(value) == str     or (type(value) == list and type(value[0]) == str)) or 
-          (type(value) == unicode or (type(value) == list and type(value[0]) == unicode))):
+    elif ((type(value) == str     or (type(value) == list and len(value) and type(value[0]) == str)) or 
+          (type(value) == unicode or (type(value) == list and len(value) and type(value[0]) == unicode))):
         if not rvc.propertyExists(prop):
             rvc.newProperty(prop, rvc.StringType, 1)
         rvc.setStringProperty(prop, value if (type(value) == list) else [value], True)
             
 def getIntProp(prop, default):
+    '''
+    Convenience function to get the value of an Int proprty, returning the
+    given default value if the property does not exist or has no contents.  If
+    the given default value is scalar only the first value of the properties
+    content array is returned.
+    '''
     val = default
     if rvc.propertyExists(prop):
         vals = rvc.getIntProperty(prop)
-        if vals:
-            val = vals[0]
+        if vals and len(vals):
+            if type(default) == list:
+                val = vals
+            else:
+                val = vals[0]
     return val
     
 def getStringProp(prop, default):
+    '''
+    Convenience function to get the value of an String proprty, returning the
+    given default value if the property does not exist or has no contents.  If
+    the given default value is scalar only the first value of the properties
+    content array is returned.
+    '''
     val = default
     if rvc.propertyExists(prop):
         vals = rvc.getStringProperty(prop)
-        if vals:
-            val = vals[0]
+        if vals and len(vals):
+            if type(default) == list:
+                val = vals
+            else:
+                val = vals[0]
     return val
     
 class RvActivityMode(rvt.MinorMode):
@@ -225,6 +277,9 @@ class RvActivityMode(rvt.MinorMode):
             event.reject()
         try:
             idx = self.clip_index_from_frame()
+            mini_data = MiniCutData.load_from_session()
+            if mini_data.active:
+                idx = idx + mini_data.first_clip
             self.details_dirty = True
             sel_index = self.tray_model.index(idx, 0)
             sels = self.tray_list.selectionModel().selectedIndexes()
@@ -248,6 +303,7 @@ class RvActivityMode(rvt.MinorMode):
     def sourceGroupComplete(self, event):
         event.reject()
 
+        """
         args         = event.contents().split(";;")
         # this source group was just created.
         if args[1] == "new":
@@ -256,6 +312,7 @@ class RvActivityMode(rvt.MinorMode):
             print "################### sourceGroupComplete %r" % event
             print args[1]
             print event.contents()
+        """
 
     def on_play_state_change(self, event):
 
@@ -282,6 +339,13 @@ class RvActivityMode(rvt.MinorMode):
         event.reject()
         traysize = self.tray_dock.size().width()
         self.tray_main_frame.resize(traysize - 10, self._tray_height)
+
+    def per_render_event(self, event):
+        event.reject()
+        if self._queued_frame_change != -1:
+            rvc.setFrame(self._queued_frame_change)
+            self._queued_frame_change = -1
+
 
     def launchSubmitTool(self, event):
         if (self.tray_dock):
@@ -570,6 +634,8 @@ class RvActivityMode(rvt.MinorMode):
         self.mini_cut = False
         self.detail_version_id = None
 
+        self.cached_mini_cut_data = MiniCutData(False)
+
         self._tray_height = 96
 
         self.last_mini_center = None
@@ -611,6 +677,7 @@ class RvActivityMode(rvt.MinorMode):
         self._cuts_model = shotgun_model.SimpleShotgunModel(rvqt.sessionWindow())
 
         self._app = app
+        self._queued_frame_change = -1
  
         self.init("RvActivityMode", None,
                 [ 
@@ -630,6 +697,7 @@ class RvActivityMode(rvt.MinorMode):
                 ('play-stop', self.on_play_state_change, ""),
                 ('view-size-changed', self.on_view_size_changed, ''),
                 ('new_note_screenshot', self.make_note_attachments, ''),
+                ('per-render-event-processing', self.per_render_event, ''),
                 ],
                 [("SG Review", [
                     ("Swap Media - Current Clip", None, None, lambda: rvc.DisabledMenuState),
@@ -775,12 +843,10 @@ class RvActivityMode(rvt.MinorMode):
             self.on_data_refreshed_internal(True, True)
 
     def right_spinner_clicked(self, event):
-        self.get_mini_values()
-        self.load_mini_cut(self.last_mini_center)
+        self.on_mini_cut()
 
     def left_spinner_clicked(self, event):
-        self.get_mini_values()
-        self.load_mini_cut(self.last_mini_center)
+        self.on_mini_cut()
 
     def get_version_from_id(self, id):
         self._app.engine.log_info('get_version_from_id %r' % QtCore.QThread.currentThread() )
@@ -807,16 +873,14 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
 
-        #try:
-        if(True):
             
-            target_entity = json.loads(event.contents())
+        target_entity = json.loads(event.contents())
 
-            # XXX should check here that incoming server matches server to
-            # which we are currently authenticated
-            target_entity["server"] = self._app.tank.shotgun_url
+        # XXX should check here that incoming server matches server to
+        # which we are currently authenticated
+        target_entity["server"] = self._app.tank.shotgun_url
 
-            self.load_tray_with_something_new(target_entity)
+        self.load_tray_with_something_new(target_entity)
 
         """
         except Exception as e:
@@ -979,7 +1043,7 @@ class RvActivityMode(rvt.MinorMode):
         type_string = target_entity["type"]
         if "ids" in target_entity and len(target_entity["ids"]) > 1:
             type_string += "s"
-        rve.displayFeedback("Loading " + type_string +  " ...", 6.5)
+        rve.displayFeedback("Loading " + type_string +  " ...", 60.0)
 
         # XXX get rid of "id"
         if "id" in target_entity and "ids" not in target_entity:
@@ -1030,7 +1094,7 @@ class RvActivityMode(rvt.MinorMode):
         tray_fields= ["cut_item_in", "cut_item_out", "cut_order",
                 "edit_in", "edit_out", "code", "entity", "shot", "project",
                 "version.Version.image",
-                "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.revision_numnber",
+                "cut.Cut.code", "cut.Cut.id", "cut.Cut.version", "cut.Cut.fps", "cut.Cut.revision_number",
                 "cut.Cut.cached_display_name", "cut.Cut.entity", "cut.Cut.image",
                 "cut.Cut.version.Version.image"] 
 
@@ -1040,65 +1104,73 @@ class RvActivityMode(rvt.MinorMode):
         orders = [{'field_name':'cut_order','direction':'asc'}]
         self.tray_model.load_data(entity_type="CutItem", filters=tray_filters, fields=tray_fields, order=orders)
         
-        if self.mini_cut:
-            self.on_entire_cut()
+        # XXX figure this out
+        # if self.mini_cut:
+        #     self.on_entire_cut()
+
+    def save_mini_cut_data(self, mini_data, node):
+        mini_data.store_in_session(node)
+        self.cached_mini_cut_data = mini_data
 
     def on_entire_cut(self):
-        if self.no_cut_context or not self.cut_seq_name:
+
+        seq_node = None
+        seq_group = rvc.viewNode()
+        if rvc.nodeType(seq_group) == "RVSequenceGroup":
+            seq_node = groupMemberOfType(seq_group, "RVSequence")
+
+        if seq_node is None:
+            self._app.engine.log_error("Entire-cut load on non-sequence (%s)." % rvc.viewNode())
             return
-        #print "ON ENTIRE CUT"
-
-
-        # store whatever frame we are on now
-        # fno = rvc.frame()
-        # this is a MetaInfo, frame is sourceFrame:
-        #  {u'node': u'sourceGroup000013_source', u'frame': 66, u'nodeType': u'RVFileSource'}
-        # smi = rve.sourceMetaInfoAtFrame(fno)
-        #
-        # so a cut can have frames that are repeated, so getting the source frame
-        # can be unhelpful
-        # instead use the global tl spec and figure out how many frmes in from cut in,
-        # use the mini_index in sg_data
-        # sf = rve.sourceFrame(fno)
-        # print "%d %r %d\n" % (fno, smi, sf)
-        self.mini_cut = False
-        self.tray_list.mini_cut = False
-
-        #sg_data = self.load_version_id_from_session()
-        #print "ENTIRE: %r" % sg_data        
-        rvc.setIntProperty('%s.edl.source' % self.cut_seq_name, self.rv_source_nums, True)
-        rvc.setIntProperty('%s.edl.frame' % self.cut_seq_name, self.rv_frames, True)
-        rvc.setIntProperty('%s.edl.in' % self.cut_seq_name, self.rv_ins, True)
-        rvc.setIntProperty('%s.edl.out' % self.cut_seq_name, self.rv_outs, True)
         
-        rvc.setViewNode(self.cut_seq_node)
+        # load current mini-cut state for this sequence node
+        mini_data = MiniCutData.load_from_session(seq_node)
 
-        self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
+        if not mini_data.active:
+            self._app.engine.log_error("Entire-cut load, but sequence is not mini-cut.")
+            return
+
+        # we rely on tray selection being synced with frame
+        (clip_index, offset) = self.clip_index_and_offset_from_frame()
+
+        # compensate for current mini-cut state
+        clip_index = clip_index + mini_data.first_clip
+
+        # get "entire cut" edl data and node inputs
+        shadow_source = getIntProp   (seq_node + ".shadow_edl.source", [])
+        shadow_frame  = getIntProp   (seq_node + ".shadow_edl.frame",  [])
+        shadow_in     = getIntProp   (seq_node + ".shadow_edl.in",     [])
+        shadow_out    = getIntProp   (seq_node + ".shadow_edl.out",    [])
+        shadow_inputs = getStringProp(seq_node + ".shadow_edl.inputs", [])
+
+        # configure sequence node
+        setProp(seq_node + ".edl.source", shadow_source)
+        setProp(seq_node + ".edl.frame",  shadow_frame)
+        setProp(seq_node + ".edl.in",     shadow_in)
+        setProp(seq_node + ".edl.out",    shadow_out)
+
+        rvc.setNodeInputs(seq_group, shadow_inputs)
+
+        # new mini_data to reflect new state, store in sequence node
+        self.save_mini_cut_data(MiniCutData(False), seq_node)
+
+        # restore frame location (setting frame here directly doesn't work (I
+        # think because sequence node recomputes it's internal EDL lazily).
+        self._queued_frame_change = shadow_frame[clip_index] + offset
+
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
- 
+        self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
+
         self.tray_list.repaint()
 
     def on_mini_cut(self):
-        if self.no_cut_context:
-            return
-        
-        if not self.tray_list.selectionModel().selectedIndexes():
-            self._app.engine.log_error("No shot selected for minicut.")
-            return
+        # XXX handle non-Cut situations
+        # XXX are we looking at the right node ?
 
-        self.mini_cut = True
-        self.tray_list.mini_cut = True
+        # we rely on tray selection being synced with frame
+        (index, offset) = self.clip_index_and_offset_from_frame()
 
-        sel_index = self.tray_list.selectionModel().selectedIndexes()[0]
-
-        global_frame = rvc.frame()
-        sg_data = self.load_version_id_from_session()
-        if 'tl_index' not in sg_data:
-            print "ERROR: missing tl_index in session for %r" % sg_data
-            return
-        tl_index = sg_data['tl_index']
-               
-        self.load_mini_cut(sel_index, global_frame - tl_index)
+        self.load_mini_cut(index, offset)
 
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
@@ -1313,6 +1385,7 @@ class RvActivityMode(rvt.MinorMode):
         return s
 
     def media_type_fallback(self, version_data, media_type):
+        
         if version_data[standard_media_types[media_type].path_field]:
             return media_type
 
@@ -1322,25 +1395,38 @@ class RvActivityMode(rvt.MinorMode):
 
         return None
             
-    def source_group_from_version_data(self, version_data, media_type):
+    def find_group_from_version_id(self, version_id):
 
+        group = None
         for s in rvc.nodesOfType("RVSourceGroup"):
-            if getIntProp(s + ".cut_support.version_id", 0) == version_data["id"]:
+            if getIntProp(s + ".cut_support.version_id", -1) == version_id:
                 # XXX we should be storing/checking url too
                 # XXX possibly this version data is stale, think about when we
                 # might refresh ?
-                return s
+                group =  s
+
+        return group
+
+    def source_group_from_version_data(self, version_data, media_type):
+
+        if (False):
+            print "source_group_from_version_data() data:"
+            pp.pprint(version_data)
+
+        source_group = self.find_group_from_version_id(version_data["id"])
+        if source_group:
+            return source_group
 
         # We failed to find our RVSourceGroup, so make one.
 
         path = None
         m_type = self.media_type_fallback(version_data, media_type)
         if m_type: 
-            path = version_data[standard_media_types[media_type].path_field]
+            path = version_data[standard_media_types[m_type].path_field]
 
         if not path:
             self._app.engine.log_warning("Version '%s' has no local media" % version_data["code"])
-            path = "black,start=%d,end=%d.movieproc"
+            path = "black,start=1,end=24.movieproc"
             m_type = "Movie"
 
         try:
@@ -1365,31 +1451,49 @@ class RvActivityMode(rvt.MinorMode):
     def sequence_data_from_query_item(self, sg_item, target_entity):
         data = {}
         print "TARGET: %r" % target_entity
-        if   target_entity["type"] == "Cut":
-            data["ui_name"] = sg_item["cut.Cut.cached_display_name"]
-            data["entity"]  = sg_item["cut.Cut.entity"]
-        elif target_entity["type"] == "Playlist":
-            data["ui_name"] = "Playlist %d" % target_entity["ids"][0]
-            data["entity"]  = "No Entity"
-        elif target_entity["type"] == "Version":
-            data["ui_name"] = "%d Versions" % len(target_entity.get("ids", [1]))
-            data["entity"]  = "No Entity"
 
-        data["project"]        = sg_item["project"]
-        data["target_entity"]  = target_entity
+        data["target_entity"] = target_entity
+        data["ui_name"]       = target_entity["type"]
+        data["entity"]        = "No Entity"
+        data["project"]       = "No Project"
+
+        if   target_entity["type"] == "Cut":
+            if sg_item:
+                data["ui_name"] = sg_item["cut.Cut.cached_display_name"]
+                data["entity"]  = sg_item["cut.Cut.entity"]
+
+        elif target_entity["type"] == "Playlist":
+            data["ui_name"]     = "Playlist %d" % target_entity["ids"][0]
+
+        elif target_entity["type"] == "Version":
+            data["ui_name"]     = "%d Versions" % len(target_entity.get("ids", [1]))
+
+        if sg_item:
+            data["project"]     = sg_item["project"]
 
         return data
 
-    def clip_index_from_frame(self):
+    def clip_index_and_offset_from_frame(self):
+
         index = -1
+        offset = 0
         if rvc.nodeType(rvc.viewNode()) == "RVSequenceGroup":
-            seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
             current_frame = rvc.frame()
+            seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
             frames = rvc.getIntProperty(seq_node + ".edl.frame")
+            last_frame = 0
             for f in frames:
                 if current_frame < f:
-                    return index
+                    offset = current_frame - last_frame
+                    break
                 index += 1
+                last_frame = f
+
+        return (index, offset)
+
+    def clip_index_from_frame(self):
+        (index, offset) = self.clip_index_and_offset_from_frame()
+        return index
 
     def sequence_data_from_session(self):
         json_str = getStringProp(rvc.viewNode() + ".cut_support.sequence_data", None)
@@ -1430,6 +1534,9 @@ class RvActivityMode(rvt.MinorMode):
             edit_data["out"]   = sg.get("edit_out")
 
         edit_data["shot"] = sg.get("shot")
+
+        if version_data["id"] is None:
+            self._app.engine.log_error("No Version data for CutItem id=%d." % sg.get("id"))
 
         return (version_data, edit_data)
 
@@ -1472,18 +1579,24 @@ class RvActivityMode(rvt.MinorMode):
         """
         rows = self.tray_proxyModel.rowCount()
         if False:
+            print "--------------------------------------- on_data_refreshed_internal() filter_query_finished", filter_query_finished, "rows", rows
             for index in range(0, rows):
                 item = self.tray_proxyModel.index(index, 0)
                 sg_item = shotgun_model.get_sg_data(item)
                 rv_item = item.data(self._RV_DATA_ROLE)
+                print "--------------------------------------- sg_item"
                 pp.pprint(sg_item)
-                #pp.pprint(rv_item)
-                return
+                print "--------------------------------------- rv_item"
+                pp.pprint(rv_item)
+            # return
         self._app.engine.log_info('on_data_refreshed_internal: %r' % str(QtCore.QThread.currentThread()))
 
         # XXX eventually we want to enter min-cut mode directly in some cases,
         # in which case we want to start with corresponding Sequence node.
         subTarget = "entire-cut" # XXX should come from pref or previous run
+
+        # we rely on tray selection being synced with frame
+        (old_index, old_offset) = self.clip_index_and_offset_from_frame()
 
         # find or make RV sequence node for this target entity
         seq_group_node = self.sequence_group_from_target(self.target_entity, subTarget)
@@ -1492,8 +1605,8 @@ class RvActivityMode(rvt.MinorMode):
         # tray proxy model sorting in cut order
         self.tray_proxyModel.sort(0, QtCore.Qt.AscendingOrder)
 
+        sequence_data = self.sequence_data_from_query_item(None, self.target_entity)
         input_map = {}
-        sequence_data = None
         seq_inputs = []
         edit_data_list = []
         accumulated_frames = 0
@@ -1505,6 +1618,7 @@ class RvActivityMode(rvt.MinorMode):
 
         rows = self.tray_proxyModel.rowCount()
         # XXX handle sequence_data for queries that return no rows? - sb
+        # I think just Error and return
 
         for index in range(0, rows):
             item = self.tray_proxyModel.index(index, 0)
@@ -1539,9 +1653,9 @@ class RvActivityMode(rvt.MinorMode):
                 seq_inputs.append(src_group)
 
             edl_source_nums.append(input_num)
-            edl_ins.append(edit_data["in"])
-            edl_outs.append(edit_data["out"])
-            edl_frames.append(accumulated_frames + 1)
+            edl_ins.        append(edit_data["in"])
+            edl_outs.       append(edit_data["out"])
+            edl_frames.     append(accumulated_frames + 1)
 
             # keep track of total frames
             accumulated_frames += edit_data["out"] - edit_data["in"] + 1
@@ -1569,23 +1683,39 @@ class RvActivityMode(rvt.MinorMode):
         rvc.setIntProperty(seq_node + ".mode.autoEDL",    [0])
         rvc.setIntProperty(seq_node + ".mode.useCutInfo", [0])
 
-        rvc.setNodeInputs(seq_group_node, seq_inputs)
+        setProp(seq_node + ".shadow_edl.inputs", seq_inputs)
 
         edl_source_nums.append(0)
         edl_ins.append(0)
         edl_outs.append(0)
         edl_frames.append(accumulated_frames + 1)
 
-        rvc.setIntProperty(seq_node + ".edl.source", edl_source_nums, True)
-        rvc.setIntProperty(seq_node + ".edl.frame",  edl_frames,      True)
-        rvc.setIntProperty(seq_node + ".edl.in",     edl_ins,         True)
-        rvc.setIntProperty(seq_node + ".edl.out",    edl_outs,        True)
+        setProp(seq_node + ".shadow_edl.source", edl_source_nums)
+        setProp(seq_node + ".shadow_edl.frame",  edl_frames)
+        setProp(seq_node + ".shadow_edl.in",     edl_ins)
+        setProp(seq_node + ".shadow_edl.out",    edl_outs)
 
         setProp(seq_group_node + ".cut_support.sequence_data", json.dumps(sequence_data))
         setProp(seq_group_node + ".cut_support.edit_data", edit_data_list)
 
-        # make sure we're looking at it
-        rvc.setViewNode(seq_group_node)
+
+        mini_data = MiniCutData.load_from_session(seq_node)
+        if mini_data.active:
+            # XXX no need ?
+            # rvc.setViewNode(seq_group_node)
+            f = rvc.frame()
+            self.load_mini_cut(mini_data.focus_clip - mini_data.first_clip, 0)
+            rvc.setFrame(f)
+        else:
+            # XXX 
+            setProp(seq_node + ".edl.source", edl_source_nums)
+            setProp(seq_node + ".edl.frame",  edl_frames)
+            setProp(seq_node + ".edl.in",     edl_ins)
+            setProp(seq_node + ".edl.out",    edl_outs)
+
+            rvc.setNodeInputs(seq_group_node, seq_inputs)
+
+            rvc.setViewNode(seq_group_node)
 
         # XXX
         ## if we had a selection coming in, we move to that
@@ -1611,11 +1741,10 @@ class RvActivityMode(rvt.MinorMode):
         # false (because we are not _responding_ to a filter update).  If so,
         # initiate that query.  If not, display completion feedback 
 
-
         filter_query_required = self._popup_utils.filters_exist()
         if (not filter_query_finished and filter_query_required):
             # trigger filter query
-            self._popup_utils.request_versions_for_statuses_and_steps()
+            self._popup_utils.request_versions_for_statuses_and_steps(True)
         else :
             rve.displayFeedback("Loading complete", 2.0)
 
@@ -1649,6 +1778,7 @@ class RvActivityMode(rvt.MinorMode):
            
     def tray_double_clicked(self, index):
         # XXX go over
+        return
         sg_item = shotgun_model.get_sg_data(index)
         single_source = []
         single_frames = []
@@ -1679,95 +1809,96 @@ class RvActivityMode(rvt.MinorMode):
         rvc.play()
 
     def get_mini_values(self):
-        self._mini_before_shots = self.tray_main_frame.mini_left_spinner.value()
-        self._mini_after_shots = self.tray_main_frame.mini_right_spinner.value()
- 
-    def load_mini_cut(self, index, shot_offset=0):
+        return (
+            self.tray_main_frame.mini_left_spinner.value(), 
+            self.tray_main_frame.mini_right_spinner.value())
 
-        if not index:
-            s = self.tray_list.selectionModel().selectedIndexes()
-            index = s[0]
-        print "load_mini_cut: %d %d" % ( index.row(), shot_offset )
+    def load_mini_cut(self, focus_index, offset=0):
+
+        self._app.log_info("load_mini_cut() focus %d offset %d" % (focus_index, offset))
+
+        seq_node = None
+        seq_group = rvc.viewNode()
+        if rvc.nodeType(seq_group) == "RVSequenceGroup":
+            seq_node = groupMemberOfType(seq_group, "RVSequence")
+
+        if seq_node is None:
+            self._app.engine.log_error("Mini-cut load on non-sequence (%s)." % rvc.viewNode())
+            return
         
-        # whatever we are looking at right now is the center
-        self.mini_focus = self.load_version_id_from_session()
+        # load current mini-cut state for this sequence node
+        mini_data = MiniCutData.load_from_session(seq_node)
 
-        self.last_mini_center = index
-        self.tray_proxyModel.sort(0, QtCore.Qt.AscendingOrder)
-        rows = self.tray_proxyModel.rowCount()
+        # compensate for current mini-cut state
+        if mini_data.active:
+            focus_index = focus_index + mini_data.first_clip
 
-        mini_sources = []
-        mini_frames = []
-        mini_ins = []
-        mini_outs = []
-        mini_source_names = []
-        
-        t = 1
-        w = 0
-        
-        self.get_mini_values()
+        # get "entire cut" edl data and node inputs
+        shadow_source = getIntProp   (seq_node + ".shadow_edl.source", [])
+        shadow_frame  = getIntProp   (seq_node + ".shadow_edl.frame",  [])
+        shadow_in     = getIntProp   (seq_node + ".shadow_edl.in",     [])
+        shadow_out    = getIntProp   (seq_node + ".shadow_edl.out",    [])
+        shadow_inputs = getStringProp(seq_node + ".shadow_edl.inputs", [])
 
-        rs = max( 0, index.row() - self._mini_before_shots)
-        re = min( index.row() + 1 + self._mini_after_shots, rows)
-        shot_start = 0
+        mini_source = []
+        mini_frame = []
+        mini_in = []
+        mini_out = []
+        mini_inputs = []
+        accumulated_frames = 1
 
-        for x in range(rs, re):
-            m_item = self.tray_proxyModel.index(x, 0)
-            sg = shotgun_model.get_sg_data(m_item)
+        input_map = {}
 
-            if self.version_swap_out:
-                if sg['id'] == self.version_swap_out['cutitem_id']:
-                    # update sg_item with new fields.
-                    # crap if version.Version is in there we need to map to that
-                    tmp_dict = self.convert_sg_dict(self.version_swap_out)
-                    for k in tmp_dict:
-                        sg[k] = tmp_dict[k]
+        # get spinner values from GUI
+        (left_num, right_num) = self.get_mini_values()
 
-            f = self.get_media_path(sg)
-            fk = sg['version.Version.id']
-            source_obj = self.loaded_sources[fk]
+        # trim left/right neighbor nums by EDL limits
+        first_index = max(0,                  focus_index - left_num)
+        last_index  = min(len(shadow_in) - 2, focus_index + right_num)
 
-            #(num_plus, _) = source_name.split('_')
-            mini_source_names.append(source_obj['group_name'])
- 
-            mini_sources.append(w)
-            w = w + 1
+        for i in range(first_index, last_index + 1):
+
+            # input_num for this clip is just the nth input, unless we already
+            # have it.  Either way it is already in the shadow_inputs list at
+            # the source index for this clip
+
+            src_group = shadow_inputs[shadow_source[i]]
             
-            # playlist
-            if 'cut_item_in' not in sg:
-                sg['cut_item_in'] = sg['sg_first_frame']
-                sg['cut_item_out'] = sg['sg_last_frame']
+            if src_group in input_map:
+                input_num = input_map[src_group]
+            else:
+                input_num = len(mini_inputs)
+                input_map[src_group] = input_num
+                mini_inputs.append(src_group)
 
-            mini_ins.append( sg['cut_item_in'] )
-            mini_outs.append( sg['cut_item_out'] )
-            
-            if x == index.row():
-                shot_start = t
-            mini_frames.append(t)
-            t = sg['cut_item_out'] - sg['cut_item_in'] + 1 + t
-        
-        mini_sources.append(0)
-        mini_ins.append(0)
-        mini_outs.append(0)
-        mini_frames.append(t)
+            mini_source.append(input_num)
+            mini_in.    append(shadow_in[i])
+            mini_out.   append(shadow_out[i])
+            mini_frame. append(accumulated_frames + 1)
 
-        if not self.mini_cut_seq_node:
-            self.mini_cut_seq_node = rvc.newNode("RVSequenceGroup")
-        self._mini_cut_seq_name = rve.nodesInGroupOfType(self.mini_cut_seq_node, 'RVSequence')[0]
+            # keep track of total frames
+            accumulated_frames += shadow_out[i] - shadow_in[i] + 1
 
-        rve.setUIName(self.mini_cut_seq_node, "MiniCut-" + self._mini_cut_seq_name)     
-        
-        rvc.setIntProperty('%s.edl.source' % self._mini_cut_seq_name, mini_sources, True)
-        rvc.setIntProperty('%s.edl.frame' % self._mini_cut_seq_name, mini_frames, True)
-        rvc.setIntProperty('%s.edl.in' % self._mini_cut_seq_name, mini_ins, True)
-        rvc.setIntProperty('%s.edl.out' % self._mini_cut_seq_name, mini_outs, True)
-        
-        rvc.setIntProperty("%s.mode.autoEDL" % self._mini_cut_seq_name, [0])
-        rvc.setIntProperty("%s.mode.useCutInfo" % self._mini_cut_seq_name, [0])
+        # add terminiators
+        mini_source.append(0)
+        mini_in.append(0)
+        mini_out.append(0)
+        mini_frame.append(accumulated_frames + 1)
 
-        rvc.setNodeInputs(self.mini_cut_seq_node, mini_source_names)
-        rvc.setViewNode(self.mini_cut_seq_node)
-        rvc.setFrame(shot_start + shot_offset)
+        # configure sequence node
+        setProp(seq_node + ".edl.source", mini_source)
+        setProp(seq_node + ".edl.frame",  mini_frame)
+        setProp(seq_node + ".edl.in",     mini_in)
+        setProp(seq_node + ".edl.out",    mini_out)
+
+        rvc.setNodeInputs(seq_group, mini_inputs)
+
+        # new mini_data to reflect new state, store in sequence node
+        self.save_mini_cut_data(MiniCutData(True, focus_index, first_index, last_index), seq_node)
+
+        # restore frame location
+        rvc.setFrame(mini_frame[focus_index - first_index] + offset)
+
         self.tray_list.repaint()
 
     def tray_clicked(self, index):
@@ -1775,12 +1906,23 @@ class RvActivityMode(rvt.MinorMode):
         if rvc.nodeType(rvc.viewNode()) == "RVSequenceGroup":
             seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
             if seq_node:
-                tl = rvc.getIntProperty(seq_node + ".edl.frame")
-                if self.mini_cut:
-                    x  = index.row() - (self.last_mini_center.row() - self._mini_before_shots)
-                    rvc.setFrame(tl[x])
-                else:    
-                    rvc.setFrame(tl[index.row()])
+                mini_data = MiniCutData.load_from_session()
+                row = index.row()
+                frame_index = row
+                if mini_data.active:
+                    if     (frame_index < mini_data.first_clip or
+                            frame_index > mini_data.last_clip):
+                        frame_index = min(max(mini_data.first_clip,frame_index), mini_data.last_clip)
+                        index = self.tray_model.index(frame_index, 0)
+                    frame_index = frame_index - mini_data.first_clip 
+                frame = rvc.getIntProperty(seq_node + ".edl.frame")
+                rvc.setFrame(frame[frame_index])
+                sm = self.tray_list.selectionModel()           
+                sm.select(index, sm.ClearAndSelect)
+                # self.tray_list.scrollTo(index, QtGui.QAbstractItemView.PositionAtCenter)
+
+                # XXX below should work according to docs
+                # self.tray_list.scrollTo(index, QtGui.QAbstractItemView.EnsureVisible)
 
         self.tray_list.repaint()
 

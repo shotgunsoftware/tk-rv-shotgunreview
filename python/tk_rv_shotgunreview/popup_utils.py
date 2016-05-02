@@ -12,6 +12,7 @@ from .rel_shots_model import RelShotsModel
 from .filtered_versions_model import FilteredVersionsModel
 from .steps_sort_filter import StepsSortFilter
 
+import rv.extra_commands as rve
 
 # XXX not sure how to share this? copied from the mode
 required_version_fields = [
@@ -619,7 +620,10 @@ class PopupUtils(QtCore.QObject):
             return filters
         return None
 
-    def request_versions_for_statuses_and_steps(self):
+    def request_versions_for_statuses_and_steps(self, silent=False):
+        if not silent:
+            rve.displayFeedback("Reloading ...", 60.0)
+
         full_filters = self.get_tray_filters()
         if full_filters == None:
             self._filtered_versions_model.clear()

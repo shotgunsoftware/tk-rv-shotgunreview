@@ -229,20 +229,17 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                 painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(10,0,0,255) )
                 painter.drawText(0,5,100,100, QtCore.Qt.AlignHCenter | QtCore.Qt.AlignCenter, 'MISSING')
 
-            if self.tray_view.rv_mode.mini_cut and painter:
-                if self.tray_view.rv_mode.last_mini_center:
-                    if self.tray_view.rv_mode.last_mini_center.row() == model_index.row():
-                        painter.setPen(self._pen)
-                        ws = paint_widget.size()
-                        painter.drawRect( 1, 1, ws.width()-2, ws.height()-2)
 
-                mini_index = self.tray_view.rv_mode.last_mini_center
-                cur_row = 0
-                if mini_index:
-                    cur_row = mini_index.row()
-                    if cur_row - self.tray_view.rv_mode._mini_before_shots > model_index.row() or cur_row + self.tray_view.rv_mode._mini_after_shots < model_index.row():
-                        painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(0,0,0,127) )
+            mini_data = self.tray_view.rv_mode.cached_mini_cut_data
 
+            if mini_data.active and painter:
+                if mini_data.focus_clip == model_index.row():
+                    painter.setPen(self._pen)
+                    ws = paint_widget.size()
+                    painter.drawRect( 1, 1, ws.width()-2, ws.height()-2)
+
+                if mini_data.first_clip > model_index.row() or mini_data.last_clip < model_index.row():
+                    painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(0,0,0,127) )
 
 
         finally:
