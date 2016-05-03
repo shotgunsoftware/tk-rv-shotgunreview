@@ -204,9 +204,10 @@ class PopupUtils(QtCore.QObject):
             self._rel_cuts_done = False
             self.related_cuts_ready.emit()
         
-    def set_project(self, entity):
-        # XXX invalidate queries? auto-load status? 
-        self._project_entity = entity
+    # def set_project(self, entity):
+    #     # XXX invalidate queries? auto-load status? 
+    #     self._project_entity = entity
+
 
     def merge_rel_models_for_menu(self):
         """
@@ -363,43 +364,61 @@ class PopupUtils(QtCore.QObject):
             a list of them. 
             below are some examples of interesting things in the schema:
         """
-        # print "status_list: %r" % self._status_schema['sg_status_list']
+        #print "status_list: %r\n\n" % self._status_schema
         # print "properties: %r" % self._status_schema['sg_status_list']['properties']
         # print "values: %r" % self._status_schema['sg_status_list']['properties']['valid_values']['value']
         # for x in self._status_schema['sg_status_list']:
             #print "%r" % x
-        # print "display values: %r" % self._status_schema['sg_status_list']['properties']['display_values']['value']
+        #print "display: %r\n\n" % self._status_schema['sg_status_list']['properties']['display_values']
         
         s = self.get_status_list(project_entity)
         d = s['sg_status_list']['properties']['display_values']['value']
+        ordered_list = s['sg_status_list']['properties']['valid_values']['value']
+
         status_list = []
-        for x in d:
+
+        for n in ordered_list:
             e = {}
-            e[x] = d[x]
+            e[n] = d[n]            
             status_list.append(e)
+
         return status_list
 
-    def build_status_menu(self):
-        statii = self.get_status_menu(self._project_entity)
+    def build_status_menu(self, project_entity=None):
+
+        # might as well make the menu if its not there yet.
         if not self._status_menu:
             self._status_menu = QtGui.QMenu(self._tray_frame.status_filter_button)
             self._tray_frame.status_filter_button.setMenu(self._status_menu)        
             self._status_menu.triggered.connect(self.handle_status_menu)
+
+        # theres nothing we can do without getting a project entity.
+        if not project_entity:
+            self._engine.log_warning('no project entity set.')
+            return
+
+        # no need to rebuild if its the same project
+        if self._project_entity:
+            if project_entity['id'] == self._project_entity['id']:
+                return
+
+        # we have a new project! build the menu for reals.
+        self._project_entity = project_entity
         menu = self._status_menu
         menu.clear()
         action = QtGui.QAction(self._tray_frame.status_filter_button)
         action.setCheckable(True)
         action.setChecked(False)
         action.setText('Any Status')
-        # XXX what object here?
         action.setData(None)
         menu.addAction(action)
         menu.addSeparator()
+        self._status_reload = False
 
+        statii = self.get_status_menu(self._project_entity)
         for status in statii:
             action = QtGui.QAction(self._tray_frame.status_filter_button)
             action.setCheckable(True)
-            action.setChecked(False)
             for x in status:
                 action.setText(status[x])
             action.setData(status)
@@ -413,6 +432,7 @@ class PopupUtils(QtCore.QObject):
         actions = self._status_menu.actions()
         if not event.data():
             for a in actions:
+                # print "%r" % a.text()
                 a.setChecked(False)
             self._tray_frame.status_filter_button.setText("Filter by Status")
             self.request_versions_for_statuses_and_steps()
@@ -606,6 +626,8 @@ class PopupUtils(QtCore.QObject):
         if self._status_list and self._pipeline_steps != None:
             status_list = ['sg_status_list', 'in', self._status_list ]
             step_list = ['sg_task.Task.step', 'in', self._pipeline_steps]
+            if self._pipeline_steps == []:
+                return [ status_list, entity_list ] 
             filters = [ step_list, status_list, entity_list ]
             return filters
         if self._status_list:
@@ -614,7 +636,7 @@ class PopupUtils(QtCore.QObject):
             return filters
         if self._pipeline_steps != None:
             if self._pipeline_steps == []:
-                return []
+                return [ entity_list ]
             step_list = ['sg_task.Task.step', 'in', self._pipeline_steps]
             filters = [ step_list, entity_list ]
             return filters
@@ -625,6 +647,7 @@ class PopupUtils(QtCore.QObject):
             rve.displayFeedback("Reloading ...", 60.0)
 
         full_filters = self.get_tray_filters()
+
         if full_filters == None:
             self._filtered_versions_model.clear()
             self._filtered_versions_model.data_refreshed.emit(True)
