@@ -1546,7 +1546,6 @@ class RvActivityMode(rvt.MinorMode):
 
     def sequence_data_from_query_item(self, sg_item, target_entity):
         data = {}
-        print "TARGET: %r" % target_entity
 
         data["target_entity"] = target_entity
         data["ui_name"]       = target_entity["type"]
@@ -1775,8 +1774,8 @@ class RvActivityMode(rvt.MinorMode):
         # XXX build status menu ONCE per project. - sb
         if not self.project_entity:
             self.project_entity = sequence_data["project"]
-            self._popup_utils.set_project(self.project_entity)
-            self._popup_utils.build_status_menu()
+            # self._popup_utils.set_project(self.project_entity)
+        self._popup_utils.build_status_menu(self.project_entity)
 
         # Set or reset the UI Name of the sequence node
         rve.setUIName(seq_group_node, sequence_data["ui_name"])

@@ -204,9 +204,10 @@ class PopupUtils(QtCore.QObject):
             self._rel_cuts_done = False
             self.related_cuts_ready.emit()
         
-    def set_project(self, entity):
-        # XXX invalidate queries? auto-load status? 
-        self._project_entity = entity
+    # def set_project(self, entity):
+    #     # XXX invalidate queries? auto-load status? 
+    #     self._project_entity = entity
+
 
     def merge_rel_models_for_menu(self):
         """
@@ -383,27 +384,41 @@ class PopupUtils(QtCore.QObject):
 
         return status_list
 
-    def build_status_menu(self):
-        statii = self.get_status_menu(self._project_entity)
+    def build_status_menu(self, project_entity=None):
+
+        # might as well make the menu if its not there yet.
         if not self._status_menu:
             self._status_menu = QtGui.QMenu(self._tray_frame.status_filter_button)
             self._tray_frame.status_filter_button.setMenu(self._status_menu)        
             self._status_menu.triggered.connect(self.handle_status_menu)
+
+        # theres nothing we can do without getting a project entity.
+        if not project_entity:
+            self._engine.log_warning('no project entity set.')
+            return
+
+        # no need to rebuild if its the same project
+        if self._project_entity:
+            if project_entity['id'] == self._project_entity['id']:
+                return
+
+        # we have a new project! build the menu for reals.
+        self._project_entity = project_entity
         menu = self._status_menu
         menu.clear()
         action = QtGui.QAction(self._tray_frame.status_filter_button)
         action.setCheckable(True)
         action.setChecked(False)
         action.setText('Any Status')
-        # XXX what object here?
         action.setData(None)
         menu.addAction(action)
         menu.addSeparator()
+        self._status_reload = False
 
+        statii = self.get_status_menu(self._project_entity)
         for status in statii:
             action = QtGui.QAction(self._tray_frame.status_filter_button)
             action.setCheckable(True)
-            action.setChecked(False)
             for x in status:
                 action.setText(status[x])
             action.setData(status)
