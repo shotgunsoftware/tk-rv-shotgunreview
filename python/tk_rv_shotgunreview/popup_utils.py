@@ -432,7 +432,7 @@ class PopupUtils(QtCore.QObject):
         actions = self._status_menu.actions()
         if not event.data():
             for a in actions:
-                print "%r" % a.text()
+                # print "%r" % a.text()
                 a.setChecked(False)
             self._tray_frame.status_filter_button.setText("Filter by Status")
             self.request_versions_for_statuses_and_steps()
