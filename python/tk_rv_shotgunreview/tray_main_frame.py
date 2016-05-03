@@ -73,8 +73,6 @@ class TrayMainFrame(QtGui.QFrame):
             self.tray_dock.setFloating(False)
             self.dock_location_changed()
         else:
-            self.close_button.hide()
-            self.float_button.hide()
             self.tray_dock.setTitleBarWidget(None)
             self.tray_dock.setFloating(True)
 
@@ -87,13 +85,9 @@ class TrayMainFrame(QtGui.QFrame):
     def dock_location_changed(self):
         """
         Handles the dock being redocked in some location. This will
-        trigger removing the default title bar and forcing a show of
-        the replacement buttons that this frame provides to handle
-        the title bar's typical responsibilities.
+        trigger removing the default title bar.
         """
         self.tray_dock.setTitleBarWidget(QtGui.QWidget(self.tray_dock.parent()))
-        self.close_button.show()
-        self.float_button.show()
 
     def init_ui(self):
         # self.setMinimumSize(QtCore.QSize(1255,140))
@@ -176,6 +170,7 @@ class TrayMainFrame(QtGui.QFrame):
         self.float_button.setObjectName("tray_float_button")
         self.close_button.setAutoRaise(True)
         self.float_button.setAutoRaise(True)
+        self.float_button.setCheckable(True)
 
         # For whatever reason, defining this style in the tray_dock.qss
         # file doesn't work here. Doing it directly onto the buttons as
@@ -213,19 +208,34 @@ class TrayMainFrame(QtGui.QFrame):
             QtGui.QIcon.On,
         )
         self.float_icon.addPixmap(
+            QtGui.QPixmap(":/tk-rv-shotgunreview/dock_hover.png"),
+            QtGui.QIcon.Active,
+            QtGui.QIcon.On,
+        )
+        self.float_icon.addPixmap(
             QtGui.QPixmap(":/tk-rv-shotgunreview/undock_hover.png"),
             QtGui.QIcon.Active,
+            QtGui.QIcon.Off,
+        )
+        self.float_icon.addPixmap(
+            QtGui.QPixmap(":/tk-rv-shotgunreview/dock.png"),
+            QtGui.QIcon.Normal,
             QtGui.QIcon.On,
         )
         self.float_icon.addPixmap(
             QtGui.QPixmap(":/tk-rv-shotgunreview/undock.png"),
             QtGui.QIcon.Normal,
-            QtGui.QIcon.On,
+            QtGui.QIcon.Off,
         )
         self.float_icon.addPixmap(
             QtGui.QPixmap(":/tk-rv-shotgunreview/undock_hover.png"),
             QtGui.QIcon.Selected,
             QtGui.QIcon.On,
+        )
+        self.float_icon.addPixmap(
+            QtGui.QPixmap(":/tk-rv-shotgunreview/undock_hover.png"),
+            QtGui.QIcon.Selected,
+            QtGui.QIcon.Off,
         )
 
         self.close_button.setIcon(self.close_icon)

@@ -33,6 +33,7 @@ class RVShotgunReviewApp(Application):
         tray_dock = QtGui.QDockWidget("", parent_widget)
 
         notes_dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea | QtCore.Qt.RightDockWidgetArea)
+        notes_dock.setTitleBarWidget(QtGui.QWidget(parent_widget))
         tray_dock.setAllowedAreas(QtCore.Qt.BottomDockWidgetArea)
         tray_dock.setTitleBarWidget(QtGui.QWidget(parent_widget))
 
@@ -62,14 +63,6 @@ class RVShotgunReviewApp(Application):
             self.engine.log_error(e)
         finally:
             f.close()
-
-        # This is silly, but there's some kind of Qt bug that causes
-        # the title bar icon settings in the qss to not be applied
-        # until after an undock/redock operation. There doesn't appear
-        # to be any visual glitch on startup resulting from this, so
-        # it works well enough. Even though it sucks.
-        notes_dock.setFloating(True)
-        notes_dock.setFloating(False)
 
     #####################################################################################
     # Properties

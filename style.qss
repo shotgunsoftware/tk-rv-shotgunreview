@@ -62,4 +62,7 @@ QMenu::item#version_sort_menu:checked {
     color: {{SG_HIGHLIGHT_COLOR}};
 }
 
+#close_button, #float_button {
+    background: transparent;
+}
 
