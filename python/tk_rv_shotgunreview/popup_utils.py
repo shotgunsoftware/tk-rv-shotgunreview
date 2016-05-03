@@ -264,6 +264,21 @@ class PopupUtils(QtCore.QObject):
             self._related_cuts_menu = QtGui.QMenu(self._tray_frame.tray_button_browse_cut)
             self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu)        
             self._related_cuts_menu.aboutToShow.connect(self.request_related_cuts_from_models)
+
+            # Sadly, because this button didn't have a menu at the time that
+            # the app-level styling was applied, it won't inherit menu-indicator
+            # styling there. We have to set it here as a result.
+            self._tray_frame.tray_button_browse_cut.setStyleSheet(
+                """QPushButton::menu-indicator {
+                        image: url(:tk-rv-shotgunreview/arrow.png);
+                        subcontrol-position: right center;
+                        subcontrol-origin: padding;
+                        width: 10px;
+                        right: -2px;
+                        top: -1px;
+                    }
+                """
+            )
             self._related_cuts_menu.triggered.connect(self.handle_related_menu)
 
         seq_data = self._rv_mode.sequence_data_from_session()
@@ -389,7 +404,22 @@ class PopupUtils(QtCore.QObject):
         # might as well make the menu if its not there yet.
         if not self._status_menu:
             self._status_menu = QtGui.QMenu(self._tray_frame.status_filter_button)
-            self._tray_frame.status_filter_button.setMenu(self._status_menu)        
+            self._tray_frame.status_filter_button.setMenu(self._status_menu)
+
+            # Sadly, because this button didn't have a menu at the time that
+            # the app-level styling was applied, it won't inherit menu-indicator
+            # styling there. We have to set it here as a result.
+            self._tray_frame.status_filter_button.setStyleSheet(
+                """QPushButton::menu-indicator {
+                        image: url(:tk-rv-shotgunreview/arrow.png);
+                        subcontrol-position: right center;
+                        subcontrol-origin: padding;
+                        width: 10px;
+                        right: -2px;
+                        top: -1px;
+                    }
+                """
+            )       
             self._status_menu.triggered.connect(self.handle_status_menu)
 
         # theres nothing we can do without getting a project entity.
@@ -472,7 +502,22 @@ class PopupUtils(QtCore.QObject):
         """
         if not self._pipeline_steps_menu:
             self._pipeline_steps_menu = QtGui.QMenu(self._tray_frame.pipeline_filter_button)
-            self._tray_frame.pipeline_filter_button.setMenu(self._pipeline_steps_menu)        
+            self._tray_frame.pipeline_filter_button.setMenu(self._pipeline_steps_menu)
+
+            # Sadly, because this button didn't have a menu at the time that
+            # the app-level styling was applied, it won't inherit menu-indicator
+            # styling there. We have to set it here as a result.
+            self._tray_frame.pipeline_filter_button.setStyleSheet(
+                """QPushButton::menu-indicator {
+                        image: url(:tk-rv-shotgunreview/arrow.png);
+                        subcontrol-position: right center;
+                        subcontrol-origin: padding;
+                        width: 10px;
+                        right: -2px;
+                        top: -1px;
+                    }
+                """
+            )      
             self._pipeline_steps_menu.triggered.connect(self.handle_pipeline_menu)
         menu = self._pipeline_steps_menu
         menu.clear()
