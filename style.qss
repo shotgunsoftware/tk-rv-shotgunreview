@@ -66,3 +66,7 @@ QMenu::item#version_sort_menu:checked {
     background: transparent;
 }
 
+#empty_label {
+    background: transparent;
+}
+
