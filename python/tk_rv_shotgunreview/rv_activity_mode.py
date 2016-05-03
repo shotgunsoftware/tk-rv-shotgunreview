@@ -291,9 +291,11 @@ class RvActivityMode(rvt.MinorMode):
         if event:
             event.reject()
         try:
+            if not self.tray_dock.isVisible():
+                return
             idx = self.clip_index_from_frame()
             mini_data = MiniCutData.load_from_session()
-            if mini_data.active:
+            if mini_data and mini_data.active:
                 idx = idx + mini_data.first_clip
             self.details_dirty = True
             sel_index = self.tray_model.index(idx, 0)
@@ -354,6 +356,10 @@ class RvActivityMode(rvt.MinorMode):
         event.reject()
         traysize = self.tray_dock.size().width()
         self.tray_main_frame.resize(traysize - 10, self._tray_height)
+
+    def version_submitted(self, event):
+        event.reject()
+        self.note_dock.show()
 
     def per_render_event(self, event):
         event.reject()
@@ -416,6 +422,8 @@ class RvActivityMode(rvt.MinorMode):
     def launchSubmitTool(self, event):
         if (self.tray_dock):
             self.tray_dock.hide()
+            
+        self.tray_hidden_this_session = True
             
         # Flag the session as "sgreview.submitInProgress" so JS submit tool
         # code can tell this is not Screening Room.
@@ -766,6 +774,7 @@ class RvActivityMode(rvt.MinorMode):
                 ('view-size-changed', self.on_view_size_changed, ''),
                 ('new_note_screenshot', self.make_note_attachments, ''),
                 ('per-render-event-processing', self.per_render_event, ''),
+                ('submit-tool-submission-complete', self.version_submitted, ''),
                 ],
                 [("SG Review", [
                     ("Swap Media - Current Clip", None, None, lambda: rvc.DisabledMenuState),
