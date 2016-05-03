@@ -42,12 +42,12 @@ QMenu::item {
 }
 
 QMenu::right-arrow {
-    background: rgb(200,200,200);
-    image: url(':down_triangle.png');
+    background: transparent;
+    image: url(:tk-rv-shotgunreview/right_arrow_large.png);
 }
 
 QMenu::down-arrow {
-    background: rgb(200,200,200);
+    background: transparent;
 }
 
 
