@@ -1,5 +1,4 @@
 
-import sys
 import json
 import tank
 
@@ -57,7 +56,6 @@ class PopupUtils(QtCore.QObject):
         self._last_related_cuts = None
         self._last_rel_shot_entity = None
         self._last_rel_cut_entity = None
-        self._menu_icon_size = "20" if (sys.platform == "darwin") else "10"
 
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
@@ -276,11 +274,11 @@ class PopupUtils(QtCore.QObject):
                         image: url(:tk-rv-shotgunreview/arrow.png);
                         subcontrol-position: right center;
                         subcontrol-origin: padding;
-                        width: %spx;
+                        width: 10px;
                         right: -2px;
                         top: -1px;
                     }
-                """ % self._menu_icon_size
+                """
             )
             self._related_cuts_menu.triggered.connect(self.handle_related_menu)
 
@@ -417,11 +415,11 @@ class PopupUtils(QtCore.QObject):
                         image: url(:tk-rv-shotgunreview/arrow.png);
                         subcontrol-position: right center;
                         subcontrol-origin: padding;
-                        width: %spx;
+                        width: 10px;
                         right: -2px;
                         top: -1px;
                     }
-                """ % self._menu_icon_size
+                """
             )       
             self._status_menu.triggered.connect(self.handle_status_menu)
 
@@ -515,11 +513,11 @@ class PopupUtils(QtCore.QObject):
                         image: url(:tk-rv-shotgunreview/arrow.png);
                         subcontrol-position: right center;
                         subcontrol-origin: padding;
-                        width: %spx;
+                        width: 10px;
                         right: -2px;
                         top: -1px;
                     }
-                """ % self._menu_icon_size
+                """
             )      
             self._pipeline_steps_menu.triggered.connect(self.handle_pipeline_menu)
         menu = self._pipeline_steps_menu

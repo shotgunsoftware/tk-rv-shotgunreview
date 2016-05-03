@@ -43,7 +43,7 @@ QMenu::item {
 
 QMenu::right-arrow {
     background: transparent;
-    image: url(:tk-rv-shotgunreview/right_arrow.png);
+    image: url(:tk-rv-shotgunreview/right_arrow_large.png);
 }
 
 QMenu::down-arrow {

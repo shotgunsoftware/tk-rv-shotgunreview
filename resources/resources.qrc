@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="tk-rv-shotgunreview">
+    <file>right_arrow_large.png</file>
     <file>right_arrow.png</file>
     <file>right_arrow_white.png</file>
     <file>panel_empty_background.png</file>
