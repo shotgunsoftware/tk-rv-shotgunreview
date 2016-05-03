@@ -69,12 +69,9 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui = Ui_DetailsPanelWidget() 
         self.ui.setupUi(self)
 
-        # We start off with various buttons hidden. When an
-        # entity is loaded for the first time we will turn them on.
-        self.ui.more_info_button.hide()
-        self.ui.pin_button.hide()
-        self.ui.shotgun_nav_button.hide()
-        self.ui.more_fields_button.hide()
+        # Show the "empty" image that tells the user that no Version
+        # is active.
+        self.ui.pages.setCurrentWidget(self.ui.empty_page)
 
         # We need to connect to some field manager signals, so
         # we will instantiate one and keep it around. It'll be
@@ -248,9 +245,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._more_info_toggled(False)
         self.ui.note_stream_widget._clear()
         self.ui.shot_info_widget.clear()
-        self.ui.more_info_button.hide()
-        self.ui.pin_button.hide()
-        self.ui.shotgun_nav_button.hide()
+        self.ui.pages.setCurrentWidget(self.ui.empty_page)
         self.version_model.clear()
 
     def load_data(self, entity):
@@ -274,11 +269,9 @@ class DetailsPanelWidget(QtGui.QWidget):
             self.clear()
             return
 
-        # We have various buttons hidden until an entity is loaded,
-        # so we need to turn those on now.
-        self.ui.more_info_button.show()
-        self.ui.pin_button.show()
-        self.ui.shotgun_nav_button.show()
+        # Switch over to the page that contains the primary display
+        # widget set now that we have data to show.
+        self.ui.pages.setCurrentWidget(self.ui.main_page)
 
         # If there aren't any fields set in the info widget then it
         # likely means we're loading from a "cleared" slate and need

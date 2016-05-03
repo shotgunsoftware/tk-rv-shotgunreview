@@ -1,5 +1,6 @@
 <RCC>
   <qresource prefix="tk-rv-shotgunreview">
+    <file>panel_empty_background.png</file>
     <file>dock.png</file>
     <file>dock_hover.png</file>
     <file>sort_down_on.png</file>
