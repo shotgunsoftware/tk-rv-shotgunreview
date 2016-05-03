@@ -188,6 +188,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.shot_info_model.data_refreshed.connect(self._version_entity_data_refreshed)
         self._task_manager.task_group_finished.connect(self.ui.entity_version_view.update)
 
+        # We're taking over the responsibility of handling the title bar's
+        # typical responsibilities of closing the dock and managing float
+        # and unfloat behavior. We need to hook up to the dockLocationChanged
+        # signal because a floating DockWidget can be redocked with a
+        # double click of the window, which won't go through our button.
+        self.ui.float_button.clicked.connect(self._toggle_floating)
+        self.ui.close_button.clicked.connect(self._hide_dock)
+        self.parent().dockLocationChanged.connect(self._dock_location_changed)
+
         # The fields menu attached to the "Fields..." buttons
         # when "More info" is active as well as in the Versions
         # tab.
@@ -631,6 +640,33 @@ class DetailsPanelWidget(QtGui.QWidget):
             "new_note_screenshot",
             json.dumps(self._current_entity),
         )
+
+    ##########################################################################
+    # docking
+
+    def _dock_location_changed(self):
+        """
+        Handles the dock being redocked in some location. This will
+        trigger removing the default title bar.
+        """
+        self.parent().setTitleBarWidget(QtGui.QWidget(self.parent().parent()))
+
+    def _hide_dock(self):
+        """
+        Hides the parent dock widget.
+        """
+        self.parent().hide()
+
+    def _toggle_floating(self):
+        """
+        Toggles the parent dock widget's floating status.
+        """
+        if self.parent().isFloating():
+            self.parent().setFloating(False)
+            self._dock_location_changed()
+        else:
+            self.parent().setTitleBarWidget(None)
+            self.parent().setFloating(True)
 
     ##########################################################################
     # version list actions
