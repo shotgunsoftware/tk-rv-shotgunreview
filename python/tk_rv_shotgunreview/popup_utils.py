@@ -363,20 +363,24 @@ class PopupUtils(QtCore.QObject):
             a list of them. 
             below are some examples of interesting things in the schema:
         """
-        # print "status_list: %r" % self._status_schema['sg_status_list']
+        #print "status_list: %r\n\n" % self._status_schema
         # print "properties: %r" % self._status_schema['sg_status_list']['properties']
         # print "values: %r" % self._status_schema['sg_status_list']['properties']['valid_values']['value']
         # for x in self._status_schema['sg_status_list']:
             #print "%r" % x
-        # print "display values: %r" % self._status_schema['sg_status_list']['properties']['display_values']['value']
+        #print "display: %r\n\n" % self._status_schema['sg_status_list']['properties']['display_values']
         
         s = self.get_status_list(project_entity)
         d = s['sg_status_list']['properties']['display_values']['value']
+        ordered_list = s['sg_status_list']['properties']['valid_values']['value']
+
         status_list = []
-        for x in d:
+
+        for n in ordered_list:
             e = {}
-            e[x] = d[x]
+            e[n] = d[n]            
             status_list.append(e)
+
         return status_list
 
     def build_status_menu(self):
@@ -413,6 +417,7 @@ class PopupUtils(QtCore.QObject):
         actions = self._status_menu.actions()
         if not event.data():
             for a in actions:
+                print "%r" % a.text()
                 a.setChecked(False)
             self._tray_frame.status_filter_button.setText("Filter by Status")
             self.request_versions_for_statuses_and_steps()
@@ -627,7 +632,7 @@ class PopupUtils(QtCore.QObject):
             rve.displayFeedback("Reloading ...", 60.0)
 
         full_filters = self.get_tray_filters()
-        print "full_filters: %r" % full_filters
+
         if full_filters == None:
             self._filtered_versions_model.clear()
             self._filtered_versions_model.data_refreshed.emit(True)
