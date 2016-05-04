@@ -64,6 +64,13 @@ class RVShotgunReviewApp(Application):
         finally:
             f.close()
 
+    def destroy_app(self):
+        """
+        Deactivates the RV mode before proceeding with tear-down of the
+        app.
+        """
+        self._rv_activity_stream.deactivate()
+
     #####################################################################################
     # Properties
 
@@ -76,29 +83,6 @@ class RVShotgunReviewApp(Application):
 
     #####################################################################################
     # utility methods
-
-    def change_to_entity_context(self, entity_type, entity_id):
-        """
-        Changes to the context matching that of the given entity.
-
-        :param entity_type: The entity type (example: Cut, Version, etc).
-        :param entity_id:   The id number of the entity.
-        """
-        # TODO: Note that this does not work right now with the
-        # bootstrap strategy employed with RV. We end up getting
-        # an error stating that the given entity is from a project
-        # that does not match our current config and it bails.
-        tk = tank.tank_from_entity(entity_type, entity_id)
-
-        if not tk:
-            return
-
-        context = tk.context_from_entity(entity_type, entity_id)
-
-        if not context or context == self.engine.context:
-            return
-
-        self.engine.change_context(context)
 
     def _env_info(self):
         self.engine.log_info("TANK_CONTEXT: %s" % os.environ.get("TANK_CONTEXT"))
