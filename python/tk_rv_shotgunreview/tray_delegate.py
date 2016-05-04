@@ -217,7 +217,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                                       QtCore.QPoint(0,0),
                                       renderFlags=QtGui.QWidget.DrawChildren)
 
-            if model_index.row() in self.tray_view.rv_mode.pinned_items:
+            if self.tray_view.rv_mode.index_is_pinned(model_index.row()):
                 painter.drawPixmap(paint_widget.width() - self.pin_pixmap.width(), 0, self.pin_pixmap)
                 #painter.fillRect( self._alpha_size.width() - 10, 0, 10, 10, QtGui.QColor(240,200,50,127) )
 
