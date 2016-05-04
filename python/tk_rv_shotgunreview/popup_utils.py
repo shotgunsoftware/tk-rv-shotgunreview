@@ -188,7 +188,9 @@ class PopupUtils(QtCore.QObject):
         self._engine.log_info("handle_related_menu called with action %r" % action)
         if action.data():
             self._engine.log_info("action.data: %r" % action.data()) 
-            self._rv_mode.load_tray_with_something_new({"type":"Cut", "ids":[action.data()['id']]})
+            self._rv_mode.load_tray_with_something_new(
+                {"type":"Cut", "ids":[action.data()['id']]}, 
+                preserve_pinned=True)
 
     def on_rel_cuts_refreshed(self):
         self._rel_cuts_done = True
