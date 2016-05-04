@@ -73,24 +73,24 @@ class PopupUtils(QtCore.QObject):
         self._steps_proxyModel.setSourceModel(self._steps_model)
 
 
-        self._rel_cuts_task_manager = task_manager.BackgroundTaskManager(parent=None,
-                                                                    start_processing=True,
-                                                                    max_threads=2)
+        # self._rel_cuts_task_manager = task_manager.BackgroundTaskManager(parent=None,
+        #                                                             start_processing=True,
+        #                                                             max_threads=2)
 
-        self._rel_cuts_model = RelCutsModel(None, self._rel_cuts_task_manager)
+        self._rel_cuts_model = RelCutsModel(None, self._steps_task_manager)
 
-        self._rel_shots_task_manager = task_manager.BackgroundTaskManager(parent=None,
-                                                                    start_processing=True,
-                                                                    max_threads=2)
+        # self._rel_shots_task_manager = task_manager.BackgroundTaskManager(parent=None,
+        #                                                             start_processing=True,
+        #                                                             max_threads=2)
 
-        self._rel_shots_model = RelShotsModel(None, self._rel_shots_task_manager)
+        self._rel_shots_model = RelShotsModel(None, self._steps_task_manager)
 
         
-        self._filtered_versions_task_manager = task_manager.BackgroundTaskManager(parent=None,
-                                                                    start_processing=True,
-                                                                    max_threads=2)
+        # self._filtered_versions_task_manager = task_manager.BackgroundTaskManager(parent=None,
+        #                                                             start_processing=True,
+        #                                                             max_threads=2)
 
-        self._filtered_versions_model = FilteredVersionsModel(None, self._filtered_versions_task_manager, self._tray_frame.tray_model)
+        self._filtered_versions_model = FilteredVersionsModel(None, self._steps_task_manager, self._tray_frame.tray_model)
 
         # connections
         
