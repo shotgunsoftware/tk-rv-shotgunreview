@@ -871,7 +871,10 @@ class RvActivityMode(rvt.MinorMode):
         self.show_cuts_action(True)
 
         # Setup the details panel.
-        self.details_panel = DetailsPanelWidget(self.note_dock)
+        self.details_panel = DetailsPanelWidget(
+            parent=self.note_dock,
+            bg_task_manager=self._app.engine.bg_task_manager,
+        )
         self.note_dock.setWidget(self.details_panel)
         
         self._app.engine._apply_external_styleshet(self._app, self.details_panel)
