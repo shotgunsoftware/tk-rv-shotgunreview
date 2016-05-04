@@ -226,6 +226,10 @@ class RvActivityMode(rvt.MinorMode):
     # RV Events
 
     def replaceWithSelected(self, event):
+        """
+        Replace current tray contents with incoming version.  No tray state is
+        preserved, except for filter settings if any.
+        """
         try:
             data = json.loads(event.contents())[0]
             self.load_tray_with_something_new(data)
@@ -341,14 +345,14 @@ class RvActivityMode(rvt.MinorMode):
         # "buffering" (ie playback paused to fill cache) or in "turn-around"
         # (ie looping)
         cont = event.contents()
-        if (self.details_panel and cont != "buffering" and cont != "turn-around"):
+        if self.details_panel and cont != "buffering" and cont != "turn-around":
             # We only auto-pin the details if they are not already pinned
             if   (event.name() == "play-start" and not self.details_panel.is_pinned):
                 self.details_panel.set_pinned(True)
                 self.details_pinned_for_playback = True
             # We only auto-unpin the details on stop if we auto-pinned them in
             # the first place.
-            elif (event.name() == "play-stop" and self.details_pinned_for_playback):
+            elif event.name() == "play-stop" and self.details_pinned_for_playback:
                 self.details_panel.set_pinned(False)
                 self.details_pinned_for_playback = False
 
@@ -435,7 +439,7 @@ class RvActivityMode(rvt.MinorMode):
         return rvc.CheckedMenuState if (self.tray_dock and self.tray_dock.isVisible()) else rvc.UncheckedMenuState
 
     def launchSubmitTool(self, event):
-        if (self.tray_dock):
+        if self.tray_dock:
             self.tray_dock.hide()
             
         self.tray_hidden_this_session = True
@@ -558,7 +562,7 @@ class RvActivityMode(rvt.MinorMode):
 
         # If a specific license was set use it instead
         lic = os.environ.get("RV_APP_USE_LICENSE_FILE", None)
-        if (lic != None):
+        if lic != None:
             args += ["-lic", lic]
         
         # Tell the user what is going on
@@ -769,7 +773,7 @@ class RvActivityMode(rvt.MinorMode):
         self._queued_frame_change = -1
 
         self._prefs = Preferences()
-        self.incoming_pinned = None
+        self.incoming_pinned = {}
  
         self.init("RvActivityMode", None,
                 [ 
@@ -1103,7 +1107,7 @@ class RvActivityMode(rvt.MinorMode):
         rvc.setNodeInputs(compNode, sources)
         rvc.setViewNode(compNode)
 
-    def load_tray_with_something_new(self, target_entity):
+    def load_tray_with_something_new(self, target_entity, preserve_pinned=False, incoming_pinned={}):
 
         # notify user we're loading ...
         type_string = target_entity["type"]
@@ -1121,12 +1125,26 @@ class RvActivityMode(rvt.MinorMode):
         if   t_type == "Version":
             self.load_tray_with_version_ids(target_entity["ids"])
             self.tray_main_frame.show_steps_and_statuses(False)
+
         elif t_type == "Playlist":
             self.load_tray_with_playlist_id(target_entity["ids"][0])
             self.tray_main_frame.show_steps_and_statuses(False)
+
         elif t_type == "Cut":
+            # We only care about "pinned" shots/versions if we are loading a
+            # Cut.  If caller asks that pinned state be preserved (we are
+            # "switching cuts"), get current state for sequence and set in mode
+            # for when query returns.  Otherwise caller may provide pinned data
+            # explicitly (switching from Version to Cut or "turning on Cut
+            # mode").
+            if preserve_pinned:
+                incoming_pinned = self.pinned_from_sequence()
+
+            self.incoming_pinned = incoming_pinned
+
             self.load_tray_with_cut_id(target_entity["ids"][0])
             self.tray_main_frame.show_steps_and_statuses(True)
+
         else:
             self._app.engine.log_error("Tray does not support entity type '%s'." % t_type)
         
@@ -1597,7 +1615,7 @@ class RvActivityMode(rvt.MinorMode):
 
     def source_group_from_version_data(self, version_data, media_type=None):
 
-        if (False):
+        if False:
             print "source_group_from_version_data() data:"
             pp.pprint(version_data)
 
@@ -1635,7 +1653,7 @@ class RvActivityMode(rvt.MinorMode):
 
         self.configure_source_media(source_group, version_data)
 
-        rve.setUIName(source_group, version_data["code"])
+        rve.setUIName(source_group, version_data.get("code", "No Version Name"))
 
         return source_group
 
@@ -1755,12 +1773,17 @@ class RvActivityMode(rvt.MinorMode):
 
         return (version_data, edit_data)
 
-    def pinned_from_sequence(self, seq_group):
+    def pinned_from_sequence(self, seq_group=None):
         """
         Return shot-keyed dict of pinned version associated with this sequence (cut).
         """
+        if not seq_group:
+            seq_group = rvc.viewNode()
+            if rvc.nodeType(seq_group) != "RVSequenceGroup":
+                return {}
+
         pinned_str = getStringProp(seq_group + ".sg_review.pinned", "")
-        if (pinned_str):
+        if pinned_str:
             return json.loads(pinned_str)
 
         return {}
@@ -1808,6 +1831,14 @@ class RvActivityMode(rvt.MinorMode):
         shadow_source = getIntProp(seq_node + ".shadow_edl.source", [])
         shadow_inputs = getStringProp(seq_node + ".shadow_edl.inputs", [])
 
+        # allow for half-build data structures:
+
+        if index not in range(len(shadow_source)):
+            return False
+
+        if shadow_source[index] not in range(len(shadow_inputs)):
+            return False
+
         source_group = shadow_inputs[shadow_source[index]]
 
         # get shot from version_data of this source and look up in pinned
@@ -1819,9 +1850,11 @@ class RvActivityMode(rvt.MinorMode):
         return True if shot and shot in pinned else False
         
     def reset_pinned(self, seq_group, incoming_pinned):
-        # XXX this is needed to initialize pinned state (eg when we go from
-        # version to cut, in which case the version should be pinned).
-        pass
+        # Initialize pinned state (eg when we go from version to cut, in which
+        # case the version should be pinned, or from one cut to another, in
+        # which case we should "rememeber" the pinned state).
+
+        setProp(seq_group + ".sg_review.pinned", json.dumps(incoming_pinned))
 
     # signal from model so filter_query_finished is False (we need to run follow-on
     # query, if any)
@@ -1864,10 +1897,11 @@ class RvActivityMode(rvt.MinorMode):
         seq_group_node = self.sequence_group_from_target(self.target_entity)
         seq_node = groupMemberOfType(seq_group_node, "RVSequence")
 
-        # if this is the first entry, check self.incoming_pinned otherwise
+        # If this is the first entry, check self.incoming_pinned otherwise
         # retrieve previous pinned state from sequence.
         if not filter_query_finished:
             self.reset_pinned(seq_group_node, self.incoming_pinned)
+            self.incoming_pinned = {}
 
         # get shot-keyed dict of pinned versions
         pinned = self.pinned_from_sequence(seq_group_node)
@@ -2023,7 +2057,7 @@ class RvActivityMode(rvt.MinorMode):
         # initiate that query.  If not, display completion feedback 
 
         filter_query_required = self._popup_utils.filters_exist()
-        if (not filter_query_finished and filter_query_required):
+        if not filter_query_finished and filter_query_required:
             # trigger filter query
             self._popup_utils.request_versions_for_statuses_and_steps(True)
         else :
