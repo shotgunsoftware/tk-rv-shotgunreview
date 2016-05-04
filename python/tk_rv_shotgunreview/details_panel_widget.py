@@ -58,11 +58,14 @@ settings = sgtk.platform.import_framework(
 )
 
 class DetailsPanelWidget(QtGui.QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, bg_task_manager=None):
         """
         Constructor
 
-        :param parent:  The panel's parent widget.
+        :param parent:          The panel's parent widget.
+        :param bg_task_manager: A task_manager.BackgroundTaskManager instance
+                                to pass to any models/managers that require
+                                the use of one.
         """
         QtGui.QWidget.__init__(self, parent)
 
@@ -81,7 +84,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         # We need to connect to some field manager signals, so
         # we will instantiate one and keep it around. It'll be
         # passed to any ListItemWidgets that are built later.
-        self._task_manager = task_manager.BackgroundTaskManager(
+        self._task_manager = bg_task_manager or task_manager.BackgroundTaskManager(
             parent=self.ui.note_stream_widget,
             start_processing=True,
             max_threads=2,
@@ -157,7 +160,10 @@ class DetailsPanelWidget(QtGui.QWidget):
         # Our sort-by list will include "id" at the head.
         self._version_list_sort_by_fields = ["id"] + self._version_list_persistent_fields
 
-        self.version_model = shotgun_model.SimpleShotgunModel(self.ui.entity_version_tab)
+        self.version_model = shotgun_model.SimpleShotgunModel(
+            self.ui.entity_version_tab,
+            bg_task_manager=self._task_manager,
+        )
         self.version_proxy_model = VersionSortFilterProxyModel(
             parent=self.ui.entity_version_view,
             shotgun_field_manager=self._shotgun_field_manager,
@@ -180,7 +186,10 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.entity_version_view.setItemDelegate(self.version_delegate)
         self.ui.note_stream_widget.set_bg_task_manager(self._task_manager)
         self.ui.note_stream_widget.show_sg_stream_button = False
-        self.shot_info_model = shotgun_model.SimpleShotgunModel(self.ui.note_stream_widget)
+        self.shot_info_model = shotgun_model.SimpleShotgunModel(
+            self.ui.note_stream_widget,
+            bg_task_manager=self._task_manager,
+        )
 
         # We need to register our screen-grab callback. Instead
         # of what ships with the widget
@@ -269,6 +278,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.shot_info_widget.clear()
         self.ui.pages.setCurrentWidget(self.ui.empty_page)
         self.version_model.clear()
+        self._requested_entity = None
 
     def load_data(self, entity):
         """
@@ -279,11 +289,12 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param entity:  The Shotgun entity to load. This is a dict in
                         the form returned by the Shotgun Python API.
         """
-        self._requested_entity = entity
-
         # If we're pinned, then we don't allow loading new entities.
-        if self._pinned:
+        if self._pinned and self._requested_entity:
+            self._requested_entity = entity
             return
+        else:
+            self._requested_entity = entity
 
         # If we got an "empty" entity from the mode, then we need
         # to clear everything out and go back to an empty state.
