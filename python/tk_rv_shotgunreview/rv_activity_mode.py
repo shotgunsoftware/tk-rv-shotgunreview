@@ -1338,6 +1338,121 @@ class RvActivityMode(rvt.MinorMode):
 
         return sg_dict
 
+    def find_latest_cut_for_version(self, shot_entity, version_data, project_entity):
+        # return
+        # print "Version DATA: %r" % version_data
+        version_entity = {}
+        version_entity['id'] = version_data['id']
+        version_entity['type'] = "Version"
+        version_entity['name'] = version_data['code']
+        # print "USING VERSION %r %r" % (version_entity,project_entity)
+
+ 
+        # // let's see if any of the cuts use that version directly (through the cut or the cut-items)
+        # var spec = {
+        #     type: 'Cut',
+        #     filters: {
+        #         conditions: [
+        #             {   conditions: [
+        #                     {
+        #                         path: SG.c.CUT_ENTITY_CUT_ITEMS_FIELD + ".CutItem." + SG.c.CUT_ITEM_ENTITY_VERSION_FIELD,
+        #cut_items.CutItem.version
+        #                         relation: 'is',
+        #                         values: [version_hash]
+        #                     },
+        #                     {
+        #                         path: SG.c.CUT_ENTITY_BASE_LAYER_VERSION_FIELD,
+        #                         relation: 'is',
+        #                         values: [version_hash]
+        #                     }
+        #                 ],
+        #                 logical_operator: 'or'
+        #             }
+        #         ],
+        #         logical_operator: 'and'
+        #     },
+        #     latest: 'REVISION_NUMBER',
+        #     // we need the ID of the cut and its creation date
+        #     // we also need to version and its image to switch between a version and cuts
+        #     columns: ['id', 'created_at', 'cached_display_name', 'version', 'version.Version.image'],
+        #     result: data_set,
+        #     // sort latest created
+        #     sorts: [{column: 'created_at', direction: "desc"}],
+        #     promise_scope: promise_scope
+        # };
+
+        # if ( shot_entity ) {
+        #     // let's also see if any of the cuts use that version indirectly through their cut-items' shots
+        #     spec.filters.conditions[0].conditions.push( {
+        #         path: SG.c.CUT_ENTITY_CUT_ITEMS_FIELD + ".CutItem." + SG.c.CUT_ITEM_ENTITY_SHOT_FIELD,
+        #         relation: 'is',
+        #         values: [shot_entity]
+        #     } );
+        # }
+
+        # if ( project_entity ) {
+        #     spec.filters.conditions.unshift({
+        #         path: 'project',
+        #         relation: 'is',
+        #         values: [project_entity]
+        #     });
+        # }
+
+
+        cut_fields = ['id', 'created_at', 'cached_display_name', 'version', 'version.Version.image']
+
+        # cut_filters = [
+        #     ['project', 'is', project_entity],  
+        #     {
+        #         "filter_operator": "any",
+        #         "filters": [
+        #             ['cut_items.CutItem.version', 'is', version_entity], 
+        #             ['version', 'is', version_entity],
+        #             ['cut_items.CutItem.shot', 'is', shot_entity]
+        #         ]
+        #     },
+        # ]
+
+        cut_filters = [
+            {
+                "filter_operator": "any",
+                "filters": [
+                    ['cut_items.CutItem.version', 'is', version_entity], 
+                    ['version', 'is', version_entity]
+                ]
+            }
+        ]
+
+        if shot_entity:
+            cut_filters[0]['filters'].append(['cut_items.CutItem.shot', 'is', shot_entity])
+
+        if project_entity:
+            cut_filters.insert(0, ['project', 'is', project_entity] )
+
+        cut_order = [ {'field_name':'created_at','direction':'desc'} ]
+
+        cut_presets = [
+                { "preset_name": "LATEST", "latest_by": "REVISION_NUMBER" }
+        ]
+
+
+        cuts = self._bundle.shotgun.find(
+            'Cut',
+            fields=cut_fields,
+            filters=cut_filters,
+            additional_filter_presets=cut_presets,
+            order=cut_order
+        )
+
+        # if cuts:
+        #     print "CUTS: %r %r" % (cuts[0]['cached_display_name'], cuts[0]['id'])
+        #     print "===========\n"
+
+        return cuts
+            
+        
+                
+
     def find_base_version_for_cut(self, entity):
         self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED! %r' % entity)
         pass
@@ -1704,6 +1819,9 @@ class RvActivityMode(rvt.MinorMode):
             # Versions etc.
             (version_data, edit_data) = self.data_from_query_item(
                     sg_item, rv_item, self.target_entity)
+
+            # edit_data['shot'] will have out shot entity
+            self.find_latest_cut_for_version(edit_data['shot'], version_data, sequence_data["project"])
 
             # store edit_data
             edit_data_list.append(json.dumps(edit_data))
