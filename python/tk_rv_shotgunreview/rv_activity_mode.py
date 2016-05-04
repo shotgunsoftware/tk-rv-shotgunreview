@@ -769,6 +769,7 @@ class RvActivityMode(rvt.MinorMode):
         self._queued_frame_change = -1
 
         self._prefs = Preferences()
+        self.incoming_pinned = None
  
         self.init("RvActivityMode", None,
                 [ 
@@ -1025,24 +1026,35 @@ class RvActivityMode(rvt.MinorMode):
 
         seq_node      = groupMemberOfType(seq_group, "RVSequence")
         inputs        = rvc.nodeConnections(seq_group, False)[0]
-        input_indices = rvc.getIntProperty(seq_node + ".edl.source")
+        input_indices = getIntProp(seq_node + ".edl.source", [])
         
         # make or find source group
         src_group = self.source_group_from_version_data(version_data)
 
         # Version/source of current clip is destination for this version, so
         # first find index of current clip 
-        # XXX handle mini-cut.  
         clip_index = self.clip_index_from_frame()
 
         # replace input corresponding to input at clip index with new source
         inputs[input_indices[clip_index]] = src_group
 
+        # update shadow sequence (offset with mini cut data)
+
+        mini_data = MiniCutData.load_from_session(seq_node)
+        if mini_data.active:
+            clip_index += mini_data.first_clip
+
+        shadow_source = getIntProp(seq_node + ".shadow_edl.source", [])
+        shadow_inputs = getStringProp(seq_node + ".shadow_edl.inputs", [])
+        shadow_inputs[shadow_source[clip_index]] = src_group
+        setProp(seq_node + ".shadow_edl.inputs", shadow_inputs)
+
         # reset inputs
         rvc.setNodeInputs(seq_group, inputs)
 
-        # XXX handle pinning: note that more than one clip may be pinned as
-        # result of the above.  Maybe pinning should be tracked by input ?
+        # update pinned data for this sequence.  this version will be pinned
+        # into any clip that uses this shot.
+        self.update_pinned_in_sequence(seq_group, version_data)
 
         # Details need to be updated
         self.details_dirty = True
@@ -1402,12 +1414,12 @@ class RvActivityMode(rvt.MinorMode):
                 self.createText(overlays[0] + '.text:mytext', sg_item['version.Version.code'] + '\nis missing.', -0.5, 0.0)
             return True
 
-    def sequence_group_from_target(self, target_entity, subTarget):
+    def sequence_group_from_target(self, target_entity):
         """
         We keep a RVSequenceGroup around to represent each Playlist, and two
         for each Cut (one for entire-cut and one for min-cut).
         """
-        # XXX handle subTarget, target_entity["server"]
+        # XXX handle target_entity["server"]
 
         t_type = target_entity["type"]
         t_id   = target_entity["ids"][0]
@@ -1628,6 +1640,74 @@ class RvActivityMode(rvt.MinorMode):
 
         return (version_data, edit_data)
 
+    def pinned_from_sequence(self, seq_group):
+        """
+        Return shot-keyed dict of pinned version associated with this sequence (cut).
+        """
+        pinned_str = getStringProp(seq_group + ".sg_review.pinned", "")
+        if (pinned_str):
+            return json.loads(pinned_str)
+
+        return {}
+        
+    def shot_id_str_from_version_data(self, version_data):
+
+        if not version_data:
+            return None
+
+        entity = version_data.get("entity")
+        if not entity:
+            return None
+
+        if entity.get("type") != "Shot":
+            return None
+
+        return str(entity.get("id"))
+
+    def update_pinned_in_sequence(self, seq_group, version_data):
+
+        shot = self.shot_id_str_from_version_data(version_data)
+        if not shot:
+            return
+
+        pinned = self.pinned_from_sequence(seq_group)
+
+        # note that if there was previously another Versioned pinned for clips
+        # referencing this shot, this Version will replace it.
+        pinned[shot] = version_data
+
+        setProp(seq_group + ".sg_review.pinned", json.dumps(pinned))
+
+    def index_is_pinned(self, index):
+
+        seq_group = rvc.viewNode()
+        if rvc.nodeType(seq_group) != "RVSequenceGroup":
+            return False
+
+        pinned = self.pinned_from_sequence(seq_group)
+        
+        # get source of this index
+
+        seq_node      = groupMemberOfType(seq_group, "RVSequence")
+        inputs        = rvc.nodeConnections(seq_group, False)[0]
+        shadow_source = getIntProp(seq_node + ".shadow_edl.source", [])
+        shadow_inputs = getStringProp(seq_node + ".shadow_edl.inputs", [])
+
+        source_group = shadow_inputs[shadow_source[index]]
+
+        # get shot from version_data of this source and look up in pinned
+
+        version_data = self.version_data_from_source(source_group)
+
+        shot = self.shot_id_str_from_version_data(version_data)
+
+        return True if shot and shot in pinned else False
+        
+    def reset_pinned(self, seq_group, incoming_pinned):
+        # XXX this is needed to initialize pinned state (eg when we go from
+        # version to cut, in which case the version should be pinned).
+        pass
+
     # signal from model so filter_query_finished is False (we need to run follow-on
     # query, if any)
     def on_data_refreshed(self, was_refreshed):
@@ -1661,15 +1741,21 @@ class RvActivityMode(rvt.MinorMode):
             self.note_dock.setVisible(True)
 
         # XXX eventually we want to enter min-cut mode directly in some cases,
-        # in which case we want to start with corresponding Sequence node.
-        subTarget = "entire-cut" # XXX should come from pref or previous run
 
         # we rely on tray selection being synced with frame
         (old_index, old_offset) = self.clip_index_and_offset_from_frame()
 
         # find or make RV sequence node for this target entity
-        seq_group_node = self.sequence_group_from_target(self.target_entity, subTarget)
+        seq_group_node = self.sequence_group_from_target(self.target_entity)
         seq_node = groupMemberOfType(seq_group_node, "RVSequence")
+
+        # if this is the first entry, check self.incoming_pinned otherwise
+        # retrieve previous pinned state from sequence.
+        if not filter_query_finished:
+            self.reset_pinned(seq_group_node, self.incoming_pinned)
+
+        # get shot-keyed dict of pinned versions
+        pinned = self.pinned_from_sequence(seq_group_node)
 
         # tray proxy model sorting in cut order
         self.tray_proxyModel.sort(0, QtCore.Qt.AscendingOrder)
@@ -1707,6 +1793,13 @@ class RvActivityMode(rvt.MinorMode):
 
             # store edit_data
             edit_data_list.append(json.dumps(edit_data))
+
+            # If the shot of this version corresponds to a pinned version, use
+            # that instead.
+            shot_id = self.shot_id_str_from_version_data(version_data)
+            pinned_version_data = pinned.get(shot_id)
+            if pinned_version_data:
+                version_data = pinned_version_data
 
             # Now we have version data, find or create the corresponding
             # RVSourceGroup
