@@ -308,6 +308,12 @@ class RvActivityMode(rvt.MinorMode):
                 sm = self.tray_list.selectionModel()           
                 sm.select(sel_index, sm.ClearAndSelect)
                 self.tray_list.scrollTo(sel_index, QtGui.QAbstractItemView.PositionAtCenter)
+                version_data = self.load_version_id_from_session()
+                if 'latest_cut_entity' in version_data:
+                    self.enable_cuts_action(True, 'Review this version in the latest cut')
+                else:
+                    self.enable_cuts_action(False)
+
                     
         except Exception as e:
             print "ERROR: RV frameChanged EXCEPTION %r" % e
@@ -843,14 +849,19 @@ class RvActivityMode(rvt.MinorMode):
 
     ################################################################################### qt stuff down here. 
 
-    def show_cuts_action(self, show=True):
+    def show_cuts_action(self, show=True, tooltip=None):
         '''
         Adds a cuts clapper button to the far left of the RV toolbar.
         If show is false an attempt to remove any exisitng button is made.
         '''
         btb = rv.qtutils.sessionBottomToolBar()
+        
         actions = btb.actions()
-        text = "Enable Cuts"
+ 
+        text = tooltip
+        if not tooltip:
+            text = 'No cut for this version'
+ 
         if show:
             cicon = QtGui.QIcon(":/tk-rv-shotgunreview/icon_player_cut_action_small_dark.png")
             self.cuts_action = QtGui.QAction(cicon, text, btb)
@@ -860,18 +871,25 @@ class RvActivityMode(rvt.MinorMode):
             if (actions[0].text() == text):
                 btb.removeAction(actions[0])
 
-    def enable_cuts_action(self, enable=True):
+    def enable_cuts_action(self, enable=True, tooltip=None):
         '''
         Enables cuts toolbar button. If enable is false the button
         is disabled.
         '''
         self.cuts_action.setEnabled(enable)
+        if enable:
+            if not tooltip:
+                tooltip = 'No cut for this version'
+            self.cuts_action.setToolTip(tooltip)
 
     def sample_cuts_action_listener(self):
         '''
         Sample cuts toolbar button listener
         '''
-        print("Clapper clicked!")
+        version_data = self.load_version_id_from_session()
+        if 'latest_cut_entity' in version_data:
+            self.load_tray_with_something_new(version_data['latest_cut_entity'], True, version_data)
+
 
     def submit_note_attachments (self, attachments):
         '''
@@ -1370,68 +1388,23 @@ class RvActivityMode(rvt.MinorMode):
         return sg_dict
 
     def find_latest_cut_for_version(self, shot_entity, version_data, project_entity):
-        # return
-        # print "Version DATA: %r" % version_data
+        """
+        original JS query here:
+        https://github.com/shotgunsoftware/shotgun/blob/develop/cut_support_2016/public/javascripts/util/cuts_helper.js#L167
+
+        returns the latest cut entity for this version or None.
+        
+        """
+
         version_entity = {}
         version_entity['id'] = version_data['id']
         version_entity['type'] = "Version"
         version_entity['name'] = version_data['code']
-        # print "USING VERSION %r %r" % (version_entity,project_entity)
 
- 
-        # // let's see if any of the cuts use that version directly (through the cut or the cut-items)
-        # var spec = {
-        #     type: 'Cut',
-        #     filters: {
-        #         conditions: [
-        #             {   conditions: [
-        #                     {
-        #                         path: SG.c.CUT_ENTITY_CUT_ITEMS_FIELD + ".CutItem." + SG.c.CUT_ITEM_ENTITY_VERSION_FIELD,
-        #cut_items.CutItem.version
-        #                         relation: 'is',
-        #                         values: [version_hash]
-        #                     },
-        #                     {
-        #                         path: SG.c.CUT_ENTITY_BASE_LAYER_VERSION_FIELD,
-        #                         relation: 'is',
-        #                         values: [version_hash]
-        #                     }
-        #                 ],
-        #                 logical_operator: 'or'
-        #             }
-        #         ],
-        #         logical_operator: 'and'
-        #     },
-        #     latest: 'REVISION_NUMBER',
-        #     // we need the ID of the cut and its creation date
-        #     // we also need to version and its image to switch between a version and cuts
-        #     columns: ['id', 'created_at', 'cached_display_name', 'version', 'version.Version.image'],
-        #     result: data_set,
-        #     // sort latest created
-        #     sorts: [{column: 'created_at', direction: "desc"}],
-        #     promise_scope: promise_scope
-        # };
-
-        # if ( shot_entity ) {
-        #     // let's also see if any of the cuts use that version indirectly through their cut-items' shots
-        #     spec.filters.conditions[0].conditions.push( {
-        #         path: SG.c.CUT_ENTITY_CUT_ITEMS_FIELD + ".CutItem." + SG.c.CUT_ITEM_ENTITY_SHOT_FIELD,
-        #         relation: 'is',
-        #         values: [shot_entity]
-        #     } );
-        # }
-
-        # if ( project_entity ) {
-        #     spec.filters.conditions.unshift({
-        #         path: 'project',
-        #         relation: 'is',
-        #         values: [project_entity]
-        #     });
-        # }
+        cut_fields = ['id', 'created_at', 'cached_display_name'] #, 'version', 'version.Version.image']
 
 
-        cut_fields = ['id', 'created_at', 'cached_display_name', 'version', 'version.Version.image']
-
+        # for reference, what it looks like if you have shot and project...
         # cut_filters = [
         #     ['project', 'is', project_entity],  
         #     {
@@ -1466,7 +1439,6 @@ class RvActivityMode(rvt.MinorMode):
                 { "preset_name": "LATEST", "latest_by": "REVISION_NUMBER" }
         ]
 
-
         cuts = self._bundle.shotgun.find(
             'Cut',
             fields=cut_fields,
@@ -1475,11 +1447,10 @@ class RvActivityMode(rvt.MinorMode):
             order=cut_order
         )
 
-        # if cuts:
-        #     print "CUTS: %r %r" % (cuts[0]['cached_display_name'], cuts[0]['id'])
-        #     print "===========\n"
-
-        return cuts
+        if cuts:
+            return { "id" : cuts[0]['id'], "cached_display_name" : cuts[0]['cached_display_name'], "type" : "Cut" }
+        
+        return None
             
         
                 
@@ -1649,6 +1620,7 @@ class RvActivityMode(rvt.MinorMode):
 
         setProp(source_group + ".cut_support.version_id",   version_data["id"])
         setProp(source_group + ".cut_support.version_data", json.dumps(version_data))
+        setProp(source_group + ".cut_support.timestamp", int(time.time()) )
 
         self.set_media_type_property(source_group, m_type)
 
@@ -1941,9 +1913,6 @@ class RvActivityMode(rvt.MinorMode):
             (version_data, edit_data) = self.data_from_query_item(
                     sg_item, rv_item, self.target_entity)
 
-            # edit_data['shot'] will have out shot entity
-            self.find_latest_cut_for_version(edit_data['shot'], version_data, sequence_data["project"])
-
             # store edit_data
             edit_data_list.append(json.dumps(edit_data))
 
@@ -1953,6 +1922,11 @@ class RvActivityMode(rvt.MinorMode):
             pinned_version_data = pinned.get(shot_id)
             if pinned_version_data:
                 version_data = pinned_version_data
+
+            # edit_data['shot'] will have out shot entity
+            latest_cut_entity = self.find_latest_cut_for_version(edit_data['shot'], version_data, sequence_data["project"])
+            if latest_cut_entity:
+                version_data['latest_cut_entity'] = latest_cut_entity
 
             # Now we have version data, find or create the corresponding
             # RVSourceGroup
