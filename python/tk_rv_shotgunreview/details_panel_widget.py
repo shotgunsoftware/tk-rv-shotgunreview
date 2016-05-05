@@ -58,6 +58,11 @@ settings = sgtk.platform.import_framework(
 )
 
 class DetailsPanelWidget(QtGui.QWidget):
+    # Emitted when an entity is created by the panel. The
+    # entity type as a string and id as an int are passed
+    # along.
+    entity_created = QtCore.Signal(str, int)
+
     def __init__(self, parent=None, bg_task_manager=None):
         """
         Constructor
@@ -69,9 +74,9 @@ class DetailsPanelWidget(QtGui.QWidget):
         """
         QtGui.QWidget.__init__(self, parent)
 
+        self.current_entity = None
         self._pinned = False
         self._requested_entity = None
-        self._current_entity = None
         self._sort_versions_ascending = False
 
         self.ui = Ui_DetailsPanelWidget() 
@@ -191,10 +196,6 @@ class DetailsPanelWidget(QtGui.QWidget):
             bg_task_manager=self._task_manager,
         )
 
-        # We need to register our screen-grab callback. Instead
-        # of what ships with the widget
-        screen_grab.ScreenGrabber.SCREEN_GRAB_CALLBACK = self._trigger_rv_screen_grab
-
         # For the basic info widget in the Notes stream we won't show
         # labels for the fields that are persistent. The non-standard,
         # user-specified list of fields that are shown when "more info"
@@ -224,6 +225,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.float_button.clicked.connect(self._toggle_floating)
         self.ui.close_button.clicked.connect(self._hide_dock)
         self.parent().dockLocationChanged.connect(self._dock_location_changed)
+
+        # We will be passing up our own signal when note and reply entities
+        # are created.
+        self.ui.note_stream_widget.note_widget.entity_created.connect(
+            self._entity_created,
+        )
+        self.ui.note_stream_widget.reply_dialog.note_widget.entity_created.connect(
+            self._entity_created,
+        )
 
         # The fields menu attached to the "Fields..." buttons
         # when "More info" is active as well as in the Versions
@@ -313,7 +323,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             self.ui.shot_info_widget.fields = self._active_fields
             self.ui.shot_info_widget.label_exempt_fields = self._persistent_fields
 
-        self._current_entity = entity
+        self.current_entity = entity
         self.ui.note_stream_widget.load_data(entity)
 
         shot_filters = [["id", "is", entity["id"]]]
@@ -377,6 +387,16 @@ class DetailsPanelWidget(QtGui.QWidget):
 
     ##########################################################################
     # internal utilities
+
+    def _entity_created(self, entity_type, entity_id):
+        """
+        Emits the entity_created signal, passing along the string
+        entity type and integer entity id as arguments.
+
+        :param entity_type: The string entity type.
+        :param entity_id:   The integer entity ID.
+        """
+        self.entity_created.emit(entity_type, entity_id)
 
     def _field_menu_triggered(self, action):
         """
@@ -686,7 +706,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         """
         rv.commands.sendInternalEvent(
             "new_note_screenshot",
-            json.dumps(self._current_entity),
+            json.dumps(self.current_entity),
         )
 
     ##########################################################################

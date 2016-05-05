@@ -914,6 +914,8 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
         
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
+
+        self.details_panel.entity_created.connect(self.on_entity_created)
         
         # self._popup_utils.related_cuts_ready.connect(self.create_related_cuts_from_models)
 
@@ -931,6 +933,19 @@ class RvActivityMode(rvt.MinorMode):
 
         self.tray_dock.setVisible(self._prefs.startup_view_tray)
         self.note_dock.setVisible(self._prefs.startup_view_details)
+
+    def on_entity_created(self, entity_type, entity_id):
+        """
+        Checks the entity type to see if there is additional processing
+        that needs to be performed for the entity that was created.
+
+        :param entity_type: The string entity type.
+        :param entity_id:   The integer entity ID.
+        """
+        if entity_type == "Note":
+            print "NOTE!!!!"
+        elif entity_type == "Reply":
+            print "REPLY!!!"
 
     def on_filter_refreshed(self, really_changed):
         self._app.engine.log_info("on_filter_refreshed: really_changed is %r" % really_changed)
