@@ -198,9 +198,7 @@ class RvActivityMode(rvt.MinorMode):
                 try:
                     return json.loads(version_data_str)
                 except Exception as e:
-                        print "ERROR: load_version_id_from_session JSON EXCEPTION %r" % e
-                        print "JDATA: %r" % version_data_str
-                        print "group_name: %r" % group_name
+                    self._app.engine.log_error("version_data_from_source: %r" % e)
 
         return None
 
@@ -297,24 +295,29 @@ class RvActivityMode(rvt.MinorMode):
         try:
             if not self.tray_dock.isVisible():
                 return
+
             idx = self.clip_index_from_frame()
             mini_data = MiniCutData.load_from_session()
+
             if mini_data and mini_data.active:
                 idx = idx + mini_data.first_clip
+
             self.details_dirty = True
             sel_index = self.tray_model.index(idx, 0)
             sels = self.tray_list.selectionModel().selectedIndexes()
+
             if sel_index not in sels:
                 sm = self.tray_list.selectionModel()           
                 sm.select(sel_index, sm.ClearAndSelect)
                 self.tray_list.scrollTo(sel_index, QtGui.QAbstractItemView.PositionAtCenter)
+                
                 version_data = self.load_version_id_from_session()
+
                 if 'latest_cut_entity' in version_data:
                     self.enable_cuts_action(True, 'Review this version in the latest cut')
                 else:
                     self.enable_cuts_action(False, 'No cut for this version')
-
-                    
+                   
         except Exception as e:
             print "ERROR: RV frameChanged EXCEPTION %r" % e
 
@@ -883,7 +886,11 @@ class RvActivityMode(rvt.MinorMode):
         '''
         version_data = self.load_version_id_from_session()
         if 'latest_cut_entity' in version_data:
-            self.load_tray_with_something_new(version_data['latest_cut_entity'], True, version_data)
+            shot_id = self.shot_id_str_from_version_data(version_data)
+            if shot_id:           
+                incoming_version = { str( shot_id ) : version_data }
+                self.load_tray_with_something_new(version_data['latest_cut_entity'], False, incoming_version)
+                self.tray_list.repaint()
 
 
     def submit_note_attachments (self, attachments):
@@ -1383,6 +1390,7 @@ class RvActivityMode(rvt.MinorMode):
         return sg_dict
 
     def find_latest_cut_for_version(self, shot_entity, version_data, project_entity):
+        
         """
         original JS query here:
         https://github.com/shotgunsoftware/shotgun/blob/develop/cut_support_2016/public/javascripts/util/cuts_helper.js#L167
@@ -1396,8 +1404,7 @@ class RvActivityMode(rvt.MinorMode):
         version_entity['type'] = "Version"
         version_entity['name'] = version_data['code']
 
-        cut_fields = ['id', 'created_at', 'cached_display_name'] #, 'version', 'version.Version.image']
-
+        cut_fields = ['id', 'created_at', 'cached_display_name']
 
         # for reference, what it looks like if you have shot and project...
         # cut_filters = [
@@ -1443,13 +1450,9 @@ class RvActivityMode(rvt.MinorMode):
         )
 
         if cuts:
-            print "version %r in cut %r id: %r" % ( version_entity, cuts[0]['cached_display_name'], cuts[0]['id'])
             return { "id" : cuts[0]['id'], "cached_display_name" : cuts[0]['cached_display_name'], "type" : "Cut" }
-        print "version %r NOPE" % version_entity
-        return None
-            
-        
-                
+ 
+        return None               
 
     def find_base_version_for_cut(self, entity):
         self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED! %r' % entity)
@@ -1723,7 +1726,11 @@ class RvActivityMode(rvt.MinorMode):
         edit_data = {}
         edit_data["in"]  = sg.get("sg_first_frame", 1)
         edit_data["out"] = sg.get("sg_last_frame",  100)
-        edit_data["shot"] = sg.get("entity")
+        edit_data["shot"] = None
+        
+        if sg.get("entity"):
+            if sg.get("entity").get("type") == "Shot":
+                edit_data["shot"] = sg.get("entity")
 
         return (version_data, edit_data)
 
@@ -1919,7 +1926,7 @@ class RvActivityMode(rvt.MinorMode):
             if pinned_version_data:
                 version_data = pinned_version_data
 
-            # edit_data['shot'] will have out shot entity
+            # find the default cut for this version to enable cuts mode later
             latest_cut_entity = self.find_latest_cut_for_version(edit_data['shot'], version_data, sequence_data["project"])
             if latest_cut_entity:
                 version_data['latest_cut_entity'] = latest_cut_entity
