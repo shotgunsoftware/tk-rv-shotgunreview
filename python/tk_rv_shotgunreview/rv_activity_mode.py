@@ -303,6 +303,11 @@ class RvActivityMode(rvt.MinorMode):
                 idx = idx + mini_data.first_clip
 
             self.details_dirty = True
+
+            # XXX below tray selection work should be done only if this clip is
+            # part of a view managed by the Tray, and even then only if Tray is
+            # visible ?
+
             sel_index = self.tray_model.index(idx, 0)
             sels = self.tray_list.selectionModel().selectedIndexes()
 
@@ -313,7 +318,7 @@ class RvActivityMode(rvt.MinorMode):
                 
                 version_data = self.load_version_id_from_session()
 
-                if 'latest_cut_entity' in version_data:
+                if version_data and 'latest_cut_entity' in version_data:
                     self.enable_cuts_action(True, 'Review this version in the latest cut')
                 else:
                     self.enable_cuts_action(False, 'No cut for this version')
@@ -884,7 +889,7 @@ class RvActivityMode(rvt.MinorMode):
         Sample cuts toolbar button listener
         '''
         version_data = self.load_version_id_from_session()
-        if 'latest_cut_entity' in version_data:
+        if version_data and 'latest_cut_entity' in version_data:
             shot_id = self.shot_id_str_from_version_data(version_data)
             if shot_id:           
                 incoming_version = { str( shot_id ) : version_data }
@@ -1925,10 +1930,17 @@ class RvActivityMode(rvt.MinorMode):
             if pinned_version_data:
                 version_data = pinned_version_data
 
-            # find the default cut for this version to enable cuts mode later
-            latest_cut_entity = self.find_latest_cut_for_version(edit_data['shot'], version_data, sequence_data["project"])
-            if latest_cut_entity:
-                version_data['latest_cut_entity'] = latest_cut_entity
+            # XXX there's an ordering problem here I think.  We're querying for
+            # latest_cut even when we are not creating a source, in which the
+            # query may already have been done.  I guess fixing that would just
+            # be an optimization.
+
+            # we only care about the default cut if we're not already displaying a cut.
+            if sequence_data.get("target_entity").get("type") != "Cut":
+                # find the default cut for this version to enable cuts mode later
+                latest_cut_entity = self.find_latest_cut_for_version(edit_data['shot'], version_data, sequence_data["project"])
+                if latest_cut_entity:
+                    version_data['latest_cut_entity'] = latest_cut_entity
 
             # Now we have version data, find or create the corresponding
             # RVSourceGroup
