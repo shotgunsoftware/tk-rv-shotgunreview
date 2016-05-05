@@ -303,11 +303,11 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param entity:  The Shotgun entity to load. This is a dict in
                         the form returned by the Shotgun Python API.
         """
+        self._requested_entity = entity
+
         # If we're pinned, then we don't allow loading new entities.
-        if self._pinned and self._current_entity:
+        if self._pinned and self.current_entity:
             return
-        else:
-            self._requested_entity = entity
 
         # If we got an "empty" entity from the mode, then we need
         # to clear everything out and go back to an empty state.
