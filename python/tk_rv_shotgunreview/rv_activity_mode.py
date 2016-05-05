@@ -312,7 +312,7 @@ class RvActivityMode(rvt.MinorMode):
                 if 'latest_cut_entity' in version_data:
                     self.enable_cuts_action(True, 'Review this version in the latest cut')
                 else:
-                    self.enable_cuts_action(False)
+                    self.enable_cuts_action(False, 'No cut for this version')
 
                     
         except Exception as e:
@@ -848,7 +848,7 @@ class RvActivityMode(rvt.MinorMode):
 
     ################################################################################### qt stuff down here. 
 
-    def show_cuts_action(self, show=True, tooltip=None):
+    def show_cuts_action(self, show=True):
         '''
         Adds a cuts clapper button to the far left of the RV toolbar.
         If show is false an attempt to remove any exisitng button is made.
@@ -857,9 +857,7 @@ class RvActivityMode(rvt.MinorMode):
         
         actions = btb.actions()
  
-        text = tooltip
-        if not tooltip:
-            text = 'No cut for this version'
+        text = 'No cut for this version'
  
         if show:
             cicon = QtGui.QIcon(":/tk-rv-shotgunreview/icon_player_cut_action_small_dark.png")
@@ -876,10 +874,7 @@ class RvActivityMode(rvt.MinorMode):
         is disabled.
         '''
         self.cuts_action.setEnabled(enable)
-        if enable:
-            if not tooltip:
-                tooltip = 'No cut for this version'
-            self.cuts_action.setToolTip(tooltip)
+        self.cuts_action.setToolTip(tooltip)
 
     def sample_cuts_action_listener(self):
         '''
@@ -1447,8 +1442,9 @@ class RvActivityMode(rvt.MinorMode):
         )
 
         if cuts:
+            print "version %r in cut %r id: %r" % ( version_entity, cuts[0]['cached_display_name'], cuts[0]['id'])
             return { "id" : cuts[0]['id'], "cached_display_name" : cuts[0]['cached_display_name'], "type" : "Cut" }
-        
+        print "version %r NOPE" % version_entity
         return None
             
         
