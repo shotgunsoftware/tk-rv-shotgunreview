@@ -58,6 +58,10 @@ settings = sgtk.platform.import_framework(
 )
 
 class DetailsPanelWidget(QtGui.QWidget):
+    FIELDS_PREFS_KEY = "rv_details_panel_fields"
+    ACTIVE_FIELDS_PREFS_KEY = "rv_details_panel_active_fields"
+    VERSION_LIST_FIELDS_PREFS_KEY = "rv_details_panel_version_list_fields"
+
     def __init__(self, parent=None):
         """
         Constructor
@@ -102,7 +106,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         # These are the minimum required fields that we need
         # in order to draw all of our widgets with default settings.
         self._fields = self._settings_manager.retrieve(
-            "rv_details_panel_fields",
+            DetailsPanelWidget.FIELDS_PREFS_KEY,
             [
                 "image",
                 "user",
@@ -121,21 +125,21 @@ class DetailsPanelWidget(QtGui.QWidget):
                 "sg_status_list",
                 "sg_uploaded_movie_frame_rate"
             ],
-            self._settings_manager.SCOPE_INSTANCE,
+            self._settings_manager.SCOPE_ENGINE,
         )
 
         # These are the fields that have been given to the info widget
         # at the top of the Notes tab. This represents all fields that
         # are displayed by default when the "More info" option is active.
         self._active_fields = self._settings_manager.retrieve(
-            "rv_details_panel_active_fields",
+            DetailsPanelWidget.ACTIVE_FIELDS_PREFS_KEY,
             [
                 "code",
                 "entity",
                 "user",
                 "sg_status_list",
             ],
-            self._settings_manager.SCOPE_INSTANCE,
+            self._settings_manager.SCOPE_ENGINE,
         )
 
         # This is the subset of self._active_fields that are always
@@ -170,9 +174,9 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.version_delegate = ListItemDelegate(
             view=self.ui.entity_version_view,
             fields=self._settings_manager.retrieve(
-                "rv_details_panel_version_list_fields",
+                DetailsPanelWidget.VERSION_LIST_FIELDS_PREFS_KEY,
                 self._version_list_persistent_fields,
-                self._settings_manager.SCOPE_INSTANCE,
+                self._settings_manager.SCOPE_ENGINE,
             ),
             shotgun_field_manager=self._shotgun_field_manager,
             label_exempt_fields=["code"],
@@ -317,21 +321,21 @@ class DetailsPanelWidget(QtGui.QWidget):
         Saves user preferences to disk.
         """
         self._settings_manager.store(
-            "rv_details_panel_fields",
+            DetailsPanelWidget.FIELDS_PREFS_KEY,
             self._fields,
-            self._settings_manager.SCOPE_INSTANCE,
+            self._settings_manager.SCOPE_ENGINE,
         )
 
         self._settings_manager.store(
-            "rv_details_panel_active_fields",
+            DetailsPanelWidget.ACTIVE_FIELDS_PREFS_KEY,
             self._active_fields,
-            self._settings_manager.SCOPE_INSTANCE,
+            self._settings_manager.SCOPE_ENGINE,
         )
 
         self._settings_manager.store(
-            "rv_details_panel_version_list_fields",
+            DetailsPanelWidget.VERSION_LIST_FIELDS_PREFS_KEY,
             self.version_delegate.fields,
-            self._settings_manager.SCOPE_INSTANCE,
+            self._settings_manager.SCOPE_ENGINE,
         )
 
     def set_note_screenshot(self, image_path):
@@ -388,6 +392,20 @@ class DetailsPanelWidget(QtGui.QWidget):
                 self.ui.shot_info_widget.remove_field(field_name)
 
             self._active_fields = self.ui.shot_info_widget.fields
+
+            try:
+                self._settings_manager.store(
+                    DetailsPanelWidget.FIELDS_PREFS_KEY,
+                    self._fields,
+                    self._settings_manager.SCOPE_ENGINE,
+                )
+                self._settings_manager.store(
+                    DetailsPanelWidget.ACTIVE_FIELDS_PREFS_KEY,
+                    self._active_fields,
+                    self._settings_manager.SCOPE_ENGINE,
+                )
+            except Exception:
+                pass
 
     def _version_entity_data_refreshed(self):
         """
@@ -450,6 +468,7 @@ class DetailsPanelWidget(QtGui.QWidget):
                     self._version_list_sort_by_fields.append(field_name)
                     self._fields.append(field_name)
                     self.load_data(self._requested_entity)
+
                     new_action = QtGui.QAction(
                         shotgun_globals.get_field_display_name(
                             "Version",
@@ -457,8 +476,10 @@ class DetailsPanelWidget(QtGui.QWidget):
                         ),
                         self,
                     )
+
                     new_action.setData(field_name)
                     new_action.setCheckable(True)
+
                     self._version_sort_menu_fields.addAction(new_action)
                     self._version_sort_menu.addAction(new_action)
                     self._sort_version_list()
@@ -486,6 +507,20 @@ class DetailsPanelWidget(QtGui.QWidget):
             self.version_proxy_model.filter_by_fields = self.version_delegate.fields
             self.version_proxy_model.setFilterWildcard(self.ui.version_search.search_text)
             self.ui.entity_version_view.repaint()
+
+            try:
+                self._settings_manager.store(
+                    DetailsPanelWidget.FIELDS_PREFS_KEY,
+                    self._fields,
+                    self._settings_manager.SCOPE_ENGINE,
+                )
+                self._settings_manager.store(
+                    DetailsPanelWidget.VERSION_LIST_FIELDS_PREFS_KEY,
+                    self.version_delegate.fields,
+                    self._settings_manager.SCOPE_ENGINE,
+                )
+            except Exception:
+                pass
 
     def _more_info_toggled(self, checked):
         """
