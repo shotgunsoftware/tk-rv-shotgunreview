@@ -1184,7 +1184,7 @@ class RvActivityMode(rvt.MinorMode):
 
     def load_tray_with_playlist_id(self, playlist_id=None):
         plist_filters = [["playlists", "is", {"type": "Playlist", "id": playlist_id}]]
-        plist_fields =  [ "project", "playlists", "image" ] + required_version_fields
+        plist_fields =  [ "project", "playlists", "image", "playlists.PlaylistVersionConnection.sg_sort_order", "playlists.PlaylistVersionConnection.id" ] + required_version_fields
         self.tray_model.load_data(entity_type="Version", filters=plist_filters, fields=plist_fields)
 
     def load_tray_with_cut_id(self, cut_id=None):
