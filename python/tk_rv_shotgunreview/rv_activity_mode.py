@@ -837,6 +837,7 @@ class RvActivityMode(rvt.MinorMode):
         rvt.MinorMode.activate(self)
 
     def deactivate(self):
+        self.details_panel.save_preferences()
         rvt.MinorMode.deactivate(self)
               
 
