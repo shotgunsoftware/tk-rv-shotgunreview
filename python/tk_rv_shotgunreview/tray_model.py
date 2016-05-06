@@ -61,8 +61,8 @@ class TrayModel(ShotgunModel):
                 if sg['shot']['id'] == shot['id']:
                     t_item = self.itemFromIndex(m_idx)
                     if not image:
-                        # we have no image, then revert to the decorator role 
-                        thumb = m_idx.data(QtCore.Qt.DecorationRole)
+                        # we have no image, then revert to the one we stored on load 
+                        thumb = m_idx.data(self._CUT_THUMB_ROLE)
                         t_item.setIcon(thumb)
                     else:
                         thumb = QtGui.QPixmap.fromImage(image)
@@ -197,8 +197,10 @@ class TrayModel(ShotgunModel):
         :param field: The Shotgun field which the thumbnail is associated with.
         :param image: QImage object with the thumbnail loaded
         :param path: A path on disk to the thumbnail. This is a file in jpeg format.
+
+        this happens on model loading... so we store the incoming thumbnail away to use
+        when we need to revert to original thumbnail.
         """
-        #print "TRAY _populate_thumbnail_image"
         thumb = QtGui.QPixmap.fromImage(image)
         item.setData(thumb, self._CUT_THUMB_ROLE)
         item.setIcon(thumb)

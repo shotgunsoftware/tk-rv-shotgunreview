@@ -119,6 +119,10 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
             thumb = icon.pixmap(widget.sizeHint())
             widget.set_thumbnail(thumb)
             widget.ui.thumbnail.setScaledContents(False)
+        else:
+            pixmap = QtGui.QPixmap(widget.sizeHint())
+            pixmap.fill(QtCore.Qt.black)
+            widget.set_thumbnail(pixmap)
 
         in_mini_cut = False
 
@@ -192,6 +196,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         # for performance reasons, we are not creating a widget every time
         # but merely moving the same widget around. 
         paint_widget = self._get_painter_widget(model_index, self.parent())
+
         if not paint_widget:
             # just paint using the base implementation:
             QtGui.QStyledItemDelegate.paint(self, painter, style_options, model_index)
