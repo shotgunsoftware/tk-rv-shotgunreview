@@ -189,6 +189,16 @@ class RvActivityMode(rvt.MinorMode):
             
         return group_name
 
+    def version_id_from_source(self, group_name=None):
+        
+        if not group_name:
+            group_name = self.current_source()
+                
+        if group_name:
+            return getIntProp(group_name + ".cut_support.version_id", None)
+
+        return None
+
     def version_data_from_source(self, group_name=None):
         
         if not group_name:
@@ -206,22 +216,14 @@ class RvActivityMode(rvt.MinorMode):
 
     def load_version_id_from_session(self, group_name=None):
         
-        version_data = self.version_data_from_source(group_name)
+        version_id = self.version_id_from_source(group_name)
 
-        if version_data:
-            if self.version_id != version_data["id"]:
-                self.load_data({"type": "Version", "id": version_data["id"]})
-        else:
-            #  If we can't find the version_data property it probably means
-            #  that this RVSourceGroup was not created "by us" (IE it does
-            #  not have any shotgun data), so just clear the details pane
-            #  and consider the details "clean" until further notice.
-            #
-            self.load_data({"type": "Version", "id": None})
+        # version_id might be None here, which is fine, since that will clear
+        # the details pane.
+
+        self.load_data({"type": "Version", "id": version_id})
 
         self.details_dirty = False
-
-        return version_data
 
     # RV Events
 
@@ -291,13 +293,12 @@ class RvActivityMode(rvt.MinorMode):
         event.reject()
         self.details_dirty = True
 
+        self.configure_visibility()
+
     def frameChanged(self, event):
         if event:
             event.reject()
         try:
-            if not self.tray_dock.isVisible():
-                return
-
             idx = self.clip_index_from_frame()
             mini_data = MiniCutData.load_from_session()
 
@@ -306,9 +307,8 @@ class RvActivityMode(rvt.MinorMode):
 
             self.details_dirty = True
 
-            # XXX below tray selection work should be done only if this clip is
-            # part of a view managed by the Tray, and even then only if Tray is
-            # visible ?
+            if not self.tray_dock.isVisible():
+                return
 
             sel_index = self.tray_model.index(idx, 0)
             sels = self.tray_list.selectionModel().selectedIndexes()
@@ -317,7 +317,7 @@ class RvActivityMode(rvt.MinorMode):
                 sm = self.tray_list.selectionModel()           
                 sm.select(sel_index, sm.ClearAndSelect)
                 self.tray_list.scrollTo(sel_index, QtGui.QAbstractItemView.PositionAtCenter)            
-                   
+                
         except Exception as e:
             print "ERROR: RV frameChanged EXCEPTION %r" % e
 
@@ -368,7 +368,6 @@ class RvActivityMode(rvt.MinorMode):
 
 
     def update_cuts_with(self):
-
         cuts = self.get_cuts_with()
         if cuts == {}:
             # we've done this before, disable the clapper
@@ -379,7 +378,7 @@ class RvActivityMode(rvt.MinorMode):
             self.enable_cuts_action(True, 'Review this version in the latest cut')
             return
 
-        version_data = self.load_version_id_from_session()
+        version_data = self.version_data_from_source()
         if version_data:
             if 'latest_cut_entity' in version_data:
                 if version_data['latest_cut_entity']:
@@ -745,6 +744,9 @@ class RvActivityMode(rvt.MinorMode):
         be of the given "media type".  Silently ignore sources with no Shotgun
         data and nodes that already hold the right type of media.
         """
+        if not source_node:
+            return
+
         self._app.engine.log_info("swap_media_of_source '%s' to '%s'" % 
             (source_node, media_type_name))
 
@@ -770,13 +772,10 @@ class RvActivityMode(rvt.MinorMode):
                     # XXX Since the view is not an RVSourceGroup, assuming the
                     # _inputs_ of the view are ...
                     inputs = rvc.nodeConnections(view, False)[0]
-                    sources = []
-                    for i in inputs:
-                        if rvc.nodeType(i) == "RVSourceGroup":
-                            sources.append(i)
+                    sources = filter(lambda x: rvc.nodeType(x) == "RVSourceGroup", inputs)
 
-                        # remove duplicates
-                        sources = sorted(set(sources))
+                    # remove duplicates
+                    sources = sorted(set(sources))
 
             for source in sources:
                 self.swap_media_of_source(source, media_type_name)
@@ -918,6 +917,7 @@ class RvActivityMode(rvt.MinorMode):
             self.cuts_action = QtGui.QAction(cicon, text, btb)
             self.cuts_action.triggered.connect(self.sample_cuts_action_listener)
             btb.insertAction(actions[0],self.cuts_action)
+            self.cuts_action.setEnabled(False)
         else:
             if (actions[0].text() == text):
                 btb.removeAction(actions[0])
@@ -939,7 +939,7 @@ class RvActivityMode(rvt.MinorMode):
         if not cut:
             return
 
-        version_data = self.load_version_id_from_session()
+        version_data = self.version_data_from_source()
         if version_data:
             shot_id = self.shot_id_str_from_version_data(version_data)
             pinned = { shot_id:version_data } if shot_id else {}          
@@ -1005,6 +1005,12 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_button_entire_cut = self.tray_main_frame.tray_button_entire_cut
         self.tray_button_mini_cut = self.tray_main_frame.tray_button_mini_cut
         self.tray_button_browse_cut = self.tray_main_frame.tray_button_browse_cut
+        self.tray_bar_button = self.tray_main_frame.tray_bar_button
+        self.tray_left_spinner = self.tray_main_frame.mini_left_spinner
+        self.tray_right_spinner = self.tray_main_frame.mini_right_spinner
+        self.tray_left_label = self.tray_main_frame.tray_left_label
+        self.tray_right_label = self.tray_main_frame.tray_right_label
+
         
         # CONNECTIONS
         self.tray_model.data_refreshed.connect(self.on_data_refreshed)
@@ -1742,12 +1748,6 @@ class RvActivityMode(rvt.MinorMode):
             # return
         self._app.engine.log_info('on_data_refreshed_internal: %r' % str(QtCore.QThread.currentThread()))
 
-        # Show GUI unless the user has explicitly hidden it this session
-        if not self.tray_hidden_this_session:
-            self.tray_dock.setVisible(True)
-        if not self.details_hidden_this_session:
-            self.note_dock.setVisible(True)
-
         # XXX eventually we want to enter min-cut mode directly in some cases,
 
         # we rely on tray selection being synced with frame
@@ -1882,6 +1882,9 @@ class RvActivityMode(rvt.MinorMode):
             f = rvc.frame()
             self.load_mini_cut(mini_data.focus_clip - mini_data.first_clip, 0)
             rvc.setFrame(f)
+
+            # XXX might not be needed
+            self.configure_visibility()
         else:
             # XXX 
             setProp(seq_node + ".edl.source", edl_source_nums)
@@ -1892,6 +1895,7 @@ class RvActivityMode(rvt.MinorMode):
             rvc.setNodeInputs(seq_group_node, seq_inputs)
 
             rvc.setViewNode(seq_group_node)
+
 
         # XXX
         ## if we had a selection coming in, we move to that
@@ -1928,7 +1932,67 @@ class RvActivityMode(rvt.MinorMode):
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
 
-        #self._popup_utils.build_status_menu()
+
+    def set_cut_control_visibility(self, vis):
+        self.tray_button_mini_cut.setVisible(vis)
+        self.tray_button_entire_cut.setVisible(vis)
+        self.tray_bar_button.setVisible(vis)
+        self.tray_left_spinner.setVisible(vis)
+        self.tray_right_spinner.setVisible(vis)
+        self.tray_left_label.setVisible(vis)
+        self.tray_right_label.setVisible(vis)
+
+    def configure_visibility(self):
+        """
+        Central location for all logic determining visibility of gui elements:
+        dock widgets, menus, etc.
+        """
+
+        # are we looking at a sequence that we manage ?
+
+        query_target_entity = None
+        seq_data = self.sequence_data_from_session()
+        if seq_data:
+            query_target_entity = seq_data.get("target_entity")
+
+        if query_target_entity and query_target_entity == self.target_entity:
+            # this is some kind of RVSequenceGroup managed by us, with matching
+            # query results in tray modelk.
+            # so make tray AND details visible unless user has hidden them
+            #
+            if not self.tray_hidden_this_session:
+                self.tray_dock.show()
+            if not self.details_hidden_this_session:
+                self.note_dock.show()
+
+            # it's a sequence of some kind, but maybe not a Cut; set menu etc
+            # control visibility accordingly
+            self.set_cut_control_visibility(query_target_entity.get("type") == "Cut")
+
+        else:
+            # it's not a Cut or a Playlist or a Version sequence.  But maybe
+            # it's a "version source" or some view that has a "version source"
+            # as an input
+            possible_sources = rvc.nodeConnections(rvc.viewNode(), False)[0] + [rvc.viewNode()]
+            sources = filter(lambda x: rvc.nodeType(x) == "RVSourceGroup", possible_sources)
+
+            found_version = False
+            for s in sources:
+                if self.version_id_from_source(s):
+                    found_version = True
+                    break
+
+            if found_version:
+                # we're looking at a source representing a Version, so
+                # maybe make details visible, but always hide tray
+                if not self.details_hidden_this_session:
+                    self.note_dock.show()
+                self.tray_dock.hide()
+
+            else:
+                # totally untracked, hide everything
+                self.note_dock.hide()
+                self.tray_dock.hide()
 
     def edit_data_from_session(self):
         data = None
