@@ -47,6 +47,11 @@ task_manager = sgtk.platform.import_framework(
     "task_manager",
 )
 
+shotgun_data = sgtk.platform.import_framework(
+    "tk-framework-shotgunutils",
+    "shotgun_data",
+)
+
 screen_grab = sgtk.platform.import_framework(
     "tk-framework-qtwidgets",
     "screen_grab",
@@ -82,6 +87,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._pinned = False
         self._requested_entity = None
         self._sort_versions_ascending = False
+        self._upload_task_ids = []
 
         self.ui = Ui_DetailsPanelWidget() 
         self.ui.setupUi(self)
@@ -97,6 +103,11 @@ class DetailsPanelWidget(QtGui.QWidget):
             parent=self.ui.note_stream_widget,
             start_processing=True,
             max_threads=2,
+        )
+
+        self._data_retriever = shotgun_data.ShotgunDataRetriever(
+            parent=self,
+            bg_task_manager=self._task_manager,
         )
 
         self._shotgun_field_manager = ShotgunFieldManager(
@@ -260,7 +271,7 @@ class DetailsPanelWidget(QtGui.QWidget):
     ##########################################################################
     # public methods
 
-    def add_note_attachments(self, file_paths, cleanup_after_upload=True):
+    def add_note_attachments(self, file_paths, entity_type, entity_id, cleanup_after_upload=True):
         """
         Adds a given list of files to the note widget as file attachments.
 
@@ -269,18 +280,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param cleanup_after_upload:    If True, after the files are uploaded
                                         to Shotgun they will be removed from disk.
         """
-        if self.ui.note_stream_widget.reply_dialog:
-            self.ui.note_stream_widget.reply_dialog.note_widget.add_files_to_attachments(
-                file_paths,
-                cleanup_after_upload,
-                apply_attachments=True,
-            )
-
-        else:
-            self.ui.note_stream_widget.note_widget.add_files_to_attachments(
-                file_paths,
-                cleanup_after_upload,
-                apply_attachments=True,
+        for file_path in file_paths:
+            self._data_retriever.execute_method(
+                self._upload_file,
+                dict(
+                    file_path=file_path,
+                    parent_entity_type=entity_type,
+                    parent_entity_id=entity_id,
+                    cleanup_after_upload=cleanup_after_upload,
+                ),
             )
 
     def clear(self):
@@ -733,15 +741,27 @@ class DetailsPanelWidget(QtGui.QWidget):
         action = menu.exec_(self.ui.entity_version_view.mapToGlobal(point))
         menu.execute_callback(action)
 
-    def _trigger_rv_screen_grab(self):
+    def _upload_file(self, sg, data):
         """
-        Triggers an RV event instructing the mode running as part of
-        the SG Review app to trigger RV's native frame capture routine.
+        Uploads any generic file attachments to Shotgun, parenting
+        them to the given entity.
+
+        :param sg:      A Shotgun API instance.
+        :param data:    A dictionary containing "parent_entity_type",
+                        "parent_entity_id", "file_path", and
+                        "cleanup_after_upload" keys.
         """
-        rv.commands.sendInternalEvent(
-            "new_note_screenshot",
-            json.dumps(self.current_entity),
+        sg.upload(
+            data["parent_entity_type"],
+            data["parent_entity_id"],
+            str(data["file_path"]),
         )
+
+        if data.get("cleanup_after_upload", False):
+            try:
+                os.remove(data["file_path"])
+            except Exception:
+                pass
 
     ##########################################################################
     # docking

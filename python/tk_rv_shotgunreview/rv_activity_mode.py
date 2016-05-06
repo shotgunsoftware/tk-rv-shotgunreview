@@ -532,22 +532,23 @@ class RvActivityMode(rvt.MinorMode):
         # The keys are the frames with unsaved annotation
         return self.get_unstored_frame_props().keys()
 
-    def make_note_attachments(self, event):
+    def make_note_attachments(self, note_entity_type, note_entity_id):
         '''
         Find the annotated frames for the given version, export them through RVIO, then submit them
         '''
-        # Not sure if anyone else wants to use this,
-        # but might as well let them
-        event.reject() 
-
         # Look for unsaved annotation
+        version_entity = self.details_panel.current_entity
+
+        if not version_entity:
+            return
+
         props = {}
+
         try:
-            eventDict = eval(event.contents())
-            group = self.loaded_sources[eventDict['id']]['group_name']
+            group = self.loaded_sources[version_entity['id']]['group_name']
             props = self.get_unstored_frame_props(group)
         except Exception as exc:
-            self._app.log_error("Unable to locate annotation strokes: " + exc.output)
+            self._app.log_error("Unable to locate annotation strokes: " + str(exc))
         if len(props) <= 0:
             self._app.log_info("Found no new annotations to attach")
             return
@@ -591,7 +592,7 @@ class RvActivityMode(rvt.MinorMode):
         try:
             out = subprocess.check_output(args)
         except subprocess.CalledProcessError as exc:
-            self._app.log_error("Unable to export annotation: " + exc.output)
+            self._app.log_error("Unable to export annotation: " + str(exc))
         
         # Close out the banner
         rve.displayFeedback2(displayString, 2.0)
@@ -607,7 +608,7 @@ class RvActivityMode(rvt.MinorMode):
                 continue
 
             sframe = rve.sourceFrame(frame)
-            tgt = "%s/annot_version_%d_v2.%d.jpg" % (tempdir, eventDict['id'], sframe)
+            tgt = "%s/annot_version_%d_v2.%d.jpg" % (tempdir, version_entity['id'], sframe)
 
             shutil.move(src, tgt)
             attachments.append(tgt)
@@ -617,7 +618,7 @@ class RvActivityMode(rvt.MinorMode):
         os.remove(session)
 
         # Submit the frames
-        self.submit_note_attachments(attachments)
+        self.submit_note_attachments(attachments, note_entity_type, note_entity_id)
 
         # Update the graph to reflect which strokes have been submitted
         for frame in saved:
@@ -807,7 +808,7 @@ class RvActivityMode(rvt.MinorMode):
                 ('play-start', self.on_play_state_change, ""),
                 ('play-stop', self.on_play_state_change, ""),
                 ('view-size-changed', self.on_view_size_changed, ''),
-                ('new_note_screenshot', self.make_note_attachments, ''),
+                # ('new_note_screenshot', self.make_note_attachments, ''),
                 ('per-render-event-processing', self.per_render_event, ''),
                 ('submit-tool-submission-complete', self.version_submitted, ''),
                 ],
@@ -898,11 +899,11 @@ class RvActivityMode(rvt.MinorMode):
                 self.tray_list.repaint()
 
 
-    def submit_note_attachments (self, attachments):
+    def submit_note_attachments (self, attachments, note_entity_type, note_entity_id):
         '''
         Send the created and collected annotation exports off for saving
         '''
-        self.details_panel.add_note_attachments(attachments)
+        self.details_panel.add_note_attachments(attachments, note_entity_type, note_entity_id)
 
     def load_data(self, entity):
         self._app.engine.log_info( "load_data with %r" % entity )
@@ -971,7 +972,7 @@ class RvActivityMode(rvt.MinorMode):
         
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
 
-        self.details_panel.entity_created.connect(self.on_entity_created)
+        self.details_panel.entity_created.connect(self.make_note_attachments)
         
         # self._popup_utils.related_cuts_ready.connect(self.create_related_cuts_from_models)
 
@@ -989,19 +990,6 @@ class RvActivityMode(rvt.MinorMode):
 
         self.tray_dock.setVisible(self._prefs.startup_view_tray)
         self.note_dock.setVisible(self._prefs.startup_view_details)
-
-    def on_entity_created(self, entity_type, entity_id):
-        """
-        Checks the entity type to see if there is additional processing
-        that needs to be performed for the entity that was created.
-
-        :param entity_type: The string entity type.
-        :param entity_id:   The integer entity ID.
-        """
-        if entity_type == "Note":
-            print "NOTE!!!!"
-        elif entity_type == "Reply":
-            print "REPLY!!!"
 
     def on_filter_refreshed(self, really_changed):
         self._app.engine.log_info("on_filter_refreshed: really_changed is %r" % really_changed)
