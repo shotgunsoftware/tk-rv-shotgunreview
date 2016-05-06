@@ -172,7 +172,8 @@ class RvActivityMode(rvt.MinorMode):
         if self.details_dirty:
             self.load_version_id_from_session()
             self.update_cuts_with()
-            self._popup_utils.request_related_cuts_from_models()
+            if not self.details_pinned_for_playback:
+                self._popup_utils.request_related_cuts_from_models()
  
     def current_source(self):
         """
