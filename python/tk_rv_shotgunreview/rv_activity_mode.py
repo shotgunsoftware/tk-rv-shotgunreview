@@ -429,6 +429,8 @@ class RvActivityMode(rvt.MinorMode):
     def version_submitted(self, event):
         event.reject()
         self.note_dock.show()
+        # contents are standard json version payload, so others could hook up
+        # to it.
 
     def per_render_event(self, event):
         event.reject()
@@ -594,10 +596,11 @@ class RvActivityMode(rvt.MinorMode):
         # Look for unsaved annotation
         props = {}
         try:
-            eventDict = eval(event.contents())
-            group = self.loaded_sources[eventDict['id']]['group_name']
+            eventDict = json.loads(event.contents())
+            group = self.find_group_from_version_id(eventDict["id"])
             props = self.get_unstored_frame_props(group)
         except Exception as exc:
+            # XXX Jon, what is exc.output ?   exc does not seem to always have such an attr ?
             self._app.log_error("Unable to locate annotation strokes: " + exc.output)
         if len(props) <= 0:
             self._app.log_info("Found no new annotations to attach")
@@ -788,31 +791,22 @@ class RvActivityMode(rvt.MinorMode):
         self.cuts_action = None
         self.note_dock = None
         self.tray_dock = None
-        self.tab_widget = None
-        self.mini_cut = False
         self.detail_version_id = None
 
         self.cached_mini_cut_data = MiniCutData(False)
 
         self._tray_height = 96
 
-        self.last_mini_center = None
-        self._mini_before_shots = 2
-        self._mini_after_shots = 2
-        self._mini_cut_seq_name = None
-        self.mini_cut_seq_node = None
+        self.no_media_check = (os.getenv("RV_TK_NO_MEDIA_CHECK",None) is not None)
 
         self.details_panel = None
         self.details_pinned_for_playback = False
         self.details_dirty = False
 
-        self.pinned_items = []
-
         # RV specific
         # the current sequence node
         self.cut_seq_node = None
         self.cut_seq_name = None
-        self.loaded_sources = {}
         self._layout_node = None
         self.mod_seq_node = None
         self.want_stacked = False
@@ -1059,26 +1053,8 @@ class RvActivityMode(rvt.MinorMode):
     def left_spinner_clicked(self, event):
         self.on_mini_cut()
 
-    def get_version_from_id(self, id):
-        self._app.engine.log_info('get_version_from_id %r' % QtCore.QThread.currentThread() )
-        v_fields = [
-            "sg_path_to_frames", "id",
-            "sg_first_frame", "sg_last_frame",
-            "sg_path_to_movie", "sg_movie_aspect_ratio",
-            "sg_movie_has_slate", "sg_frames_aspect_ratio",
-            "sg_frames_have_slate", "image", "code",
-            "sg_uploaded_movie_frame_rate", "sg_uploaded_movie_mp4", 
-        ]
-        # get the version info we need
-        version  = self._bundle.shotgun.find_one("Version", [["id", "is", id]], v_fields)
-        if not version:
-            self._app.engine.log_error('no version for id %r' % id)
-            return None
-        return self.convert_sg_dict(version)
-
     def on_id_from_gma(self, event):
         self._app.engine.log_info("on_id_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
-        self.pinned_items = []
         self.version_swap_out = None
         self.no_cut_context = False
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
@@ -1239,7 +1215,8 @@ class RvActivityMode(rvt.MinorMode):
 
     def load_tray_with_playlist_id(self, playlist_id=None):
         plist_filters = [["playlists", "is", {"type": "Playlist", "id": playlist_id}]]
-        plist_fields =  [ "playlists", "image", "playlists.PlaylistVersionConnection.sg_sort_order", "playlists.PlaylistVersionConnection.id" ] + required_version_fields
+        plist_fields =  [ "playlists", "image", "playlists.PlaylistVersionConnection.sg_sort_order", 
+                "playlists.PlaylistVersionConnection.id" ] + required_version_fields
         self.tray_model.load_data(entity_type="Version", filters=plist_filters, fields=plist_fields)
 
     def load_tray_with_cut_id(self, cut_id=None):
@@ -1266,9 +1243,6 @@ class RvActivityMode(rvt.MinorMode):
         orders = [{'field_name':'cut_order','direction':'asc'}]
         self.tray_model.load_data(entity_type="CutItem", filters=tray_filters, fields=tray_fields, order=orders)
         
-        # XXX figure this out
-        # if self.mini_cut:
-        #     self.on_entire_cut()
 
     def save_mini_cut_data(self, mini_data, node):
         mini_data.store_in_session(node)
@@ -1343,57 +1317,6 @@ class RvActivityMode(rvt.MinorMode):
         pass
         #print "CACHE LOADED."
 
-    def get_media_path(self, sg, preferred_type=None):
-        # sg is a dict that represents a row
-        # preferred_type is movie or frames
-        # refactor to pick that one first
-        # if theres no frame play movie and vice versa
-
-        if not sg:
-            self._app.engine.log_error("%r passed into get_media_path." % sg)
-            return None
-
-        if 'version.Version.sg_path_to_frames' not in sg:
-            sg = self.convert_sg_dict(sg)
-        
-        if not sg['version.Version.id']:
-            #sub in the base version
-            if sg['cut.Cut.version.Version.sg_path_to_frames']:
-                return sg['cut.Cut.version.Version.sg_path_to_frames']
-            if sg['cut.Cut.version.Version.sg_path_to_movie']:
-                return sg['cut.Cut.version.Version.sg_path_to_movie']
-        else:
-            # prefer frames
-            if sg['version.Version.sg_path_to_frames']:
-                return sg['version.Version.sg_path_to_frames']
-            if sg['version.Version.sg_path_to_movie']:
-                return sg['version.Version.sg_path_to_movie']
- 
-        # if theres a cut_item_in use that?
-        if 'cut_item_in' in sg:
-            s = 'black,start=%d,end=%d.movieproc' % (sg['cut_item_in'], sg['cut_item_out'])
-            return s
-
-        start = 1
-        end = 100
-        
-        if not sg['version.Version.id']:
-            if sg['cut.Cut.version.Version.sg_first_frame']:
-                start = sg['cut.Cut.version.Version.sg_first_frame']
-      
-            if sg['cut.Cut.version.Version.sg_last_frame']:
-                end = sg['cut.Cut.version.Version.sg_last_frame']
-        else:
-            if sg['version.Version.sg_first_frame']:
-                start = sg['version.Version.sg_first_frame']
-      
-            if sg['version.Version.sg_last_frame']:
-                end = sg['version.Version.sg_last_frame']
- 
-        s = 'black,start=%d,end=%d.movieproc' % (start, end)
- 
-        return s
-     
     def createText(self, node, text, hpos, vpos):
 
         rvc.newProperty('%s.position' % node, rvc.FloatType, 2)
@@ -1415,42 +1338,6 @@ class RvActivityMode(rvt.MinorMode):
         rvc.setStringProperty("%s.font" % node, [""], True)
         rvc.setStringProperty("%s.text" % node, [text], True)
         rvc.setIntProperty('%s.debug' % node, [ 0 ], True)
-
-    def set_session_prop(self, name, item):
-        self._app.engine.log_info('set_session_prop %r' % QtCore.QThread.currentThread() )
-        
-        try:
-            if not rvc.propertyExists(name):
-                rvc.newProperty(name, rvc.StringType, 1)
-            cut_json = json.dumps(item)
-            rvc.setStringProperty(name, [cut_json], True)
-        except Exception as e:
-            print "ERROR: set_session_prop %r" % e
-
-    def convert_sg_dict(self, sg_dict):
-        if not sg_dict:
-            self._app.engine.log_error('EMPTY dict passed to convert_sg_dict.')
-            return sg_dict
-
-        #sg_dict_new = copy.copy(sg_dict)
-        if not 'version.Version.sg_path_to_frames' in sg_dict:
-
-            f = [   "version.Version.sg_path_to_frames", "version.Version.id",
-                    "version.Version.sg_first_frame", "version.Version.sg_last_frame",
-                    "version.Version.sg_path_to_movie", "version.Version.sg_movie_aspect_ratio",
-                    "version.Version.sg_movie_has_slate", "version.Version.sg_frames_aspect_ratio",
-                    "version.Version.sg_frames_have_slate", "version.Version.image", "version.Version.code",
-                    "version.Version.sg_uploaded_movie_frame_rate", "version.Version.sg_uploaded_movie_mp4", 
-                ]
-
-            for k in f:
-                s = k.replace('version.Version.', '')
-                if s in sg_dict:
-                    sg_dict[k] = sg_dict[s]
-
-        # check for missing media
-
-        return sg_dict
 
     def find_latest_cut_for_version(self, shot_entity, version_data, project_entity):
         
@@ -1517,70 +1404,6 @@ class RvActivityMode(rvt.MinorMode):
  
         return None               
 
-    def find_base_version_for_cut(self, entity):
-        self._app.engine.log_info('find_base_version_for_cut not IMPLEMENTED! %r' % entity)
-        pass
-        # cut.Cut.version
-        #sg_data = self.get_version_from_id(entity['id'])
-        #print "BASE Version: %r" % sg_data
-        #return sg_data
-
-    def create_source_from_version(self, sg_item, source_incr):
-        """
-        creates a new source and returns True if we havent seen it before
-        """
-        if not sg_item:
-            self._app.engine.log_error("create_source_from_version: %r" % sg_item)
-            return False
-
-        sg_item = self.convert_sg_dict(sg_item)
-
-
-        fk = sg_item['version.Version.id']
-        if not fk:
-            # if there's no version, see if we've loaded the base version already
-            if sg_item['cut.Cut.version.Version.id'] in self.loaded_sources:
-                return False
-            
-        if fk in self.loaded_sources:
-            # group_name = self.loaded_sources[fk]['group_name']
-            return False
-        else:
-            f = self.get_media_path(sg_item)
-            source_name = None
-            try:
-                source_name = rvc.addSourceVerbose([f])
-            except Exception as e:
-                self._app.engine.log_error( '%r' %  e )
-                self._app.engine.log_info('trying to create black with data from version: %r' % sg_item['version.Version.id'])
-                if sg_item['version.Version.sg_first_frame'] and sg_item['version.Version.sg_last_frame']:
-                    s = 'black,start=%d,end=%d.movieproc' % (sg_item['version.Version.sg_first_frame'], sg_item['version.Version.sg_last_frame'])
-                else:
-                    self._app.engine.log_info('First and last frame not found for version: %r. using 1-100.' % sg_item['version.Version.id'])
-                    s = 'black,start=%d,end=%d.movieproc' % (1, 100)
-                    sg_item['version.Version.sg_first_frame'] = 1
-                    sg_item['version.Version.sg_last_frame'] = 100
-
-                self._app.engine.log_info("trying: %r instead" % s)
-                source_name = rvc.addSourceVerbose([s])
-
-            group_name = rvc.nodeGroup(source_name)
-
-            if sg_item['version.Version.code']:
-                rve.setUIName(group_name, sg_item['version.Version.code'])
-            
-            self.loaded_sources[fk] = {}
-            self.loaded_sources[fk]['group_name'] = group_name
-            self.loaded_sources[fk]['source_name'] = source_name
-            self.loaded_sources[fk]['source_index'] = source_incr
-
-            if 'movieproc' in f:
-                # group_name returned an empty list here. source name works.
-                overlays = rve.associatedNodes("RVOverlay",source_name)
-                # node need to be a component name ...
-                self.createText(overlays[0] + '.text:mytext', sg_item['version.Version.code'] + '\nis missing.', -0.5, 0.0)
-            return True
-
     def sequence_group_from_target(self, target_entity):
         """
         We keep a RVSequenceGroup around to represent each Playlist, and two
@@ -1616,9 +1439,7 @@ class RvActivityMode(rvt.MinorMode):
         if not path:
             return False
 
-        files = rvc.existingFilesInSequence(path)
-        
-        return bool(files)
+        return (True if self.no_media_check else bool(rvc.existingFilesInSequence(path)))
 
     def media_type_fallback(self, version_data, media_type):
         
@@ -2082,12 +1903,6 @@ class RvActivityMode(rvt.MinorMode):
         #    self.tray_list.selectionModel().select(zero_index, self.tray_list.selectionModel().ClearAndSelect)
         #
         #self.tray_list.scrollTo(self.tray_proxyModel.index(0, 0), QtGui.QAbstractItemView.EnsureVisible)
-
-        # XXX manage pinned_items for sequence
-        # seq_pinned_name = ("%s.cut_support.pinned_items") % self.cut_seq_name
-        # if not rvc.propertyExists(seq_pinned_name):
-        #     rvc.newProperty(seq_pinned_name, rvc.IntType, 1)
-        # rvc.setIntProperty(seq_pinned_name, self.pinned_items, True)
 
         # filter query logic
         # 
