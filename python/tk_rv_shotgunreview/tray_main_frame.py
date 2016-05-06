@@ -15,7 +15,7 @@ task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task
 
 class TrayMainFrame(QtGui.QFrame):
 
-    def __init__(self, parent):
+    def __init__(self, parent, rv_mode):
         """
         Constructor
         """
@@ -29,34 +29,15 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_delegate = None
         self.tray_proxyModel = None
 
-        self._rv_mode = None
-
-        self._task_manager = task_manager.BackgroundTaskManager(parent=self,
-                                                                start_processing=True,
-                                                                max_threads=2)
-        
+        self._rv_mode = rv_mode
+        # using the new singleton bg manager
+        self._task_manager = self._rv_mode._app.engine.bg_task_manager
         # set up the UI
         self.init_ui()
-
-        #self._task_manager.task_completed.connect(self.on_task_complete)
-        #self._task_manager.task_group_finished.connect(self.on_task_group_finished)
-        #self._task_manager.task_failed.connect(self.on_task_failed)
 
     def show_steps_and_statuses(self, visible):
         self.pipeline_filter_button.setVisible( visible )
         self.status_filter_button.setVisible( visible )
-
-    def on_task_complete(self, uid, group, result):
-        """
-        result is the result set from the query
-        """
-        print "TASK COMPLETE - uid: %r group: %r result: %r" %( uid, group, result)
-
-    def on_task_group_finished(self, group):
-        print "TASK GROUP FINISHED: %r" % group
-
-    def on_task_failed(self, uid, group, message, traceback_str):
-        print "TASK FAILED!! %r" % message
 
     def set_rv_mode(self, rv_mode):
         """
@@ -90,24 +71,20 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_dock.setTitleBarWidget(QtGui.QWidget(self.tray_dock.parent()))
 
     def init_ui(self):
-        # self.setMinimumSize(QtCore.QSize(1255,140))
         self.setObjectName('tray_frame')
         self.tray_frame_vlayout = QtGui.QVBoxLayout(self)
 
         # tray button bar
-        # self.tray_button_bar = QtGui.QFrame(self.tray_dock)
         self.tray_button_bar = QtGui.QFrame()
         self.tray_button_bar_grid = QtGui.QGridLayout(self.tray_button_bar)
         self.tray_button_bar_grid.setContentsMargins(0, 0, 0, 0)
         self.tray_button_bar_grid.setHorizontalSpacing(8)
         self.tray_button_bar_grid.setVerticalSpacing(0)
         
-        # self.tray_button_bar.setStyleSheet('QFrame { background: rgb(0,200,0);}')
         self.tray_button_bar.setObjectName('tray_button_bar')
         sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Preferred, QtGui.QSizePolicy.Preferred)
         sizePolicy.setHorizontalStretch(1)
         sizePolicy.setVerticalStretch(0)
-
 
         self.tray_button_bar.setSizePolicy(sizePolicy)
 
@@ -251,10 +228,10 @@ class TrayMainFrame(QtGui.QFrame):
         # QListView ##########################
         #####################################################################
         self.tray_list = QtGui.QListView()
+        self.tray_list.rv_mode = self._rv_mode
         self.tray_list.setFocusPolicy(QtCore.Qt.NoFocus)
                 
         self.tray_frame_vlayout.addWidget(self.tray_list)
-        #self.tray_frame_vlayout.setStretchFactor(self.tray_list, 1)
         
         from .tray_model import TrayModel
         self.tray_model = TrayModel(self.tray_list, bg_task_manager=self._task_manager)
@@ -275,7 +252,5 @@ class TrayMainFrame(QtGui.QFrame):
                 
         self.tray_list.setObjectName("tray_list")
        
-        # st = "QListView { border: none;}"
-        # self.setStyleSheet(st)
 
 

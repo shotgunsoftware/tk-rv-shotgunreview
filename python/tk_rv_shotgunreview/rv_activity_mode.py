@@ -171,7 +171,9 @@ class RvActivityMode(rvt.MinorMode):
     def check_details(self):
         if self.details_dirty:
             self.load_version_id_from_session()
-            self.update_cuts_with()
+            if not rvc.isPlaying():
+                self.update_cuts_with()
+                self._popup_utils.request_related_cuts_from_models()
  
     def current_source(self):
         """
@@ -365,6 +367,7 @@ class RvActivityMode(rvt.MinorMode):
                 self.details_panel.set_pinned(False)
                 self.details_pinned_for_playback = False
                 self.update_cuts_with()
+                self._popup_utils.request_related_cuts_from_models()
 
 
     def update_cuts_with(self):
@@ -988,8 +991,8 @@ class RvActivityMode(rvt.MinorMode):
         
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame
-        self.tray_main_frame = TrayMainFrame(self.tray_dock)
-        self.tray_main_frame.set_rv_mode(self)
+        self.tray_main_frame = TrayMainFrame(self.tray_dock, self)
+        #self.tray_main_frame.set_rv_mode(self)
 
         self.tray_hidden_this_session = False
         self.details_hidden_this_session = False
@@ -1927,7 +1930,12 @@ class RvActivityMode(rvt.MinorMode):
 
         if self.target_entity["type"] == "Cut":
             # self.create_related_cuts_menu(sequence_data["entity"], None)
-            self._popup_utils.request_related_cuts_from_models()
+            
+            # we want this to happen now, so that the menu will be ready
+            # self._popup_utils.request_related_cuts_from_models()
+            # creating just the menu alone leads to in progress refresh
+            self._popup_utils.create_related_cuts_from_models()
+
         else:
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
