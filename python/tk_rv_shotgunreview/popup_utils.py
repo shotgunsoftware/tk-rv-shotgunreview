@@ -201,7 +201,8 @@ class PopupUtils(QtCore.QObject):
         # XXX don't get this ? -- alan
         # XXX there was a cut based on a Scene and the query returned the entity we want in a different column - sb.
         if cut_link['type'] == "Scene":
-            self.find_rel_cuts_with_model(cut_link, version_link['shot'])
+            if version_link:
+                self.find_rel_cuts_with_model(cut_link, version_link['shot'])
             return
 
     def handle_related_menu(self, action=None):
