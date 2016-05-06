@@ -798,6 +798,7 @@ class RvActivityMode(rvt.MinorMode):
         self.cached_mini_cut_data = MiniCutData(False)
 
         self._tray_height = 96
+        self.main_query_active = False
 
         self.no_media_check = (os.getenv("RV_TK_NO_MEDIA_CHECK",None) is not None)
 
@@ -957,10 +958,10 @@ class RvActivityMode(rvt.MinorMode):
         self.details_panel.add_note_attachments(attachments)
 
     def load_data(self, entity):
-        self._app.engine.log_info( "load_data with %r" % entity )
+        # self._app.engine.log_info( "load_data with %r" % entity )
         self.version_id = entity['id']
         try:
-            self._app.engine.log_info( "loading details panel with %r" % entity )
+            # self._app.engine.log_info( "loading details panel with %r" % entity )
             self.details_panel.load_data(entity)
         except Exception as e:
             self._app.engine.log_error("DETAILS PANEL: sent %r got %r" % (entity, e))
@@ -1183,6 +1184,7 @@ class RvActivityMode(rvt.MinorMode):
         if "ids" in target_entity and len(target_entity["ids"]) > 1:
             type_string += "s"
         rve.displayFeedback("Loading " + type_string +  " ...", 60.0)
+        self.main_query_active = True
 
         # XXX get rid of "id"
         if "id" in target_entity and "ids" not in target_entity:
@@ -1216,6 +1218,7 @@ class RvActivityMode(rvt.MinorMode):
 
         else:
             self._app.engine.log_error("Tray does not support entity type '%s'." % t_type)
+            self.main_query_active = False
         
     def load_tray_with_version_ids(self, ids):
         vfilters = [["id", "in", ids]]
@@ -1493,6 +1496,7 @@ class RvActivityMode(rvt.MinorMode):
             media_type = self._prefs.preferred_media_type
 
         path = None
+        no_media = False
         m_type = self.media_type_fallback(version_data, media_type)
         if m_type: 
             path = version_data[standard_media_types[m_type].path_field]
@@ -1501,6 +1505,7 @@ class RvActivityMode(rvt.MinorMode):
             self._app.engine.log_error("Version '%s' has no local media" % version_data["code"])
             path = "black,start=1,end=24.movieproc"
             m_type = "Movie"
+            no_media = True
 
         try:
             source_node = rvc.addSourceVerbose([path])
@@ -1509,6 +1514,11 @@ class RvActivityMode(rvt.MinorMode):
             return
 
         source_group = rvc.nodeGroup(source_node)
+
+        if no_media:
+            overlay_node = groupMemberOfType(source_group, "RVOverlay")
+            self.createText(overlay_node + '.text:sg_review_error', 
+                    version_data["code"] + '\nhas no playable local media.', -0.5, 0.0)
 
         setProp(source_group + ".cut_support.version_id",   version_data["id"])
         setProp(source_group + ".cut_support.version_data", json.dumps(version_data))
@@ -1610,6 +1620,8 @@ class RvActivityMode(rvt.MinorMode):
 
         if version_data["id"] is None:
             self._app.engine.log_error("No Version data for CutItem id=%d." % sg.get("id"))
+            version_data["id"]   = 100000 + sg.get("cut.Cut.id", 0)
+            version_data["code"] = "Missing Version"
 
         return (version_data, edit_data)
 
@@ -1728,6 +1740,7 @@ class RvActivityMode(rvt.MinorMode):
     # signal from model so filter_query_finished is False (we need to run follow-on
     # query, if any)
     def on_data_refreshed(self, was_refreshed):
+        self.main_query_active = False
         self.on_data_refreshed_internal(was_refreshed, False)
         
     # the way data from shotgun gets into the tray
@@ -1955,6 +1968,10 @@ class RvActivityMode(rvt.MinorMode):
         Central location for all logic determining visibility of gui elements:
         dock widgets, menus, etc.
         """
+
+        # if main query is running just wait, update will happen after
+        if self.main_query_active:
+            return
 
         # are we looking at a sequence that we manage ?
 
