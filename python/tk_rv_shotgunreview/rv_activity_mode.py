@@ -102,6 +102,7 @@ required_version_fields = [
     "code",
     "id",
     "entity",
+    "project",
     "sg_first_frame",
     "sg_last_frame",
     "sg_frames_aspect_ratio",
@@ -170,6 +171,7 @@ class RvActivityMode(rvt.MinorMode):
     def check_details(self):
         if self.details_dirty:
             self.load_version_id_from_session()
+            self.update_cuts_with()
  
     def current_source(self):
         """
@@ -314,14 +316,7 @@ class RvActivityMode(rvt.MinorMode):
             if sel_index not in sels:
                 sm = self.tray_list.selectionModel()           
                 sm.select(sel_index, sm.ClearAndSelect)
-                self.tray_list.scrollTo(sel_index, QtGui.QAbstractItemView.PositionAtCenter)
-                
-                version_data = self.load_version_id_from_session()
-
-                if version_data and 'latest_cut_entity' in version_data:
-                    self.enable_cuts_action(True, 'Review this version in the latest cut')
-                else:
-                    self.enable_cuts_action(False, 'No cut for this version')
+                self.tray_list.scrollTo(sel_index, QtGui.QAbstractItemView.PositionAtCenter)            
                    
         except Exception as e:
             print "ERROR: RV frameChanged EXCEPTION %r" % e
@@ -369,6 +364,62 @@ class RvActivityMode(rvt.MinorMode):
             elif event.name() == "play-stop" and self.details_pinned_for_playback:
                 self.details_panel.set_pinned(False)
                 self.details_pinned_for_playback = False
+                self.update_cuts_with()
+
+
+    def update_cuts_with(self):
+
+        cuts = self.get_cuts_with()
+        if cuts == {}:
+            # we've done this before, disable the clapper
+            self.enable_cuts_action(False, 'No cut for this version')
+            return
+        if cuts != None:
+            # we have a cut, enable the clapper
+            self.enable_cuts_action(True, 'Review this version in the latest cut')
+            return
+
+        version_data = self.load_version_id_from_session()
+        if version_data:
+            if 'latest_cut_entity' in version_data:
+                if version_data['latest_cut_entity']:
+                    self.enable_cuts_action(True, 'Review this version in the latest cut')
+                else:
+                    self.enable_cuts_action(False, 'No cut for this version')
+            else:
+                # we need the shot and the project
+                shot_entity = None
+                if version_data.get("entity") and version_data.get("entity").get("type") == "Shot":
+                    shot_entity = version_data.get("entity")
+                
+                project_entity = version_data.get("project")
+                
+                latest_cut_entity = self.find_latest_cut_for_version(shot_entity, version_data, project_entity)
+                
+                self.set_cuts_with(latest_cut_entity)
+
+                if latest_cut_entity:
+                    self.enable_cuts_action(True, 'Review this version in the latest cut')
+                else:
+                    self.enable_cuts_action(False, 'No cut for this version')
+
+    def get_cuts_with(self):
+        group_name = self.current_source()
+        if group_name:      
+            cut_str = getStringProp(group_name + ".cut_support.latest_cut_entity", None)
+            if cut_str:
+                try:
+                    return json.loads(cut_str)
+                except Exception as e:
+                    self._app.engine.log_error("get_cuts_with: %r" % e)
+        return None
+        
+    def set_cuts_with(self, cut_entity):
+        if not cut_entity:
+            cut_entity = {}
+        group_name = self.current_source()       
+        setProp(group_name + ".cut_support.latest_cut_entity", json.dumps(cut_entity))
+    
 
     def on_view_size_changed(self, event):
         event.reject()
@@ -889,14 +940,18 @@ class RvActivityMode(rvt.MinorMode):
         '''
         Sample cuts toolbar button listener
         '''
-        version_data = self.load_version_id_from_session()
-        if version_data and 'latest_cut_entity' in version_data:
-            shot_id = self.shot_id_str_from_version_data(version_data)
-            if shot_id:           
-                incoming_version = { str( shot_id ) : version_data }
-                self.load_tray_with_something_new(version_data['latest_cut_entity'], False, incoming_version)
-                self.tray_list.repaint()
+        # data is waiting for us:
+        cut = self.get_cuts_with()
+        if not cut:
+            return
 
+        version_data = self.load_version_id_from_session()
+        if version_data:
+            shot_id = self.shot_id_str_from_version_data(version_data)
+            pinned = { shot_id:version_data } if shot_id else {}          
+
+            self.load_tray_with_something_new(cut, False, incoming_pinned=pinned)
+            self.tray_list.repaint()
 
     def submit_note_attachments (self, attachments):
         '''
@@ -1179,12 +1234,12 @@ class RvActivityMode(rvt.MinorMode):
         
     def load_tray_with_version_ids(self, ids):
         vfilters = [["id", "in", ids]]
-        vfields =  [ "project", "playlists", "image" ] + required_version_fields
+        vfields =  [ "playlists", "image" ] + required_version_fields
         self.tray_model.load_data(entity_type="Version", filters=vfilters, fields=vfields)
 
     def load_tray_with_playlist_id(self, playlist_id=None):
         plist_filters = [["playlists", "is", {"type": "Playlist", "id": playlist_id}]]
-        plist_fields =  [ "project", "playlists", "image", "playlists.PlaylistVersionConnection.sg_sort_order", "playlists.PlaylistVersionConnection.id" ] + required_version_fields
+        plist_fields =  [ "playlists", "image", "playlists.PlaylistVersionConnection.sg_sort_order", "playlists.PlaylistVersionConnection.id" ] + required_version_fields
         self.tray_model.load_data(entity_type="Version", filters=plist_filters, fields=plist_fields)
 
     def load_tray_with_cut_id(self, cut_id=None):
@@ -1642,8 +1697,8 @@ class RvActivityMode(rvt.MinorMode):
 
         data["target_entity"] = target_entity
         data["ui_name"]       = target_entity["type"]
-        data["entity"]        = "No Entity"
-        data["project"]       = "No Project"
+        data["entity"]        = None
+        data["project"]       = None
 
         if   target_entity["type"] == "Cut":
             if sg_item:
@@ -1927,24 +1982,16 @@ class RvActivityMode(rvt.MinorMode):
             # store edit_data
             edit_data_list.append(json.dumps(edit_data))
 
-            # If the shot of this version corresponds to a pinned version, use
-            # that instead.
-            shot_id = self.shot_id_str_from_version_data(version_data)
-            pinned_version_data = pinned.get(shot_id)
-            if pinned_version_data:
-                version_data = pinned_version_data
-
-            # XXX there's an ordering problem here I think.  We're querying for
-            # latest_cut even when we are not creating a source, in which the
-            # query may already have been done.  I guess fixing that would just
-            # be an optimization.
-
-            # we only care about the default cut if we're not already displaying a cut.
-            if sequence_data.get("target_entity").get("type") != "Cut":
-                # find the default cut for this version to enable cuts mode later
-                latest_cut_entity = self.find_latest_cut_for_version(edit_data['shot'], version_data, sequence_data["project"])
-                if latest_cut_entity:
-                    version_data['latest_cut_entity'] = latest_cut_entity
+            # If displaying a Cut and the shot of this CutItem corresponds to a
+            # pinned version, use that instead.
+            if self.target_entity.get("type") == "Cut":
+                shot_id = edit_data["shot"].get("id") if edit_data["shot"] else None;
+                pinned_version_data = pinned.get(str(shot_id))
+                if pinned_version_data:
+                    version_data = pinned_version_data
+                    # XXX ok, we just swapped version_data out, but the old
+                    # version might have been the "base layer" in which case
+                    # the edit_data is wrong for this version ...
 
             # Now we have version data, find or create the corresponding
             # RVSourceGroup
