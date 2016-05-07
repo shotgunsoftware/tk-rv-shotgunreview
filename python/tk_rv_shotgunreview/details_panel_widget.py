@@ -47,6 +47,11 @@ task_manager = sgtk.platform.import_framework(
     "task_manager",
 )
 
+shotgun_data = sgtk.platform.import_framework(
+    "tk-framework-shotgunutils",
+    "shotgun_data",
+)
+
 screen_grab = sgtk.platform.import_framework(
     "tk-framework-qtwidgets",
     "screen_grab",
@@ -62,6 +67,11 @@ class DetailsPanelWidget(QtGui.QWidget):
     ACTIVE_FIELDS_PREFS_KEY = "rv_details_panel_active_fields"
     VERSION_LIST_FIELDS_PREFS_KEY = "rv_details_panel_version_list_fields"
 
+    # Emitted when an entity is created by the panel. The
+    # entity type as a string and id as an int are passed
+    # along.
+    entity_created = QtCore.Signal(object)
+
     def __init__(self, parent=None, bg_task_manager=None):
         """
         Constructor
@@ -73,10 +83,11 @@ class DetailsPanelWidget(QtGui.QWidget):
         """
         QtGui.QWidget.__init__(self, parent)
 
+        self.current_entity = None
         self._pinned = False
         self._requested_entity = None
-        self._current_entity = None
         self._sort_versions_ascending = False
+        self._upload_task_ids = []
 
         self.ui = Ui_DetailsPanelWidget() 
         self.ui.setupUi(self)
@@ -92,6 +103,11 @@ class DetailsPanelWidget(QtGui.QWidget):
             parent=self.ui.note_stream_widget,
             start_processing=True,
             max_threads=2,
+        )
+
+        self._data_retriever = shotgun_data.ShotgunDataRetriever(
+            parent=self,
+            bg_task_manager=self._task_manager,
         )
 
         self._shotgun_field_manager = ShotgunFieldManager(
@@ -195,10 +211,6 @@ class DetailsPanelWidget(QtGui.QWidget):
             bg_task_manager=self._task_manager,
         )
 
-        # We need to register our screen-grab callback. Instead
-        # of what ships with the widget
-        screen_grab.ScreenGrabber.SCREEN_GRAB_CALLBACK = self._trigger_rv_screen_grab
-
         # For the basic info widget in the Notes stream we won't show
         # labels for the fields that are persistent. The non-standard,
         # user-specified list of fields that are shown when "more info"
@@ -219,6 +231,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.version_search.search_edited.connect(self._set_version_list_filter)
         self.shot_info_model.data_refreshed.connect(self._version_entity_data_refreshed)
         self._task_manager.task_group_finished.connect(self.ui.entity_version_view.update)
+        self._data_retriever.work_completed.connect(self.__on_worker_signal)
 
         # We're taking over the responsibility of handling the title bar's
         # typical responsibilities of closing the dock and managing float
@@ -228,6 +241,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.float_button.clicked.connect(self._toggle_floating)
         self.ui.close_button.clicked.connect(self._hide_dock)
         self.parent().dockLocationChanged.connect(self._dock_location_changed)
+
+        # We will be passing up our own signal when note and reply entities
+        # are created.
+        self.ui.note_stream_widget.note_widget.entity_created.connect(
+            self._entity_created,
+        )
+        self.ui.note_stream_widget.reply_dialog.note_widget.entity_created.connect(
+            self._entity_created,
+        )
 
         # The fields menu attached to the "Fields..." buttons
         # when "More info" is active as well as in the Versions
@@ -250,7 +272,7 @@ class DetailsPanelWidget(QtGui.QWidget):
     ##########################################################################
     # public methods
 
-    def add_note_attachments(self, file_paths, cleanup_after_upload=True):
+    def add_note_attachments(self, file_paths, note_entity, cleanup_after_upload=True):
         """
         Adds a given list of files to the note widget as file attachments.
 
@@ -259,18 +281,18 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param cleanup_after_upload:    If True, after the files are uploaded
                                         to Shotgun they will be removed from disk.
         """
-        if self.ui.note_stream_widget.reply_dialog:
-            self.ui.note_stream_widget.reply_dialog.note_widget.add_files_to_attachments(
-                file_paths,
-                cleanup_after_upload,
-                apply_attachments=True,
-            )
+        if note_entity["type"] == "Reply":
+            note_entity = note_entity["entity"]
 
-        else:
-            self.ui.note_stream_widget.note_widget.add_files_to_attachments(
-                file_paths,
-                cleanup_after_upload,
-                apply_attachments=True,
+        for file_path in file_paths:
+            self._upload_uid = self._data_retriever.execute_method(
+                self._upload_file,
+                dict(
+                    file_path=file_path,
+                    parent_entity_type=note_entity["type"],
+                    parent_entity_id=note_entity["id"],
+                    cleanup_after_upload=cleanup_after_upload,
+                ),
             )
 
     def clear(self):
@@ -296,7 +318,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._requested_entity = entity
 
         # If we're pinned, then we don't allow loading new entities.
-        if self._pinned and self._current_entity:
+        if self._pinned and self.current_entity:
             return
 
         # If we got an "empty" entity from the mode, then we need
@@ -316,7 +338,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             self.ui.shot_info_widget.fields = self._active_fields
             self.ui.shot_info_widget.label_exempt_fields = self._persistent_fields
 
-        self._current_entity = entity
+        self.current_entity = entity
         self.ui.note_stream_widget.load_data(entity)
 
         shot_filters = [["id", "is", entity["id"]]]
@@ -380,6 +402,14 @@ class DetailsPanelWidget(QtGui.QWidget):
 
     ##########################################################################
     # internal utilities
+
+    def _entity_created(self, entity):
+        """
+        Emits the entity_created signal.
+
+        :param entity: The Shotgun entity dict that was created.
+        """
+        self.entity_created.emit(entity)
 
     def _field_menu_triggered(self, action):
         """
@@ -713,16 +743,45 @@ class DetailsPanelWidget(QtGui.QWidget):
         action = menu.exec_(self.ui.entity_version_view.mapToGlobal(point))
         menu.execute_callback(action)
 
-    def _trigger_rv_screen_grab(self):
+    def _upload_file(self, sg, data):
         """
-        Triggers an RV event instructing the mode running as part of
-        the SG Review app to trigger RV's native frame capture routine.
+        Uploads any generic file attachments to Shotgun, parenting
+        them to the given entity.
+
+        :param sg:      A Shotgun API instance.
+        :param data:    A dictionary containing "parent_entity_type",
+                        "parent_entity_id", "file_path", and
+                        "cleanup_after_upload" keys.
         """
-        rv.commands.sendInternalEvent(
-            "new_note_screenshot",
-            json.dumps(self._current_entity),
+        sg.upload(
+            data["parent_entity_type"],
+            data["parent_entity_id"],
+            str(data["file_path"]),
         )
 
+        if data.get("cleanup_after_upload", False):
+            try:
+                os.remove(data["file_path"])
+            except Exception:
+                pass
+
+    def __on_worker_signal(self, uid, request_type, data):
+        """
+        Run when a background task completes.
+
+        :param uid:             The task ID that was completed.
+        :param request_type:    The tasks type.
+        :param data:            The data returned by the task's callable.
+        """
+        if uid == self._upload_uid:
+            # TODO: Need to sort out why annotated attachments don't
+            # show up in the activity stream until a new reply is
+            # made AFTER the upload. This is not resolved by a relaunch
+            # which makes me think that the sqlite db that the activity
+            # stream is running off of is out of sync until it's forced
+            # to refresh due to a new reply being created. <jbee>
+            pass
+        
     ##########################################################################
     # docking
 
