@@ -70,7 +70,7 @@ class DetailsPanelWidget(QtGui.QWidget):
     # Emitted when an entity is created by the panel. The
     # entity type as a string and id as an int are passed
     # along.
-    entity_created = QtCore.Signal(str, int)
+    entity_created = QtCore.Signal(object)
 
     def __init__(self, parent=None, bg_task_manager=None):
         """
@@ -231,6 +231,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.version_search.search_edited.connect(self._set_version_list_filter)
         self.shot_info_model.data_refreshed.connect(self._version_entity_data_refreshed)
         self._task_manager.task_group_finished.connect(self.ui.entity_version_view.update)
+        self._data_retriever.work_completed.connect(self.__on_worker_signal)
 
         # We're taking over the responsibility of handling the title bar's
         # typical responsibilities of closing the dock and managing float
@@ -271,7 +272,7 @@ class DetailsPanelWidget(QtGui.QWidget):
     ##########################################################################
     # public methods
 
-    def add_note_attachments(self, file_paths, entity_type, entity_id, cleanup_after_upload=True):
+    def add_note_attachments(self, file_paths, note_entity, cleanup_after_upload=True):
         """
         Adds a given list of files to the note widget as file attachments.
 
@@ -280,13 +281,16 @@ class DetailsPanelWidget(QtGui.QWidget):
         :param cleanup_after_upload:    If True, after the files are uploaded
                                         to Shotgun they will be removed from disk.
         """
+        if note_entity["type"] == "Reply":
+            note_entity = note_entity["entity"]
+
         for file_path in file_paths:
-            self._data_retriever.execute_method(
+            self._upload_uid = self._data_retriever.execute_method(
                 self._upload_file,
                 dict(
                     file_path=file_path,
-                    parent_entity_type=entity_type,
-                    parent_entity_id=entity_id,
+                    parent_entity_type=note_entity["type"],
+                    parent_entity_id=note_entity["id"],
                     cleanup_after_upload=cleanup_after_upload,
                 ),
             )
@@ -399,15 +403,13 @@ class DetailsPanelWidget(QtGui.QWidget):
     ##########################################################################
     # internal utilities
 
-    def _entity_created(self, entity_type, entity_id):
+    def _entity_created(self, entity):
         """
-        Emits the entity_created signal, passing along the string
-        entity type and integer entity id as arguments.
+        Emits the entity_created signal.
 
-        :param entity_type: The string entity type.
-        :param entity_id:   The integer entity ID.
+        :param entity: The Shotgun entity dict that was created.
         """
-        self.entity_created.emit(entity_type, entity_id)
+        self.entity_created.emit(entity)
 
     def _field_menu_triggered(self, action):
         """
@@ -763,6 +765,23 @@ class DetailsPanelWidget(QtGui.QWidget):
             except Exception:
                 pass
 
+    def __on_worker_signal(self, uid, request_type, data):
+        """
+        Run when a background task completes.
+
+        :param uid:             The task ID that was completed.
+        :param request_type:    The tasks type.
+        :param data:            The data returned by the task's callable.
+        """
+        if uid == self._upload_uid:
+            # TODO: Need to sort out why annotated attachments don't
+            # show up in the activity stream until a new reply is
+            # made AFTER the upload. This is not resolved by a relaunch
+            # which makes me think that the sqlite db that the activity
+            # stream is running off of is out of sync until it's forced
+            # to refresh due to a new reply being created. <jbee>
+            pass
+        
     ##########################################################################
     # docking
 

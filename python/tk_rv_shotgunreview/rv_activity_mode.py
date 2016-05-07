@@ -584,7 +584,7 @@ class RvActivityMode(rvt.MinorMode):
         # The keys are the frames with unsaved annotation
         return self.get_unstored_frame_props().keys()
 
-    def make_note_attachments(self, note_entity_type, note_entity_id):
+    def make_note_attachments(self, note_entity):
         '''
         Find the annotated frames for the given version, export them through RVIO, then submit them
         '''
@@ -597,15 +597,13 @@ class RvActivityMode(rvt.MinorMode):
         props = {}
 
         try:
-            eventDict = json.loads(event.contents())
             group = self.find_group_from_version_id(version_entity["id"])
             props = self.get_unstored_frame_props(group)
         except Exception as exc:
-            # XXX Jon, what is exc.output ?   exc does not seem to always have such an attr ?
-            self._app.log_error("Unable to locate annotation strokes: " + exc.output)
+            self._app.log_error("Unable to locate annotation strokes: " + str(exc))
 
         if len(props) <= 0:
-            self._app.log_info("Found no new annotations to attach")
+            self._app.log_debug("Found no new annotations to attach")
             return
 
         # Start RVIO command construction
@@ -647,7 +645,7 @@ class RvActivityMode(rvt.MinorMode):
         try:
             out = subprocess.check_output(args)
         except subprocess.CalledProcessError as exc:
-            self._app.log_error("Unable to export annotation: " + exc.output)
+            self._app.log_error("Unable to export annotation: " + str(exc))
         
         # Close out the banner
         rve.displayFeedback2(displayString, 2.0)
@@ -673,7 +671,7 @@ class RvActivityMode(rvt.MinorMode):
         os.remove(session)
 
         # Submit the frames
-        self.submit_note_attachments(attachments, note_entity_type, note_entity_id)
+        self.submit_note_attachments(attachments, note_entity)
 
         # Update the graph to reflect which strokes have been submitted
         for frame in saved:
@@ -720,7 +718,7 @@ class RvActivityMode(rvt.MinorMode):
         Set the "cut_support.media_type" property of the source to
         match the current media type.
         """
-        self._app.engine.log_info("set_media_of_source '%s' to '%s'" % 
+        self._app.engine.log_debug("set_media_of_source '%s' to '%s'" % 
             (source_group, media_type_name))
 
         current_media_type = self.get_media_type_of_source(source_group)
@@ -750,7 +748,7 @@ class RvActivityMode(rvt.MinorMode):
         if not source_node:
             return
 
-        self._app.engine.log_info("swap_media_of_source '%s' to '%s'" % 
+        self._app.engine.log_debug("swap_media_of_source '%s' to '%s'" % 
             (source_node, media_type_name))
 
         old_media_type = self.get_media_type_of_source(source_node)
@@ -950,20 +948,21 @@ class RvActivityMode(rvt.MinorMode):
             self.load_tray_with_something_new(cut, False, incoming_pinned=pinned)
             self.tray_list.repaint()
 
-    def submit_note_attachments (self, attachments, note_entity_type, note_entity_id):
+    def submit_note_attachments(self, attachments, note_entity):
         '''
         Send the created and collected annotation exports off for saving
         '''
-        self.details_panel.add_note_attachments(attachments, note_entity_type, note_entity_id)
+        self.details_panel.add_note_attachments(attachments, note_entity)
 
     def load_data(self, entity):
-        self._app.engine.log_info( "load_data with %r" % entity )
+        self._app.engine.log_debug( "load_data with %r" % entity )
         self.version_id = entity['id']
         try:
-            self._app.engine.log_info( "loading details panel with %r" % entity )
+            self._app.engine.log_debug( "loading details panel with %r" % entity )
             self.details_panel.load_data(entity)
         except Exception as e:
             self._app.engine.log_error("DETAILS PANEL: sent %r got %r" % (entity, e))
+
         # saw False even if we fail? endless loop? delay?
         self.details_dirty = False
  
@@ -1049,7 +1048,7 @@ class RvActivityMode(rvt.MinorMode):
         self.note_dock.setVisible(self._prefs.startup_view_details)
 
     def on_filter_refreshed(self, really_changed):
-        self._app.engine.log_info("on_filter_refreshed: really_changed is %r" % really_changed)
+        self._app.engine.log_debug("on_filter_refreshed: really_changed is %r" % really_changed)
         if really_changed:
             # XXX this will rely on self.target_entity still being set
             # correctly _and_ on us still looking at the corresponding node.
@@ -1065,7 +1064,7 @@ class RvActivityMode(rvt.MinorMode):
         self.on_mini_cut()
 
     def on_id_from_gma(self, event):
-        self._app.engine.log_info("on_id_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
+        self._app.engine.log_debug("on_id_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
         self.version_swap_out = None
         self.no_cut_context = False
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
@@ -1086,7 +1085,7 @@ class RvActivityMode(rvt.MinorMode):
             """
 
     def replace_version_in_sequence(self, versions):
-        self._app.engine.log_info('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
+        self._app.engine.log_debug('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
 
         if len(versions) != 1:
             self._app.engine.log_error(
@@ -1231,7 +1230,7 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_model.load_data(entity_type="Version", filters=plist_filters, fields=plist_fields)
 
     def load_tray_with_cut_id(self, cut_id=None):
-        self._app.engine.log_info('load_tray_with_cut_id %r' % QtCore.QThread.currentThread() )
+        self._app.engine.log_debug('load_tray_with_cut_id %r' % QtCore.QThread.currentThread() )
 
         # XXX we shouldn't be storing this here, come back to this
         if cut_id:
@@ -1751,7 +1750,7 @@ class RvActivityMode(rvt.MinorMode):
                 print "--------------------------------------- rv_item"
                 pp.pprint(rv_item)
             # return
-        self._app.engine.log_info('on_data_refreshed_internal: %r' % str(QtCore.QThread.currentThread()))
+        self._app.engine.log_debug('on_data_refreshed_internal: %r' % str(QtCore.QThread.currentThread()))
 
         # XXX eventually we want to enter min-cut mode directly in some cases,
 
@@ -2054,7 +2053,7 @@ class RvActivityMode(rvt.MinorMode):
 
     def load_mini_cut(self, focus_index, offset=0):
 
-        self._app.log_info("load_mini_cut() focus %d offset %d" % (focus_index, offset))
+        self._app.log_debug("load_mini_cut() focus %d offset %d" % (focus_index, offset))
 
         seq_node = None
         seq_group = rvc.viewNode()
