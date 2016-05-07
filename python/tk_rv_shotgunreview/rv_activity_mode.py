@@ -171,7 +171,9 @@ class RvActivityMode(rvt.MinorMode):
     def check_details(self):
         if self.details_dirty:
             self.load_version_id_from_session()
-            self.update_cuts_with()
+            if not rvc.isPlaying():
+                self.update_cuts_with()
+                self._popup_utils.request_related_cuts_from_models()
  
     def current_source(self):
         """
@@ -365,6 +367,7 @@ class RvActivityMode(rvt.MinorMode):
                 self.details_panel.set_pinned(False)
                 self.details_pinned_for_playback = False
                 self.update_cuts_with()
+                self._popup_utils.request_related_cuts_from_models()
 
 
     def update_cuts_with(self):
@@ -796,6 +799,7 @@ class RvActivityMode(rvt.MinorMode):
         self.cached_mini_cut_data = MiniCutData(False)
 
         self._tray_height = 96
+        self.main_query_active = False
 
         self.no_media_check = (os.getenv("RV_TK_NO_MEDIA_CHECK",None) is not None)
 
@@ -990,8 +994,8 @@ class RvActivityMode(rvt.MinorMode):
         
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame
-        self.tray_main_frame = TrayMainFrame(self.tray_dock)
-        self.tray_main_frame.set_rv_mode(self)
+        self.tray_main_frame = TrayMainFrame(self.tray_dock, self)
+        #self.tray_main_frame.set_rv_mode(self)
 
         self.tray_hidden_this_session = False
         self.details_hidden_this_session = False
@@ -1184,6 +1188,7 @@ class RvActivityMode(rvt.MinorMode):
         if "ids" in target_entity and len(target_entity["ids"]) > 1:
             type_string += "s"
         rve.displayFeedback("Loading " + type_string +  " ...", 60.0)
+        self.main_query_active = True
 
         # XXX get rid of "id"
         if "id" in target_entity and "ids" not in target_entity:
@@ -1217,6 +1222,7 @@ class RvActivityMode(rvt.MinorMode):
 
         else:
             self._app.engine.log_error("Tray does not support entity type '%s'." % t_type)
+            self.main_query_active = False
         
     def load_tray_with_version_ids(self, ids):
         vfilters = [["id", "in", ids]]
@@ -1494,6 +1500,7 @@ class RvActivityMode(rvt.MinorMode):
             media_type = self._prefs.preferred_media_type
 
         path = None
+        no_media = False
         m_type = self.media_type_fallback(version_data, media_type)
         if m_type: 
             path = version_data[standard_media_types[m_type].path_field]
@@ -1502,6 +1509,7 @@ class RvActivityMode(rvt.MinorMode):
             self._app.engine.log_error("Version '%s' has no local media" % version_data["code"])
             path = "black,start=1,end=24.movieproc"
             m_type = "Movie"
+            no_media = True
 
         try:
             source_node = rvc.addSourceVerbose([path])
@@ -1510,6 +1518,11 @@ class RvActivityMode(rvt.MinorMode):
             return
 
         source_group = rvc.nodeGroup(source_node)
+
+        if no_media:
+            overlay_node = groupMemberOfType(source_group, "RVOverlay")
+            self.createText(overlay_node + '.text:sg_review_error', 
+                    version_data["code"] + '\nhas no playable local media.', -0.5, 0.0)
 
         setProp(source_group + ".cut_support.version_id",   version_data["id"])
         setProp(source_group + ".cut_support.version_data", json.dumps(version_data))
@@ -1611,6 +1624,8 @@ class RvActivityMode(rvt.MinorMode):
 
         if version_data["id"] is None:
             self._app.engine.log_error("No Version data for CutItem id=%d." % sg.get("id"))
+            version_data["id"]   = 100000 + sg.get("cut.Cut.id", 0)
+            version_data["code"] = "Missing Version"
 
         return (version_data, edit_data)
 
@@ -1729,6 +1744,7 @@ class RvActivityMode(rvt.MinorMode):
     # signal from model so filter_query_finished is False (we need to run follow-on
     # query, if any)
     def on_data_refreshed(self, was_refreshed):
+        self.main_query_active = False
         self.on_data_refreshed_internal(was_refreshed, False)
         
     # the way data from shotgun gets into the tray
@@ -1931,7 +1947,12 @@ class RvActivityMode(rvt.MinorMode):
 
         if self.target_entity["type"] == "Cut":
             # self.create_related_cuts_menu(sequence_data["entity"], None)
-            self._popup_utils.request_related_cuts_from_models()
+            
+            # we want this to happen now, so that the menu will be ready
+            # self._popup_utils.request_related_cuts_from_models()
+            # creating just the menu alone leads to in progress refresh
+            self._popup_utils.create_related_cuts_from_models()
+
         else:
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
@@ -1951,6 +1972,10 @@ class RvActivityMode(rvt.MinorMode):
         Central location for all logic determining visibility of gui elements:
         dock widgets, menus, etc.
         """
+
+        # if main query is running just wait, update will happen after
+        if self.main_query_active:
+            return
 
         # are we looking at a sequence that we manage ?
 

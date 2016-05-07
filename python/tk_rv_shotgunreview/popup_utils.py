@@ -15,6 +15,9 @@ from .steps_sort_filter import StepsSortFilter
 
 import rv.extra_commands as rve
 
+import pprint
+pp = pprint.PrettyPrinter(indent=4)
+
 # XXX not sure how to share this? copied from the mode
 required_version_fields = [
     "code",
@@ -56,6 +59,8 @@ class PopupUtils(QtCore.QObject):
         self._last_related_cuts = None
         self._last_rel_shot_entity = None
         self._last_rel_cut_entity = None
+        self._last_rel_version_id = -1
+        self._last_rel_cut_id = -1
 
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
@@ -145,7 +150,9 @@ class PopupUtils(QtCore.QObject):
         #self._related_timer.start(20)
 
     def request_related_cuts_from_models(self):
-        self._engine.log_info( "request_related_cuts_from_model" )
+        """
+        this method is called at aboutToShow time by the menu button
+        """
         
         seq_data = self._rv_mode.sequence_data_from_session()
 
@@ -157,6 +164,19 @@ class PopupUtils(QtCore.QObject):
         cut_id   = seq_data["target_entity"]["ids"][0]
 
         version_data = self._rv_mode.version_data_from_source()
+        # this probably shouldnt happen but seeing it when erroring on robustness tests
+        if not version_data:
+            self._engine.log_info("request_related_cuts_from_models - No version data found in session.")
+            return
+
+        # if this is the same as last time, then we can bail, its already rebuilt.
+        # pp.pprint(version_data)
+        if self._last_rel_version_id == version_data['id'] and self._last_rel_cut_id == cut_id:
+            self._engine.log_info('still on version %d, not rebuilding rel cuts menu' % version_data['id'])
+            return
+        
+        self._last_rel_version_id = version_data['id']
+        self._last_rel_cut_id = cut_id
 
         if version_data:
             # mix in second related shots
@@ -181,7 +201,8 @@ class PopupUtils(QtCore.QObject):
         # XXX don't get this ? -- alan
         # XXX there was a cut based on a Scene and the query returned the entity we want in a different column - sb.
         if cut_link['type'] == "Scene":
-            self.find_rel_cuts_with_model(cut_link, version_link['shot'])
+            if version_link:
+                self.find_rel_cuts_with_model(cut_link, version_link['shot'])
             return
 
     def handle_related_menu(self, action=None):
@@ -242,12 +263,11 @@ class PopupUtils(QtCore.QObject):
             sg = shotgun_model.get_sg_data(item)  
             seq_ids.append(sg['id'])
             seq_cuts.append(sg)
-
         for n in shot_ids:
             if n not in seq_ids:
                 seq_cuts.append(shot_map[n])
 
-        sorted_cuts = sorted(seq_cuts, key=lambda x: x['cached_display_name'], reverse=False)
+        sorted_cuts = sorted(seq_cuts, key=lambda x: x['cached_display_name'].lower(), reverse=False)
  
         dup_map = {}
         for x in sorted_cuts:
@@ -261,11 +281,10 @@ class PopupUtils(QtCore.QObject):
         return sorted_cuts
  
     def create_related_cuts_from_models(self):
-        self._engine.log_info( "create_related_cuts_from_models")
         if not self._related_cuts_menu:
             self._related_cuts_menu = QtGui.QMenu(self._tray_frame.tray_button_browse_cut)
             self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu)        
-            self._related_cuts_menu.aboutToShow.connect(self.request_related_cuts_from_models)
+            # self._related_cuts_menu.aboutToShow.connect(self.request_related_cuts_from_models)
 
             # Sadly, because this button didn't have a menu at the time that
             # the app-level styling was applied, it won't inherit menu-indicator
@@ -288,6 +307,7 @@ class PopupUtils(QtCore.QObject):
         self._engine.log_info("create_related_cuts_from_models, cut_id: %r" % cut_id)
 
         seq_cuts = self.merge_rel_models_for_menu()
+        #  pp.pprint(seq_cuts)
         if seq_cuts == self._last_related_cuts:
             actions = self._related_cuts_menu.actions()
             for a in actions:
@@ -350,7 +370,11 @@ class PopupUtils(QtCore.QObject):
             else:
                 action.setChecked(False)
  
-            action.setText(x['cached_display_name'])
+            if last_menu == menu:
+                action.setText(x['code'])
+            else:
+                action.setText(x['cached_display_name'])
+
             action.setData(en)
  
             last_menu.addAction(action)
