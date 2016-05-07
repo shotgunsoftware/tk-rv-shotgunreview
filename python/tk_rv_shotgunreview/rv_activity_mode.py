@@ -40,20 +40,31 @@ def groupMemberOfType(node, memberType):
 
 class Preferences:
     def __init__(self):
-        g = "sg_review_mode"
-        self.group = g
+        self.group = "sg_review_mode"
+        g = self.group
 
         self.preferred_media_type   = rvc.readSettings(g, "preferred_media_type",   "Movie")
         self.preferred_compare_mode = rvc.readSettings(g, "preferred_compare_mode", "Grid")
-        self.startup_view_details   = rvc.readSettings(g, "startup_view_details",   True)
-        self.startup_view_tray      = rvc.readSettings(g, "startup_view_tray",      True)
+        self.startup_view_details   = rvc.readSettings(g, "startup_view_details",   False)
+        self.startup_view_tray      = rvc.readSettings(g, "startup_view_tray",      False)
+        self.auto_show_tray         = rvc.readSettings(g, "auto_show_tray",         True)
+        self.auto_show_details      = rvc.readSettings(g, "auto_show_details",      True)
+        self.pin_details            = rvc.readSettings(g, "pin_details",            True)
+        self.mini_left_count        = rvc.readSettings(g, "mini_left_count",        2)
+        self.mini_right_count       = rvc.readSettings(g, "mini_right_count",       2)
 
     def save(self):
         g = self.group
+
         rvc.writeSettings(g, "preferred_compare_mode", self.preferred_compare_mode)
         rvc.writeSettings(g, "preferred_media_type",   self.preferred_media_type)
         rvc.writeSettings(g, "startup_view_details",   self.startup_view_details)
         rvc.writeSettings(g, "startup_view_tray",      self.startup_view_tray)
+        rvc.writeSettings(g, "auto_show_details",      self.auto_show_details)
+        rvc.writeSettings(g, "auto_show_tray",         self.auto_show_tray)
+        rvc.writeSettings(g, "pin_details",            self.pin_details)
+        rvc.writeSettings(g, "mini_left_count",        self.mini_left_count)
+        rvc.writeSettings(g, "mini_right_count",       self.mini_right_count)
 
 class MediaType:
     def __init__(self, name, path_field, slate_field, aspect_field):
@@ -166,7 +177,6 @@ def getStringProp(prop, default):
     return val
     
 class RvActivityMode(rvt.MinorMode):
-    
     
     def check_details(self):
         if self.details_dirty:
@@ -377,7 +387,6 @@ class RvActivityMode(rvt.MinorMode):
 
         # Auto-pin the DetailsPanel during playback, so that updating it does
         # not cause a hiccup.
-        # XXX auto-pinning should be controlled by a preference (default on)
 
         # Ignore the event if no DetailsPanel built yet, or if we are
         # "buffering" (ie playback paused to fill cache) or in "turn-around"
@@ -385,17 +394,20 @@ class RvActivityMode(rvt.MinorMode):
         cont = event.contents()
         if self.details_panel and cont != "buffering" and cont != "turn-around":
             # We only auto-pin the details if they are not already pinned
-            if   (event.name() == "play-start" and not self.details_panel.is_pinned):
+            if   (  event.name() == "play-start" and 
+                    not self.details_panel.is_pinned and
+                    self._prefs.pin_details):
                 self.details_panel.set_pinned(True)
                 self.details_pinned_for_playback = True
             # We only auto-unpin the details on stop if we auto-pinned them in
             # the first place.
-            elif event.name() == "play-stop" and self.details_pinned_for_playback:
-                self.details_panel.set_pinned(False)
-                self.details_pinned_for_playback = False
+            elif event.name() == "play-stop":
+                if self.details_pinned_for_playback:
+                    self.details_panel.set_pinned(False)
+                    self.details_pinned_for_playback = False
+
                 self.update_cuts_with()
                 self._popup_utils.request_related_cuts_from_models()
-
 
     def update_cuts_with(self):
         cuts = self.get_cuts_with()
@@ -509,6 +521,27 @@ class RvActivityMode(rvt.MinorMode):
 
     def startup_view_tray_state(self):
         return rvc.CheckedMenuState if self._prefs.startup_view_tray else rvc.UncheckedMenuState
+
+    def toggle_auto_show_details(self, event):
+        self._prefs.auto_show_details = not self._prefs.auto_show_details
+        self._prefs.save()
+
+    def toggle_auto_show_tray(self, event):
+        self._prefs.auto_show_tray = not self._prefs.auto_show_tray
+        self._prefs.save()
+
+    def auto_show_tray_state(self):
+        return rvc.CheckedMenuState if self._prefs.auto_show_tray else rvc.UncheckedMenuState
+
+    def auto_show_details_state(self):
+        return rvc.CheckedMenuState if self._prefs.auto_show_details else rvc.UncheckedMenuState
+
+    def toggle_pin_details(self, event):
+        self._prefs.pin_details = not self._prefs.pin_details
+        self._prefs.save()
+
+    def pin_details_state(self):
+        return rvc.CheckedMenuState if self._prefs.pin_details else rvc.UncheckedMenuState
 
     def toggle_view_details(self, event):
         if not self.note_dock:
@@ -826,6 +859,7 @@ class RvActivityMode(rvt.MinorMode):
 
         self._tray_height = 96
         self.main_query_active = False
+        self.details_panel_last_loaded = None
 
         self.no_media_check = (os.getenv("RV_TK_NO_MEDIA_CHECK",None) is not None)
 
@@ -863,7 +897,7 @@ class RvActivityMode(rvt.MinorMode):
 
         self._prefs = Preferences()
         self.incoming_pinned = {}
- 
+
         self.init("RvActivityMode", None,
                 [ 
                 ("after-session-read", self.afterSessionRead, ""),
@@ -914,9 +948,17 @@ class RvActivityMode(rvt.MinorMode):
                         ("    Stack",            self.set_preferred_compare_mode_factory("Stack"), None, self.preferred_compare_mode_state_factory("Stack")),
                         ("    Stack with Wipes", self.set_preferred_compare_mode_factory("Wipe"),  None, self.preferred_compare_mode_state_factory("Wipe")),
 
-                        ("View On Startup", None, None, lambda: rvc.DisabledMenuState),
+                        ("Show On Startup", None, None, lambda: rvc.DisabledMenuState),
                         ("    Details Pane",       self.toggle_startup_view_details, None, self.startup_view_details_state),
-                        ("    Thumbnail Timeline", self.toggle_startup_view_tray,    None, self.startup_view_tray_state)
+                        ("    Thumbnail Timeline", self.toggle_startup_view_tray,    None, self.startup_view_tray_state),
+
+                        ("Auto-Show", None, None, lambda: rvc.DisabledMenuState),
+                        ("    Details Pane",       self.toggle_auto_show_details, None, self.auto_show_details_state),
+                        ("    Thumbnail Timeline", self.toggle_auto_show_tray,    None, self.auto_show_tray_state),
+
+                        ("_", None),
+                        ("Pin Details Pane During Playback", self.toggle_pin_details, None, self.pin_details_state),
+
                         ]),
                     ("_", None)]
                 )],
@@ -985,11 +1027,13 @@ class RvActivityMode(rvt.MinorMode):
         self.details_panel.add_note_attachments(attachments)
 
     def load_data(self, entity):
-        # self._app.engine.log_info( "load_data with %r" % entity )
+        self._app.engine.log_info( "load_data with %r" % entity )
         self.version_id = entity['id']
         try:
             # self._app.engine.log_info( "loading details panel with %r" % entity )
-            self.details_panel.load_data(entity)
+            if self.details_panel_last_loaded != entity:
+                self.details_panel.load_data(entity)
+                self.details_panel_last_loaded = entity
         except Exception as e:
             self._app.engine.log_error("DETAILS PANEL: sent %r got %r" % (entity, e))
         # saw False even if we fail? endless loop? delay?
@@ -1042,7 +1086,10 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_left_label = self.tray_main_frame.tray_left_label
         self.tray_right_label = self.tray_main_frame.tray_right_label
 
-        
+        # init spinner values
+        self.tray_left_spinner.setValue (self._prefs.mini_left_count)
+        self.tray_right_spinner.setValue(self._prefs.mini_right_count)
+
         # CONNECTIONS
         self.tray_model.data_refreshed.connect(self.on_data_refreshed)
         self.tray_model.cache_loaded.connect(self.on_cache_loaded)
@@ -2010,11 +2057,12 @@ class RvActivityMode(rvt.MinorMode):
         if query_target_entity and query_target_entity == self.target_entity:
             # this is some kind of RVSequenceGroup managed by us, with matching
             # query results in tray modelk.
-            # so make tray AND details visible unless user has hidden them
+            # so make tray AND details visible unless user has hidden them, or
+            # the user wants them never to be shown automatically
             #
-            if not self.tray_hidden_this_session:
-                self.tray_dock.show()
-            if not self.details_hidden_this_session:
+            if not self.tray_hidden_this_session and self._prefs.auto_show_tray: 
+                self.tray_dock.show() 
+            if not self.details_hidden_this_session and self._prefs.auto_show_details: 
                 self.note_dock.show()
 
             # it's a sequence of some kind, but maybe not a Cut; set menu etc
@@ -2095,9 +2143,13 @@ class RvActivityMode(rvt.MinorMode):
         rvc.play()
 
     def get_mini_values(self):
+        self._prefs.mini_left_count  = self.tray_main_frame.mini_left_spinner.value() 
+        self._prefs.mini_right_count = self.tray_main_frame.mini_right_spinner.value() 
+        self._prefs.save()
+
         return (
-            self.tray_main_frame.mini_left_spinner.value(), 
-            self.tray_main_frame.mini_right_spinner.value())
+            self._prefs.mini_left_count,
+            self._prefs.mini_right_count)
 
     def load_mini_cut(self, focus_index, offset=0):
 
