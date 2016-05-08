@@ -242,31 +242,33 @@ class RvActivityMode(rvt.MinorMode):
         finally:
             event.reject()
 
-    def swapIntoSequence(self, event):
-        print "SWAPPPPPP"
+    def swap_in_thumbnail_from_versions_list(self):
+        """
+        swaps in the thumbnail currently selected in the versions list
+        into the item currently selected in the tray.
+        """
         # figure out which things were selected in the version list, so we can swap in a thumbnail
         sm = self.details_panel.version_delegate.view.selectionModel()
         sels = sm.selectedIndexes()
         pixmap = None
-        for s in sels:
-            pixmap = s.data(QtCore.Qt.DecorationRole)
-            print "PIXMAP %r" % pixmap
 
-        #now get the current selection in the tray model
+        for s in sels:
+            pixmap = QtGui.QIcon(s.data(QtCore.Qt.DecorationRole))
+  
+        if not pixmap:
+            # XXX - sb - what to do?
+            return
+        # now get the current selection in the tray 
         tray_sm = self.tray_list.selectionModel()
         tray_sels = tray_sm.selectedIndexes()
+        
         for t in tray_sels:
-            #item = self.tray_model.itemFromIndex(t)
-            print "TRAY SEL: %r" % t.row()
-            item_selection = self.tray_model.mapToSource(t)
-            item = self.tray_model.index(item_selection.row(),0)
-            sg_item = shotgun_model.get_sg_data(item)
-            rv_item = item.data(self._RV_DATA_ROLE)
+            self.tray_proxyModel.setData(t, pixmap, QtCore.Qt.DecorationRole)
 
-            self.tray_model.setData(t, pixmap, QtCore.Qt.DecorationRole)
-            
-            print "ITEM: %r" % item_selection.row()
-            # item.setIcon(pixmap)
+        self.tray_list.repaint()
+
+    def swapIntoSequence(self, event):
+        self.swap_in_thumbnail_from_versions_list()
 
         s = copy.copy(event.contents())
         try:
@@ -1813,7 +1815,6 @@ class RvActivityMode(rvt.MinorMode):
         # I think just Error and return
 
         for index in range(0, rows):
-            print "Z INDEX %r"  % index
             item = self.tray_proxyModel.index(index, 0)
             sg_item = shotgun_model.get_sg_data(item)
             rv_item = item.data(self._RV_DATA_ROLE)
