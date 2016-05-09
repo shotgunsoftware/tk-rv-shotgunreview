@@ -1607,15 +1607,24 @@ class RvActivityMode(rvt.MinorMode):
 
         return (True if self.no_media_check else bool(rvc.existingFilesInSequence(path)))
 
+    def swap_in_home_dir(self, path):
+
+        if path and len(path) > 2 and path[0:2] == "~/":
+            path = QtCore.QDir.homePath() + path[1:]
+
+        return path
+
     def media_type_fallback(self, version_data, media_type):
         
         path = version_data.get(standard_media_types[media_type].path_field)
+        path = self.swap_in_home_dir(path)
 
         if self.check_media_contents(path):
             return media_type
 
         other = "Movie" if (media_type == "Frames") else "Frames"
         path = version_data.get(standard_media_types[other].path_field)
+        path = self.swap_in_home_dir(path)
 
         if self.check_media_contents(path):
             return other
@@ -1912,6 +1921,7 @@ class RvActivityMode(rvt.MinorMode):
                     sources.append(self.source_group_from_version_data(version_data))
 
             self.compare_sources(sources)
+            self.load_version_id_from_session()
             if self._prefs.auto_play:
                 rvc.play()
 
@@ -2175,6 +2185,7 @@ class RvActivityMode(rvt.MinorMode):
         # highlight the first clip
         self.frameChanged(None)
 
+        self.load_version_id_from_session()
         rvc.redraw()
         if not incremental_update and self._prefs.auto_play:
             rvc.play()
