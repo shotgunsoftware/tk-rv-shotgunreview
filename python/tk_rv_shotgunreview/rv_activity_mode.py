@@ -977,12 +977,12 @@ class RvActivityMode(rvt.MinorMode):
             if (actions[0].text() == text):
                 btb.removeAction(actions[0])
 
-    def enable_cuts_action(self, enable=True, tooltip=None, enableBlue=False):
+    def enable_cuts_action(self, enable=True, tooltip=None, enable_blue=False):
         '''
         Enables cuts toolbar button. If enable is false the button
         is disabled.
         '''
-        if (enableBlue or not enable):
+        if (enable_blue or not enable):
             cicon = QtGui.QIcon(":/tk-rv-shotgunreview/icon_player_cut_action_small_active.png")
             self.cuts_action.setIcon(cicon)
         else:
