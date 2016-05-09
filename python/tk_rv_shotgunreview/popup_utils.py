@@ -125,7 +125,10 @@ class PopupUtils(QtCore.QObject):
         self._rel_shots_done = False
 
         conditions = ['entity', 'is', entity_in]
-        cut_filters = [ conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]]
+        if self._project_entity and self._project_entity['id']:
+            cut_filters = [ conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]]
+        else:
+            cut_filters = [ conditions ]
         cut_fields = ['id', 'entity', 'code', 'cached_display_name']
         cut_orders = [
             {'field_name': 'code', 'direction': 'asc'}, 
@@ -211,7 +214,8 @@ class PopupUtils(QtCore.QObject):
             self._engine.log_info("action.data: %r" % action.data()) 
             self._rv_mode.load_tray_with_something_new(
                 {"type":"Cut", "ids":[action.data()['id']]}, 
-                preserve_pinned=True)
+                preserve_pinned=True,
+                preserve_mini=True)
 
     def on_rel_cuts_refreshed(self):
         self._rel_cuts_done = True
