@@ -22,6 +22,7 @@ import rv.qtutils as rvqt
 
 shotgun_view = tank.platform.import_framework("tk-framework-qtwidgets", "views")
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
+shotgun_data = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_data")
 
 from .tray_delegate import RvTrayDelegate
 from .details_panel_widget import DetailsPanelWidget
@@ -265,6 +266,8 @@ class RvActivityMode(rvt.MinorMode):
         pixmap = None
 
         for s in sels:
+
+
             pixmap = QtGui.QIcon(s.data(QtCore.Qt.DecorationRole))
   
         if not pixmap:
@@ -280,7 +283,7 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_list.repaint()
 
     def swapIntoSequence(self, event):
-        self.swap_in_thumbnail_from_versions_list()
+        # self.swap_in_thumbnail_from_versions_list()
 
         s = copy.copy(event.contents())
         try:
@@ -857,6 +860,11 @@ class RvActivityMode(rvt.MinorMode):
     def __init__(self, app):
         rvt.MinorMode.__init__(self)
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
+
+        self._ORIGINAL_THUMBNAIL = QtCore.Qt.UserRole + 1702
+        self._FILTER_THUMBNAIL = QtCore.Qt.UserRole + 1703
+        self._PINNED_THUMBNAIL = QtCore.Qt.UserRole + 1704
+        
         self._bundle = sgtk.platform.current_bundle()
         
         self.cuts_action = None
@@ -1196,6 +1204,58 @@ class RvActivityMode(rvt.MinorMode):
         self.details_dirty = True
         self.details_timer.start()
 
+
+    def refresh_tray_thumbnails(self):
+        rows = self.tray_proxyModel.rowCount()
+        for index in range(0, rows):
+            item = self.tray_proxyModel.index(index, 0)
+            
+            orig = item.data(self._ORIGINAL_THUMBNAIL)
+            pinned = item.data(self._PINNED_THUMBNAIL)
+            filtered = item.data(self._FILTER_THUMBNAIL)
+
+            thumb = None
+            if pinned:
+                thumb = QtGui.QPixmap.fromImage(pinned)
+            if not pinned and filtered:
+                thumb = QtGui.QPixmap.fromImage(filtered)
+            if not pinned and not filtered:
+                thumb = QtGui.QPixmap.fromImage(orig)
+            if thumb:
+                item.setIcon(thumb)
+
+        self.tray_list.repaint()
+
+
+
+    def update_pinned_thumbnail(self, v_data):
+        # version_data['image'] holds the URL thumbnail for the pinned icon
+        # we like paths so:
+        try:
+            # print "CACHE: %r" % self._bundle.cache_location
+            # /Users/stewartb/Library/Caches/Shotgun/cut-support-2016/proj0/tk-rv-shotgunreview
+            path = shotgun_data.ShotgunDataRetriever.download_thumbnail(v_data['image'], self._bundle)
+            self._bundle.cache_location = ss
+        except Exception as e:
+            print "YIKES: %r" % e
+        # version_data['entity'] has our shot.
+        # drop this path into every item that has this version or shot
+        print "PATH: %r" % path
+        # lets roll thru the tray:
+        rows = self.tray_proxyModel.rowCount()
+        for index in range(0, rows):
+            item = self.tray_proxyModel.index(index, 0)
+            sg_item = shotgun_model.get_sg_data(item)
+            (version_data, edit_data) = self.data_from_version(sg_item)
+            if v_data['id'] == version_data['id']:
+                item.setData(path, self._PINNED_THUMBNAIL)
+            elif v_data['entity']['id'] == version_data['shot']['id']:
+                item.setData(path, self._PINNED_THUMBNAIL)
+ 
+        self.refresh_tray_thumbnails()
+
+        
+
     def replace_version_in_sequence(self, versions):
         #XXX go over this in mini-cut case, etc
         self._app.engine.log_info('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
@@ -1206,6 +1266,9 @@ class RvActivityMode(rvt.MinorMode):
             return
 
         version_data = versions[0]
+
+        self.update_pinned_thumbnail(version_data)    
+
         seq_group = rvc.viewNode()
 
         if rvc.nodeType(seq_group) != "RVSequenceGroup":

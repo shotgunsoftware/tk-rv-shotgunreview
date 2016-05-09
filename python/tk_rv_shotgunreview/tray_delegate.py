@@ -27,6 +27,13 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         # self._alpha_size = TrayWidget.calculate_size()
         self._pen = QtGui.QPen(QtCore.Qt.white, 1, QtCore.Qt.SolidLine)
 
+
+
+        self._ORIGINAL_THUMBNAIL = QtCore.Qt.UserRole + 1702
+        self._FILTER_THUMBNAIL = QtCore.Qt.UserRole + 1703
+        self._PINNED_THUMBNAIL = QtCore.Qt.UserRole + 1704
+
+
         # pinned icon
         try:
             f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "review_app_pinned.png")
@@ -182,6 +189,19 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         :param model_index:     The index in the data model that needs to be painted
         """
         sg_item = shotgun_model.get_sg_data(model_index)
+
+        original_tn = model_index.data(self._ORIGINAL_THUMBNAIL)
+        pinned_tn = model_index.data(self._PINNED_THUMBNAIL)
+        filter_tn = model_index.data(self._FILTER_THUMBNAIL)
+
+        if original_tn:
+            print "original: %r" % original_tn
+        if pinned_tn:
+            print "pinned: %r" % pinned_tn
+        if filter_tn:
+            print "filtered: %r" % filter_tn
+
+
         # rv_item = model_index.data(self._RV_DATA_ROLE)
         # if rv_item:
         #     print "RV ITEM IS HERE %r" % rv_item  
@@ -192,7 +212,6 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         #         item.setIcon(icon)
 
 
-        #     print "NO RV ITEM"
         # for performance reasons, we are not creating a widget every time
         # but merely moving the same widget around. 
         paint_widget = self._get_painter_widget(model_index, self.parent())

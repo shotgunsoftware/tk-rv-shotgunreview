@@ -3,6 +3,7 @@
 # import the shotgun_model module from the shotgun utils framework
 import tank
 from PySide import QtCore, QtGui
+import sgtk
 
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
 SimpleShotgunModel = shotgun_model.SimpleShotgunModel
@@ -23,8 +24,24 @@ class TrayModel(ShotgunModel):
                   bg_task_manager = bg_task_manager)
 
         self._parent = parent
+
+        # this holds alternate version data
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
+        
+        # this is actual pixmap data - XXX do we need it?
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
+
+        # these hold the URL of where you can get the thumbnail from
+        # which for us SHOULD come from the cache.
+        # the cache will translate the URL into a path on disk and we can
+        # build the icon from that.
+        # XXX - sb - is there any S3 timout worry here?
+        self._ORIGINAL_THUMBNAIL = QtCore.Qt.UserRole + 1702
+        self._FILTER_THUMBNAIL = QtCore.Qt.UserRole + 1703
+        self._PINNED_THUMBNAIL = QtCore.Qt.UserRole + 1704
+
+        print "TRAY MODEL BUNDLE: %r" % sgtk.platform.current_bundle()  
+
 
     def notify_filter_data_refreshed(self, modified=True):
         self.filter_data_refreshed.emit(modified)
@@ -41,14 +58,13 @@ class TrayModel(ShotgunModel):
             return QtCore.Qt.NoItemFlags
         return QtCore.Qt.ItemIsEnabled | QtCore.Qt.ItemIsSelectable
 
-    def swap_in_thumbnail(self, item, field, image, path):
+    def swap_in_thumbnail(self, item, field, image, path=None):
         """
         The params coming into this function are from ANOTHER MODEL!
         To do the actual swap out, we look at the SG data from the other
         model, find the matching shot in this model, and then set the
         thumbnail in this model with the other models data.
         """
-
 
         sgv = item.data(self.SG_DATA_ROLE)
         shot = sgv['entity']
@@ -67,6 +83,10 @@ class TrayModel(ShotgunModel):
                     else:
                         thumb = QtGui.QPixmap.fromImage(image)
                         t_item.setIcon(thumb)
+
+                    # None here means dont use it. empty string better?
+                    t_item.setData(path, self._FILTER_THUMBNAIL)
+
 
 
     def _set_tooltip(self, item, sg_item):
@@ -203,5 +223,6 @@ class TrayModel(ShotgunModel):
         """
         thumb = QtGui.QPixmap.fromImage(image)
         item.setData(thumb, self._CUT_THUMB_ROLE)
+        item.setData(path, self._ORIGINAL_THUMBNAIL)
         item.setIcon(thumb)
 
