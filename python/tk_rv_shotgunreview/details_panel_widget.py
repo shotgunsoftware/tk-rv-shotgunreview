@@ -244,10 +244,7 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         # We will be passing up our own signal when note and reply entities
         # are created.
-        self.ui.note_stream_widget.note_widget.entity_created.connect(
-            self._entity_created,
-        )
-        self.ui.note_stream_widget.reply_dialog.note_widget.entity_created.connect(
+        self.ui.note_stream_widget.entity_created.connect(
             self._entity_created,
         )
 
@@ -305,6 +302,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.pages.setCurrentWidget(self.ui.empty_page)
         self.version_model.clear()
         self._requested_entity = None
+        self.current_entity = None
 
     def load_data(self, entity):
         """
