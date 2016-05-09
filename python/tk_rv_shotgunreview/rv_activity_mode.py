@@ -953,9 +953,13 @@ class RvActivityMode(rvt.MinorMode):
             self.tray_list.repaint()
 
     def submit_note_attachments(self, attachments, note_entity):
-        '''
-        Send the created and collected annotation exports off for saving
-        '''
+        """
+        Send the created and collected annotation exports off for saving.
+
+        :param attachments: A list of file paths to attach.
+        :param note_entity: A Note entity in the form of a dictionary as returned
+                            by the Shotgun Python API.
+        """
         self.details_panel.add_note_attachments(attachments, note_entity)
 
     def load_data(self, entity):
