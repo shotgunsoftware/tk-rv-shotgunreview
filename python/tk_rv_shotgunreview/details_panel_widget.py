@@ -206,6 +206,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self.ui.entity_version_view.setItemDelegate(self.version_delegate)
         self.ui.note_stream_widget.set_bg_task_manager(self._task_manager)
         self.ui.note_stream_widget.show_sg_stream_button = False
+        self.ui.note_stream_widget.version_items_playable = False
         self.shot_info_model = shotgun_model.SimpleShotgunModel(
             self.ui.note_stream_widget,
             bg_task_manager=self._task_manager,
