@@ -1405,7 +1405,6 @@ class RvActivityMode(rvt.MinorMode):
         # grab whats pinned now
         self.tray_model.set_pinned_items(self.pinned_from_sequence())
 
-
         self.incoming_pinned         = {}
         self.incoming_mini_cut_focus = None
         self.cached_mini_cut_data    = MiniCutData(False)
@@ -2009,7 +2008,6 @@ class RvActivityMode(rvt.MinorMode):
         This method is called by the tray model after its load_data is complete.
         """
         self.main_query_active = False
-
 
         if not self.compare_active:
             self.on_data_refreshed_internal(was_refreshed, incremental_update=False)

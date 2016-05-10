@@ -163,7 +163,7 @@ class TrayModel(ShotgunModel):
                     if 'version.Version.entity' in sg and sg['version.Version.entity']:
                         if shot_id == sg['version.Version.entity']['id']:
                             print "WARNING: shot is None, version has matching entity but not using it."
-            
+        
 
     def notify_filter_data_refreshed(self, modified=True):
         self.filter_data_refreshed.emit(modified)
