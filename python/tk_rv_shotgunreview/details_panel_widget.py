@@ -588,7 +588,18 @@ class DetailsPanelWidget(QtGui.QWidget):
         """
         selection_model = self.ui.entity_version_view.selectionModel()
         indexes = selection_model.selectedIndexes()
-        return [shotgun_model.get_sg_data(i) for i in indexes]
+        entities = []
+
+        for i in indexes:
+            entity = shotgun_model.get_sg_data(i)
+            try:
+                image_file = self.version_delegate.widget_cache[i].thumbnail.image_file_path
+            except Exception:
+                image_file = ""
+            entity["__image_path"] = image_file
+            entities.append(entity)
+
+        return entities
 
     def _set_version_list_filter(self, filter_text):
         """
