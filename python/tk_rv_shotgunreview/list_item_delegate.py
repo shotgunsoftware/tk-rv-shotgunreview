@@ -50,6 +50,13 @@ class ListItemDelegate(shotgun_view.EditSelectedWidgetDelegate):
         self._shotgun_field_manager = shotgun_field_manager
         self._current_editor = None
 
+    @property
+    def widget_cache(self):
+        """
+        A dictionary containing all painter widgets, keyed by model index.
+        """
+        return self._widget_cache
+
     def add_field(self, field):
         """
         Adds the given field to the list of fields to display for the entity.
