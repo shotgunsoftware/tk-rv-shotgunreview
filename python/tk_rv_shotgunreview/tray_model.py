@@ -3,7 +3,11 @@
 # import the shotgun_model module from the shotgun utils framework
 import tank
 from PySide import QtCore, QtGui
-import sgtk
+# import sgtk
+
+import pprint
+pp = pprint.PrettyPrinter(indent=4)
+
 
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
 SimpleShotgunModel = shotgun_model.SimpleShotgunModel
@@ -40,8 +44,75 @@ class TrayModel(ShotgunModel):
         self._FILTER_THUMBNAIL = QtCore.Qt.UserRole + 1703
         self._PINNED_THUMBNAIL = QtCore.Qt.UserRole + 1704
 
-        print "TRAY MODEL BUNDLE: %r" % sgtk.platform.current_bundle()  
+        self._pinned_items = {}
 
+    def clear_pinned_items(self):
+        self._pinned_items = {}        
+
+    def update_pinned_items(self, pinned_list):
+        print "update_pinned_items"
+
+        if not pinned_list:
+            print "CLEARING TRAY PINNED LIST"
+            self.clear_pinned_items()
+            return
+
+        for shot_key in self._pinned_items:
+            if shot_key not in pinned_list:
+                self._pinned_items[shot_key] = None
+
+        for shot_key in pinned_list:
+            if shot_key not in self._pinned_items:
+                print "WARNING!!! NO PATH FOR Shot %r THUMBNAIL IN TRAY _pinned_items." % shot_key
+            else:
+                path = self._pinned_items[shot_key]
+                if path:
+                    rows = self.rowCount()
+                    for x in range(0, rows):
+                        index = self.index(x, 0)
+                        sg = shotgun_model.get_sg_data(index)
+                        if sg['type'] == "CutItem":
+                            if 'version.Version.entity' in sg and sg['version.Version.entity']:
+                                if sg['version.Version.entity']['id'] == int(shot_key):
+                                    self.setData(index, path, self._PINNED_THUMBNAIL)
+                        else:
+                            print "ITS NOT A CUT - WHAT DO WE WANT TO DO?"
+                            pp.pprint(sg)
+
+
+    def add_pinned_item(self, version_data):
+        print "add_pinned_item: %r" % version_data.keys()
+
+        # we expect a RV style version data dict, which
+        # should also contain __image_path for us
+        # to push into _PINNED_THUMBNAIL
+        #
+        # maybe we dont need an image path as in this
+        # case we want ORIGINAL path to be copied into
+        # this dict
+        if not version_data:
+            return
+
+        shot_id = int(version_data.keys()[0])
+ 
+        rows = self.rowCount()
+        for x in range(0, rows):
+            index = self.index(x, 0)
+            sg = shotgun_model.get_sg_data(index)
+            orig_path = index.data(self._ORIGINAL_THUMBNAIL)
+            image_dict = {}
+
+            if sg['type'] == "Version":
+                if shot_id == sg['entity']['id']:
+                    path = index.data(self._ORIGINAL_THUMBNAIL)
+                    self._pinned_items[str(shot_id)] = path
+
+            if sg['type'] == "CutItem":
+                if shot_id == sg['shot']['id']:
+                    path = index.data(self._ORIGINAL_THUMBNAIL)
+                    self._pinned_items[str(shot_id)] = path
+
+            
 
     def notify_filter_data_refreshed(self, modified=True):
         self.filter_data_refreshed.emit(modified)

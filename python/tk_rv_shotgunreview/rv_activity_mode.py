@@ -255,32 +255,32 @@ class RvActivityMode(rvt.MinorMode):
         finally:
             event.reject()
 
-    def swap_in_thumbnail_from_versions_list(self):
-        """
-        swaps in the thumbnail currently selected in the versions list
-        into the item currently selected in the tray.
-        """
-        # figure out which things were selected in the version list, so we can swap in a thumbnail
-        sm = self.details_panel.version_delegate.view.selectionModel()
-        sels = sm.selectedIndexes()
-        pixmap = None
+    # def swap_in_thumbnail_from_versions_list(self):
+    #     """
+    #     swaps in the thumbnail currently selected in the versions list
+    #     into the item currently selected in the tray.
 
-        for s in sels:
+    #     XXX - sb - we're not using this but if we have to go pixmap here's how.
+    #     """
+    #     # figure out which things were selected in the version list, so we can swap in a thumbnail
+    #     sm = self.details_panel.version_delegate.view.selectionModel()
+    #     sels = sm.selectedIndexes()
+    #     pixmap = None
 
-
-            pixmap = QtGui.QIcon(s.data(QtCore.Qt.DecorationRole))
+    #     for s in sels:
+    #         pixmap = QtGui.QIcon(s.data(QtCore.Qt.DecorationRole))
   
-        if not pixmap:
-            # XXX - sb - what to do?
-            return
-        # now get the current selection in the tray 
-        tray_sm = self.tray_list.selectionModel()
-        tray_sels = tray_sm.selectedIndexes()
+    #     if not pixmap:
+    #         # XXX - sb - what to do?
+    #         return
+    #     # now get the current selection in the tray 
+    #     tray_sm = self.tray_list.selectionModel()
+    #     tray_sels = tray_sm.selectedIndexes()
         
-        for t in tray_sels:
-            self.tray_proxyModel.setData(t, pixmap, QtCore.Qt.DecorationRole)
+    #     for t in tray_sels:
+    #         self.tray_proxyModel.setData(t, pixmap, QtCore.Qt.DecorationRole)
 
-        self.tray_list.repaint()
+    #     self.tray_list.repaint()
 
     def swapIntoSequence(self, event):
         # self.swap_in_thumbnail_from_versions_list()
@@ -1381,6 +1381,9 @@ class RvActivityMode(rvt.MinorMode):
         return self.version_data_from_source(source_group)
 
     def load_tray_with_something_new(self, target_entity, preserve_pinned=False, preserve_mini=False, incoming_pinned={}, incoming_mini_focus=None):
+        # ok, this is the place we want to save the original thumbnail of the incoming pinned.
+        # we also care asbout what was already pinned - where is that?
+        self.tray_model.add_pinned_item(incoming_pinned)
 
         # notify user we're loading ...
         type_string = target_entity["type"]
@@ -1976,7 +1979,11 @@ class RvActivityMode(rvt.MinorMode):
     # signal from model so incremental_update is False (we need to run follow-on
     # query, if any)
     def on_data_refreshed(self, was_refreshed):
+        """
+        This method is called by the tray model after its load_data is complete.
+        """
         self.main_query_active = False
+
         if not self.compare_active:
             self.on_data_refreshed_internal(was_refreshed, incremental_update=False)
         else:
@@ -1993,6 +2000,9 @@ class RvActivityMode(rvt.MinorMode):
             self.load_version_id_from_session()
             if self._prefs.auto_play:
                 rvc.play()
+
+        # trying it here for now
+        self.tray_model.update_pinned_items(self.pinned_from_sequence())
 
         self.compare_active = False
         
