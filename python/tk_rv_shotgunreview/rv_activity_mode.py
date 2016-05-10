@@ -806,6 +806,7 @@ class RvActivityMode(rvt.MinorMode):
 
         if m_type and m_type != current_media_type: 
             path = version_data[standard_media_types[m_type].path_field]
+            path = self.swap_in_home_dir(path)
             file_source = groupMemberOfType(source_group, "RVFileSource")
             rvc.setSourceMedia(file_source, [path], "shotgun")
             self.set_media_type_property(source_group, m_type)
@@ -1405,6 +1406,10 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_model.set_pinned_items(self.pinned_from_sequence())
 
 
+        self.incoming_pinned         = {}
+        self.incoming_mini_cut_focus = None
+        self.cached_mini_cut_data    = MiniCutData(False)
+
         # notify user we're loading ...
         type_string = target_entity["type"]
         if "ids" in target_entity and len(target_entity["ids"]) > 1:
@@ -1755,6 +1760,7 @@ class RvActivityMode(rvt.MinorMode):
         m_type = self.media_type_fallback(version_data, media_type)
         if m_type: 
             path = version_data[standard_media_types[m_type].path_field]
+            path = self.swap_in_home_dir(path)
 
         if not path:
             self._app.engine.log_error("Version '%s' has no local media" % version_data["code"])
