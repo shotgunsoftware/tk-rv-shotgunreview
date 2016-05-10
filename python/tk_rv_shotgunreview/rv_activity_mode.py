@@ -1216,41 +1216,35 @@ class RvActivityMode(rvt.MinorMode):
 
             thumb = None
             if pinned:
-                thumb = QtGui.QPixmap.fromImage(pinned)
+                thumb = QtGui.QIcon(pinned)
             if not pinned and filtered:
-                thumb = QtGui.QPixmap.fromImage(filtered)
+                thumb = QtGui.QIcon(filtered)
             if not pinned and not filtered:
-                thumb = QtGui.QPixmap.fromImage(orig)
+                thumb = QtGui.QIcon(orig)
             if thumb:
-                item.setIcon(thumb)
+                self.tray_proxyModel.setData(item, thumb, QtCore.Qt.DecorationRole)
 
         self.tray_list.repaint()
 
 
-
     def update_pinned_thumbnail(self, v_data):
-        # version_data['image'] holds the URL thumbnail for the pinned icon
-        # we like paths so:
-        try:
-            # print "CACHE: %r" % self._bundle.cache_location
-            # /Users/stewartb/Library/Caches/Shotgun/cut-support-2016/proj0/tk-rv-shotgunreview
-            path = shotgun_data.ShotgunDataRetriever.download_thumbnail(v_data['image'], self._bundle)
-            self._bundle.cache_location = ss
-        except Exception as e:
-            print "YIKES: %r" % e
+        # version_data['__image_path'] holds the local cache path thumbnail for the pinned icon
         # version_data['entity'] has our shot.
         # drop this path into every item that has this version or shot
-        print "PATH: %r" % path
-        # lets roll thru the tray:
+        if '__image_path' not in v_data:
+            self._app.engine.log_warning('no image path passed into update_pinned_thumbnail.')
+            return
+
+        path = v_data['__image_path']
         rows = self.tray_proxyModel.rowCount()
         for index in range(0, rows):
             item = self.tray_proxyModel.index(index, 0)
             sg_item = shotgun_model.get_sg_data(item)
             (version_data, edit_data) = self.data_from_version(sg_item)
             if v_data['id'] == version_data['id']:
-                item.setData(path, self._PINNED_THUMBNAIL)
+                self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
             elif v_data['entity']['id'] == version_data['shot']['id']:
-                item.setData(path, self._PINNED_THUMBNAIL)
+                self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
  
         self.refresh_tray_thumbnails()
 

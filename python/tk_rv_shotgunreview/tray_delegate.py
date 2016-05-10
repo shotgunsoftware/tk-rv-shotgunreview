@@ -109,9 +109,21 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         Returns the widget to be used when creating items
         """
         w = TrayWidget(parent)
-        # w.clicked.connect(self._handle_clicked)
-
         return w
+
+    def choose_thumbnail(self, model_index):
+        original_tn = model_index.data(self._ORIGINAL_THUMBNAIL)
+        pinned_tn = model_index.data(self._PINNED_THUMBNAIL)
+        filter_tn = model_index.data(self._FILTER_THUMBNAIL)
+
+        if pinned_tn:
+            return QtGui.QIcon(pinned_tn)
+        if filter_tn:
+            return QtGui.QIcon(filter_tn)
+        if original_tn:
+            return QtGui.QIcon(original_tn)
+
+        return None
 
     def _on_before_paint(self, widget, model_index, style_options, selected=False):
         """
@@ -119,9 +131,10 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         """   
         # get the shotgun query data for this model item     
         sg_item = shotgun_model.get_sg_data(model_index)   
-        #rv_item = model_index.data(self._RV_DATA_ROLE)
 
-        icon = model_index.data(QtCore.Qt.DecorationRole)
+        icon = self.choose_thumbnail(model_index)
+        if not icon:
+            icon = model_index.data(QtCore.Qt.DecorationRole)
         if icon:
             thumb = icon.pixmap(widget.sizeHint())
             widget.set_thumbnail(thumb)
@@ -193,14 +206,6 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         original_tn = model_index.data(self._ORIGINAL_THUMBNAIL)
         pinned_tn = model_index.data(self._PINNED_THUMBNAIL)
         filter_tn = model_index.data(self._FILTER_THUMBNAIL)
-
-        if original_tn:
-            print "original: %r" % original_tn
-        if pinned_tn:
-            print "pinned: %r" % pinned_tn
-        if filter_tn:
-            print "filtered: %r" % filter_tn
-
 
         # rv_item = model_index.data(self._RV_DATA_ROLE)
         # if rv_item:
