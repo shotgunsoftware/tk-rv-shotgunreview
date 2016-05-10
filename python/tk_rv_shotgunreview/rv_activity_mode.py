@@ -1119,6 +1119,14 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_dock.setVisible(self._prefs.startup_view_tray)
         self.note_dock.setVisible(self._prefs.startup_view_details)
 
+        # setting to NoContextMenu DOESNT WORK!!!
+        # so add a no-op
+        self.tray_dock.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        self.tray_dock.customContextMenuRequested.connect( self.dont_show_tray_context_menu)
+ 
+    def dont_show_tray_context_menu(self):
+        pass
+
     def on_filter_refreshed(self, really_changed):
         self._app.engine.log_debug("on_filter_refreshed: really_changed is %r" % really_changed)
         if really_changed:
