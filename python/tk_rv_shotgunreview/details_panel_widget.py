@@ -21,6 +21,7 @@ from .list_item_delegate import ListItemDelegate
 from .version_context_menu import VersionContextMenu
 from .qtwidgets import ShotgunFieldManager
 from .version_sort_filter import VersionSortFilterProxyModel
+from .simple_tooltip_model import SimpleTooltipModel
 
 shotgun_view = sgtk.platform.import_framework(
     "tk-framework-qtwidgets",
@@ -180,7 +181,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         # Our sort-by list will include "id" at the head.
         self._version_list_sort_by_fields = ["id"] + self._version_list_persistent_fields
 
-        self.version_model = shotgun_model.SimpleShotgunModel(
+        self.version_model = SimpleTooltipModel(
             self.ui.entity_version_tab,
             bg_task_manager=self._task_manager,
         )
