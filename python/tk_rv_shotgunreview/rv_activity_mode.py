@@ -290,10 +290,11 @@ class RvActivityMode(rvt.MinorMode):
             v = json.loads(s)
         except Exception as e:
             print "ERROR: swapIntoSequence JSON %r" % e
+
         try:
             self.replace_version_in_sequence(v)
         except Exception as e:
-            print "ERROR: swapIntoSequence %r" % e
+            print "ERROR: swapIntoSequence %r, %r" % (e, v)
         finally:
             event.reject()
 
@@ -1230,7 +1231,7 @@ class RvActivityMode(rvt.MinorMode):
     def update_pinned_thumbnail(self, v_data):
         # version_data['__image_path'] holds the local cache path thumbnail for the pinned icon
         # version_data['entity'] has our shot.
-        # drop this path into every item that has this version or shot
+        # drop this path into every item that has this shot
         if '__image_path' not in v_data:
             self._app.engine.log_warning('no image path passed into update_pinned_thumbnail.')
             return
@@ -1241,11 +1242,13 @@ class RvActivityMode(rvt.MinorMode):
             item = self.tray_proxyModel.index(index, 0)
             sg_item = shotgun_model.get_sg_data(item)
             (version_data, edit_data) = self.data_from_version(sg_item)
-            if v_data['id'] == version_data['id']:
-                self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
+            # sometimes the shot comes back as None XXX - sb
+            if version_data['shot'] == None:
+                if version_data['version.Version.entity']['id'] == v_data['entity']['id']:
+                    self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
             elif v_data['entity']['id'] == version_data['shot']['id']:
                 self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
- 
+             
         self.refresh_tray_thumbnails()
 
         
@@ -1260,7 +1263,6 @@ class RvActivityMode(rvt.MinorMode):
             return
 
         version_data = versions[0]
-
         self.update_pinned_thumbnail(version_data)    
 
         seq_group = rvc.viewNode()
@@ -1384,6 +1386,10 @@ class RvActivityMode(rvt.MinorMode):
         # ok, this is the place we want to save the original thumbnail of the incoming pinned.
         # we also care asbout what was already pinned - where is that?
         self.tray_model.add_pinned_item(incoming_pinned)
+
+        # grab whats pinned now
+        self.tray_model.set_pinned_items(self.pinned_from_sequence())
+
 
         # notify user we're loading ...
         type_string = target_entity["type"]
@@ -1984,6 +1990,7 @@ class RvActivityMode(rvt.MinorMode):
         """
         self.main_query_active = False
 
+
         if not self.compare_active:
             self.on_data_refreshed_internal(was_refreshed, incremental_update=False)
         else:
@@ -2001,8 +2008,9 @@ class RvActivityMode(rvt.MinorMode):
             if self._prefs.auto_play:
                 rvc.play()
 
-        # trying it here for now
+        # update pinned list with pinned thumbs we saved from the last load
         self.tray_model.update_pinned_items(self.pinned_from_sequence())
+        self.tray_list.repaint()
 
         self.compare_active = False
         

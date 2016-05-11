@@ -42,7 +42,6 @@ class TrayWidget(QtGui.QWidget):
         """
         Adds a list of QActions to add to the actions menu for this widget.
         """
-        # print "TRAY WIDGET set_actions"
         pass
                                     
     def set_selected(self, selected, in_mini_cut=False):
@@ -73,17 +72,7 @@ class TrayWidget(QtGui.QWidget):
         pass
 
     def sizeHint(self):
-        #  = QtCore.QSize(self.ui.thumbnail.width() * 2, self.ui.thumbnail.height()*2)
-        # return s
-        # return QtCore.QSize(96, 54)
-        #self.parent.resize(self.parent.width(), 74)
         return self.ui.thumbnail.size()
 
-    # @staticmethod
-    # def calculate_size():
-    #     """
-    #     Calculates and returns a suitable size for this widget.
-    #     """ 
-    #     #return self.ui.thumbnail.size()       
-    #     return QtCore.QSize(114, 64)
+
 
