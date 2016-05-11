@@ -128,7 +128,7 @@ class TrayModel(ShotgunModel):
 
             image_dict = {}
 
-            if sg['type'] == "Version" and 'entity' in sg:
+            if sg['type'] == "Version" and 'entity' in sg and sg['entity']:
                 if shot_id == sg['entity']['id']:
                     self._pinned_items[str(shot_id)] = path
 
@@ -139,8 +139,9 @@ class TrayModel(ShotgunModel):
                 else:
                     if 'version.Version.entity' in sg:
                         if shot_id == sg['version.Version.entity']['id']:
-                            path = index.data(self._ORIGINAL_THUMBNAIL)
-                            self._pinned_items[str(shot_id)] = path
+                            print "WARNING: shot is None, version has entity but not using it."
+                            # path = index.data(self._ORIGINAL_THUMBNAIL)
+                            # self._pinned_items[str(shot_id)] = path
             
 
     def notify_filter_data_refreshed(self, modified=True):
