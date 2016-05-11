@@ -17,7 +17,7 @@ class TrayModel(ShotgunModel):
     # signal which gets emitted whenever the model has been updated with fresh FILTERED data.
     filter_data_refreshed = QtCore.Signal(bool)
 
-    def __init__(self, parent, bg_task_manager=None):
+    def __init__(self, parent, bg_task_manager=None, engine=None):
 
         ShotgunModel.__init__(self, 
                   parent = parent,
@@ -27,6 +27,7 @@ class TrayModel(ShotgunModel):
                   bg_task_manager = bg_task_manager)
 
         self._parent = parent
+        self._engine = engine
 
         # this holds alternate version data
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
@@ -49,13 +50,14 @@ class TrayModel(ShotgunModel):
         self._pinned_items = {}        
 
     def update_pinned_items(self, pinned_list):
+        loop_dict = pinned_list
 
         if not pinned_list:
-            return
+            loop_dict = self._pinned_items
 
-        for shot_key in pinned_list:
+        for shot_key in loop_dict:
             if shot_key not in self._pinned_items:
-                print "WARNING!!! NO PATH FOR Shot %r THUMBNAIL IN TRAY _pinned_items." % shot_key
+                self._engine.log_warning( "WARNING!!! NO PATH FOR Shot %r THUMBNAIL IN TRAY _pinned_items." % shot_key )
             else:
                 path = self._pinned_items[shot_key]
                 if path:
@@ -64,37 +66,59 @@ class TrayModel(ShotgunModel):
                         index = self.index(x, 0)
                         sg = shotgun_model.get_sg_data(index)
                         if sg['type'] == "CutItem":
-                            if 'version.Version.entity' in sg and sg['version.Version.entity']:
-                                if sg['version.Version.entity']['id'] == int(shot_key):
+                            if 'shot' in sg and sg['shot']:
+                                if sg['shot']['id'] == int(shot_key):
+                                    self.setData(index, path, self._PINNED_THUMBNAIL)
+                        elif sg['type'] == "Version":
+                            if 'entity' in sg and sg['entity']:
+                                if sg['entity']['id'] == int(shot_key):
                                     self.setData(index, path, self._PINNED_THUMBNAIL)
                         else:
-                            print "ITS NOT A CUT - WHAT DO WE WANT TO DO?"
-                            pp.pprint(sg)
+                            self._engine.log_warning( "type %r not currently handled in update_pinned_items." % sg['type'] )
+
+        # i think after running update it is safe to clear out the pinned items
+        self.clear_pinned_items()
 
 
     def set_pinned_items(self, pinned_list):
-        if not pinned_list:
-            return
  
-        for shot_key in pinned_list.keys():
+        loop_dict = pinned_list
+        if not pinned_list:
+            loop_dict = self._pinned_items
+ 
+        for shot_key in loop_dict.keys():
             rows = self.rowCount()
             for x in range(0, rows):
                 index = self.index(x, 0)
                 sg = shotgun_model.get_sg_data(index)
-                if sg['type'] == "CutItem":
-                    if 'version.Version.entity' in sg and sg['version.Version.entity']:
-                        if sg['version.Version.entity']['id'] == int(shot_key):
-                            
-                            if shot_key in self._pinned_items and self._pinned_items[shot_key]:
-                                self.setData(index, self._pinned_items[shot_key], self._PINNED_THUMBNAIL)
+                try:
+                    if sg['type'] == "CutItem":
+                        if 'shot' in sg and sg['shot']:
+                            if sg['shot']['id'] == int(shot_key):
+                                if shot_key in self._pinned_items and self._pinned_items[shot_key]:
+                                    self.setData(index, self._pinned_items[shot_key], self._PINNED_THUMBNAIL)
 
-                            path = index.data(self._PINNED_THUMBNAIL)
-                            if not path:
-                                path = index.data(self._ORIGINAL_THUMBNAIL)
-                            self._pinned_items[shot_key] = path
-                else:
-                    print "ITS NOT A CUT - WHAT DO WE WANT TO DO?"
-                    pp.pprint(sg)
+                                path = index.data(self._PINNED_THUMBNAIL)
+                                if not path:
+                                    path = index.data(self._ORIGINAL_THUMBNAIL)
+                                self._pinned_items[shot_key] = path
+                        else:
+                            self._engine.log_warning('CutItem %d has no shot. Ignoring.' % sg['id'])
+                    elif sg['type'] == "Version":
+                        if 'entity' in sg and sg['entity']:
+                            if sg['entity']['id'] == int(shot_key) and sg['entity']['type'] == "Shot":
+                                if shot_key in self._pinned_items and self._pinned_items[shot_key]:
+                                    self.setData(index, self._pinned_items[shot_key], self._PINNED_THUMBNAIL)
+                                else:
+                                    path = index.data(self._PINNED_THUMBNAIL)
+                                    if not path:
+                                        path = index.data(self._ORIGINAL_THUMBNAIL)
+                                    self._pinned_items[shot_key] = path
+
+                    else:
+                        self._engine.log_warning( "type %r not currently handled in add_pinned_item." % sg['type'] )
+                except Exception as e:
+                    self._engine.log_error( "set_pinned_items: %r" % e)
 
 
     def add_pinned_item(self, version_data):
@@ -115,33 +139,30 @@ class TrayModel(ShotgunModel):
         for x in range(0, rows):
             index = self.index(x, 0)
             sg = shotgun_model.get_sg_data(index)
+ 
             orig_path = index.data(self._ORIGINAL_THUMBNAIL)
             pinned_path = index.data(self._PINNED_THUMBNAIL)
             filtered_path = index.data(self._FILTER_THUMBNAIL)
             path = orig_path
-
             if pinned_path:
                 path = pinned_path
             if filtered_path and not pinned_path:
                 path = filtered_path
-            
-
+ 
             image_dict = {}
 
             if sg['type'] == "Version" and 'entity' in sg and sg['entity']:
                 if shot_id == sg['entity']['id']:
                     self._pinned_items[str(shot_id)] = path
-
+ 
             if sg['type'] == "CutItem":
                 if 'shot' in sg and sg['shot']:
                     if shot_id == sg['shot']['id']:
                         self._pinned_items[str(shot_id)] = path
                 else:
-                    if 'version.Version.entity' in sg:
+                    if 'version.Version.entity' in sg and sg['version.Version.entity']:
                         if shot_id == sg['version.Version.entity']['id']:
-                            print "WARNING: shot is None, version has entity but not using it."
-                            # path = index.data(self._ORIGINAL_THUMBNAIL)
-                            # self._pinned_items[str(shot_id)] = path
+                            print "WARNING: shot is None, version has matching entity but not using it."
             
 
     def notify_filter_data_refreshed(self, modified=True):

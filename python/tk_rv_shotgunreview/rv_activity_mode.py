@@ -1240,14 +1240,16 @@ class RvActivityMode(rvt.MinorMode):
         rows = self.tray_proxyModel.rowCount()
         for index in range(0, rows):
             item = self.tray_proxyModel.index(index, 0)
-            sg_item = shotgun_model.get_sg_data(item)
-            (version_data, edit_data) = self.data_from_version(sg_item)
+            sg = shotgun_model.get_sg_data(item)
+            # pp.pprint(sg)
+            # (version_data, edit_data) = self.data_from_version(sg_item)
             # sometimes the shot comes back as None XXX - sb
-            if version_data['shot'] == None:
-                if version_data['version.Version.entity']['id'] == v_data['entity']['id']:
+            if 'shot' in sg and sg['shot']:
+                if sg['shot']['id'] == v_data['entity']['id']:
                     self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
-            elif v_data['entity']['id'] == version_data['shot']['id']:
-                self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
+
+            # elif v_data['entity']['id'] == sg['shot']['id']:
+            #     self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
              
         self.refresh_tray_thumbnails()
 
@@ -1263,7 +1265,11 @@ class RvActivityMode(rvt.MinorMode):
             return
 
         version_data = versions[0]
-        self.update_pinned_thumbnail(version_data)    
+
+        try:
+            self.update_pinned_thumbnail(version_data)    
+        except Exception as e:
+            self._app.engine.log_error("update_pinned_thumbnail: %r" % e)
 
         seq_group = rvc.viewNode()
 

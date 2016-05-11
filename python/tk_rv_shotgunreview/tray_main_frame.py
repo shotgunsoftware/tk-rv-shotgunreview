@@ -234,7 +234,7 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_frame_vlayout.addWidget(self.tray_list)
         
         from .tray_model import TrayModel
-        self.tray_model = TrayModel(self.tray_list, bg_task_manager=self._task_manager)
+        self.tray_model = TrayModel(self.tray_list, bg_task_manager=self._task_manager, engine=self._rv_mode._app.engine )
 
         from .tray_sort_filter import TraySortFilter
         self.tray_proxyModel =  TraySortFilter(self.tray_list)
