@@ -1400,7 +1400,6 @@ class RvActivityMode(rvt.MinorMode):
     def load_tray_with_something_new(self, target_entity, preserve_pinned=False, preserve_mini=False, incoming_pinned={}, incoming_mini_focus=None):
         # ok, this is the place we want to save the original thumbnail of the incoming pinned.
         # we also care asbout what was already pinned - where is that?
-        self.tray_model.add_pinned_item(incoming_pinned)
 
         # grab whats pinned now
         self.tray_model.set_pinned_items(self.pinned_from_sequence())
@@ -1408,6 +1407,10 @@ class RvActivityMode(rvt.MinorMode):
         self.incoming_pinned         = {}
         self.incoming_mini_cut_focus = None
         self.cached_mini_cut_data    = MiniCutData(False)
+
+        # grab whats pinned now
+        self.tray_model.add_pinned_item(incoming_pinned)
+        self.tray_model.set_pinned_items(self.pinned_from_sequence())
 
         # notify user we're loading ...
         type_string = target_entity["type"]
@@ -2008,6 +2011,7 @@ class RvActivityMode(rvt.MinorMode):
         This method is called by the tray model after its load_data is complete.
         """
         self.main_query_active = False
+
 
         if not self.compare_active:
             self.on_data_refreshed_internal(was_refreshed, incremental_update=False)

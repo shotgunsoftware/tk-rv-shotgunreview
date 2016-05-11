@@ -121,6 +121,31 @@ class TrayModel(ShotgunModel):
                     self._engine.log_error( "set_pinned_items: %r" % e)
 
 
+    def set_pinned_items(self, pinned_list):
+        if not pinned_list:
+            return
+ 
+        for shot_key in pinned_list.keys():
+            rows = self.rowCount()
+            for x in range(0, rows):
+                index = self.index(x, 0)
+                sg = shotgun_model.get_sg_data(index)
+                if sg['type'] == "CutItem":
+                    if 'version.Version.entity' in sg and sg['version.Version.entity']:
+                        if sg['version.Version.entity']['id'] == int(shot_key):
+                            
+                            if shot_key in self._pinned_items and self._pinned_items[shot_key]:
+                                self.setData(index, self._pinned_items[shot_key], self._PINNED_THUMBNAIL)
+
+                            path = index.data(self._PINNED_THUMBNAIL)
+                            if not path:
+                                path = index.data(self._ORIGINAL_THUMBNAIL)
+                            self._pinned_items[shot_key] = path
+                else:
+                    print "ITS NOT A CUT - WHAT DO WE WANT TO DO?"
+                    pp.pprint(sg)
+
+
     def add_pinned_item(self, version_data):
 
         # we expect a RV style version data dict, which
