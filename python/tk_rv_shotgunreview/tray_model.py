@@ -126,12 +126,16 @@ class TrayModel(ShotgunModel):
                     self._pinned_items[str(shot_id)] = path
 
             if sg['type'] == "CutItem":
-                if shot_id == sg['shot']['id']:
-                    path = index.data(self._PINNED_THUMBNAIL)
-                    if not path:
-                        path = index.data(self._ORIGINAL_THUMBNAIL)
-                    self._pinned_items[str(shot_id)] = path
-
+                if shot in sg and sg['shot']:
+                    if shot_id == sg['shot']['id']:
+                        path = index.data(self._PINNED_THUMBNAIL)
+                        if not path:
+                            path = index.data(self._ORIGINAL_THUMBNAIL)
+                        self._pinned_items[str(shot_id)] = path
+                else:
+                    if 'version.Version.entity' in sg:
+                        if shot_id == sg['version.Version.entity']['id']:
+                            path = index.data(self._ORIGINAL_THUMBNAIL)
             
 
     def notify_filter_data_refreshed(self, modified=True):
