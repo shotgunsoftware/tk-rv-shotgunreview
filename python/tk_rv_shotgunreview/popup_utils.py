@@ -65,35 +65,18 @@ class PopupUtils(QtCore.QObject):
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
 
-
         # models
 
-        self._steps_task_manager = task_manager.BackgroundTaskManager(parent=None,
-                                                                    start_processing=True,
-                                                                    max_threads=2)
+        self._steps_task_manager = self._rv_mode._app.engine.bg_task_manager
 
         self._steps_model = FilterStepsModel(None, self._steps_task_manager)
 
         self._steps_proxyModel =  StepsSortFilter(None)
         self._steps_proxyModel.setSourceModel(self._steps_model)
 
-
-        # self._rel_cuts_task_manager = task_manager.BackgroundTaskManager(parent=None,
-        #                                                             start_processing=True,
-        #                                                             max_threads=2)
-
         self._rel_cuts_model = RelCutsModel(None, self._steps_task_manager)
 
-        # self._rel_shots_task_manager = task_manager.BackgroundTaskManager(parent=None,
-        #                                                             start_processing=True,
-        #                                                             max_threads=2)
-
         self._rel_shots_model = RelShotsModel(None, self._steps_task_manager)
-
-        
-        # self._filtered_versions_task_manager = task_manager.BackgroundTaskManager(parent=None,
-        #                                                             start_processing=True,
-        #                                                             max_threads=2)
 
         self._filtered_versions_model = FilteredVersionsModel(None, self._steps_task_manager, self._tray_frame.tray_model)
 
