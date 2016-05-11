@@ -116,26 +116,31 @@ class TrayModel(ShotgunModel):
             index = self.index(x, 0)
             sg = shotgun_model.get_sg_data(index)
             orig_path = index.data(self._ORIGINAL_THUMBNAIL)
+            pinned_path = index.data(self._PINNED_THUMBNAIL)
+            filtered_path = index.data(self._FILTER_THUMBNAIL)
+            path = orig_path
+
+            if pinned_path:
+                path = pinned_path
+            if filtered_path and not pinned_path:
+                path = filtered_path
+            
+
             image_dict = {}
 
-            if sg['type'] == "Version":
+            if sg['type'] == "Version" and 'entity' in sg:
                 if shot_id == sg['entity']['id']:
-                    path = index.data(self._PINNED_THUMBNAIL)
-                    if not path:
-                        path = index.data(self._ORIGINAL_THUMBNAIL)
                     self._pinned_items[str(shot_id)] = path
 
             if sg['type'] == "CutItem":
-                if shot in sg and sg['shot']:
+                if 'shot' in sg and sg['shot']:
                     if shot_id == sg['shot']['id']:
-                        path = index.data(self._PINNED_THUMBNAIL)
-                        if not path:
-                            path = index.data(self._ORIGINAL_THUMBNAIL)
                         self._pinned_items[str(shot_id)] = path
                 else:
                     if 'version.Version.entity' in sg:
                         if shot_id == sg['version.Version.entity']['id']:
                             path = index.data(self._ORIGINAL_THUMBNAIL)
+                            self._pinned_items[str(shot_id)] = path
             
 
     def notify_filter_data_refreshed(self, modified=True):

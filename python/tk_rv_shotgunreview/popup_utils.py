@@ -600,7 +600,6 @@ class PopupUtils(QtCore.QObject):
             e = event.data()
             if e['cached_display_name'] == 'Latest in Pipeline':
                 want_latest = True
-                print "want latest %r" % event.isChecked()
                 if not event.isChecked():
                     want_latest = False
         
