@@ -2290,8 +2290,8 @@ class RvActivityMode(rvt.MinorMode):
             # we want this to happen now, so that the menu will be ready
             # self._popup_utils.request_related_cuts_from_models()
             # creating just the menu alone leads to in progress refresh
-            self._popup_utils.create_related_cuts_from_models()
-
+            # self._popup_utils.create_related_cuts_from_models()
+            pass
         else:
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()

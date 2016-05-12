@@ -61,9 +61,8 @@ class PopupUtils(QtCore.QObject):
         self._last_rel_cut_entity = None
         self._last_rel_version_id = -1
         self._last_rel_cut_id = -1
-        self._incoming_status = None
-        self._incoming_pipeline = None
-        self._preset_pipeline = False
+
+        self._query_ip = False
 
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
@@ -124,6 +123,7 @@ class PopupUtils(QtCore.QObject):
         # ['cut_items.CutItem.shot', 'is', {'type': 'Shot', 'id': 1237}]
         self._rel_cuts_done = False
         self._rel_shots_done = False
+        self._query_ip = True
 
         conditions = ['entity', 'is', entity_in]
         if self._project_entity and self._project_entity['id']:
@@ -150,6 +150,7 @@ class PopupUtils(QtCore.QObject):
             {'field_name': 'code', 'direction': 'asc'}, 
             {'field_name': 'cached_display_name', 'direction': 'asc'}
             ]
+
         self._rel_shots_model.load_data(entity_type="Cut", filters=shot_filters, fields=shot_fields, order=shot_orders)        
         #self._related_timer.start(20)
 
@@ -178,7 +179,7 @@ class PopupUtils(QtCore.QObject):
         # if this is the same as last time, then we can bail, its already rebuilt.
         # pp.pprint(version_data)
         # print "actions: %d" % len(self._related_cuts_menu.actions())
-        if self._last_rel_version_id == version_data['id'] and self._last_rel_cut_id == cut_id and len(self._related_cuts_menu.actions()) > 0:
+        if self._last_rel_version_id == version_data['id'] and self._last_rel_cut_id == cut_id and self._related_cuts_menu and len(self._related_cuts_menu.actions()) > 0:
            self._engine.log_warning('still on version %d, not rebuilding rel cuts menu' % version_data['id'])
            return
         
@@ -203,11 +204,14 @@ class PopupUtils(QtCore.QObject):
                     return
                 else:
                     # we already have it cached.
-                    self.related_cuts_ready.emit()
+                    if not self._query_ip:
+                        self.related_cuts_ready.emit()
+                    return
 
         # XXX don't get this ? -- alan
-        # XXX there was a cut based on a Scene and the query returned the entity we want in a different column - sb.
+        # XXX is this another impossible workflow? - sb.
         if cut_link['type'] == "Scene":
+            self._engine.log_warning("cant find relative cuts for a scene? using shot linked to version?")
             if version_link:
                 self.find_rel_cuts_with_model(cut_link, version_link['shot'])
             return
@@ -226,6 +230,7 @@ class PopupUtils(QtCore.QObject):
         if self._rel_cuts_done and self._rel_shots_done:
             self._rel_shots_done = False
             self._rel_cuts_done = False
+            self._query_ip = False
             self.related_cuts_ready.emit()
 
     def on_rel_shots_refreshed(self):
@@ -233,6 +238,7 @@ class PopupUtils(QtCore.QObject):
         if self._rel_cuts_done and self._rel_shots_done:
             self._rel_shots_done = False
             self._rel_cuts_done = False
+            self._query_ip = False
             self.related_cuts_ready.emit()
         
     # def set_project(self, entity):
@@ -293,11 +299,13 @@ class PopupUtils(QtCore.QObject):
             self._related_cuts_menu.clear()
             self._last_related_cuts = None
             if remove_menu:
+                #self._related_cuts_menu.setVisible(False)
                 self._related_cuts_menu = None
                 self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu) 
 
     def create_related_cuts_from_models(self):
         if not self._related_cuts_menu:
+            self._engine.log_info("create_related_cuts_from_models, CREATING MENU")
             self._related_cuts_menu = QtGui.QMenu(self._tray_frame.tray_button_browse_cut)
             self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu)        
  
@@ -344,6 +352,7 @@ class PopupUtils(QtCore.QObject):
                             b.setChecked(True)
                             a.setChecked(True)
             self._engine.log_warning("create_related_cuts_from_models, updating check marks only, %d" % len(seq_cuts) )
+
             return
 
         self._last_related_cuts = seq_cuts
