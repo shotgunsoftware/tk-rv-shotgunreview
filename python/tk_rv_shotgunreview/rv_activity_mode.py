@@ -192,7 +192,7 @@ class RvActivityMode(rvt.MinorMode):
             if not rvc.isPlaying():
                 self.update_cuts_with()
                 self._popup_utils.request_related_cuts_from_models()
- 
+
     def current_source(self):
         """
         The "current source" is the "first" RVSourceGroup used to render this
@@ -379,12 +379,20 @@ class RvActivityMode(rvt.MinorMode):
                     self._prefs.pin_details):
                 self.details_panel.set_pinned(True)
                 self.details_pinned_for_playback = True
+
+                self.enable_cuts_action(False, 'Stop to enable.')
+
             # We only auto-unpin the details on stop if we auto-pinned them in
             # the first place.
             elif event.name() == "play-stop":
                 if self.details_pinned_for_playback:
                     self.details_panel.set_pinned(False)
                     self.details_pinned_for_playback = False
+
+                # print "target_entity"
+                # pp.pprint(self.target_entity)
+                if self.target_entity['type'] == "Cut":
+                    self.enable_cuts_action(False, 'Turn off cuts mode')
 
                 self.update_cuts_with()
                 self._popup_utils.request_related_cuts_from_models()
@@ -867,6 +875,10 @@ class RvActivityMode(rvt.MinorMode):
 
         self._tray_height = 96
         self.target_entity = None
+        
+        # keep track of where we just were to enable 'cuts off' mode
+        self.last_target_entity = None
+
         self.main_query_active = False
         self.details_panel_last_loaded = None
 
@@ -1024,6 +1036,7 @@ class RvActivityMode(rvt.MinorMode):
         # data is waiting for us:
         cut = self.get_cuts_with()
         if not cut:
+            print "HOW BOUT THIS?"
             return
 
         version_data = self.version_data_from_source()
@@ -1408,6 +1421,8 @@ class RvActivityMode(rvt.MinorMode):
         # XXX get rid of "id"
         if "id" in target_entity and "ids" not in target_entity:
             target_entity["ids"] = [ target_entity["id"] ]
+
+        self.last_target_entity = self.target_entity
         self.target_entity = target_entity
 
         t_type = target_entity["type"]
