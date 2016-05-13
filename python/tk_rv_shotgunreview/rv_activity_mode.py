@@ -190,9 +190,7 @@ class RvActivityMode(rvt.MinorMode):
         if self.details_dirty:
             self.load_version_id_from_session()
             if not rvc.isPlaying():
-                if self.target_entity and self.target_entity['type'] == "Cut":
-                    self.enable_cuts_action(enable=True, tooltip='Turn off cuts mode', enable_blue=True)
-                else:
+                if self.target_entity and self.target_entity['type'] != "Cut":
                     self.update_cuts_with()
                 self._popup_utils.request_related_cuts_from_models()
 
@@ -383,7 +381,11 @@ class RvActivityMode(rvt.MinorMode):
                 self.details_panel.set_pinned(True)
                 self.details_pinned_for_playback = True
 
-                self.enable_cuts_action(False, 'Stop to enable.')
+                # if the Cuts button is conditionally enabled (because we're
+                # looking at something other than a cut), then disable during
+                # playback.
+                if self.target_entity['type'] != "Cut":
+                    self.enable_cuts_action(False, 'Stop to enable.')
 
             # We only auto-unpin the details on stop if we auto-pinned them in
             # the first place.
@@ -392,13 +394,13 @@ class RvActivityMode(rvt.MinorMode):
                     self.details_panel.set_pinned(False)
                     self.details_pinned_for_playback = False
 
-                # print "target_entity"
-                # pp.pprint(self.target_entity)
-                if self.target_entity['type'] == "Cut":
-                    self.enable_cuts_action(enable=True, tooltip='Turn off cuts mode', enable_blue=True)
-
-                else:
+                # if the Cuts button is conditionally enabled (because we're
+                # looking at something other than a cut), this is were we check
+                # to see if this clip has a default cut and update the button
+                # state accordingly.
+                if self.target_entity['type'] != "Cut":
                     self.update_cuts_with()
+
                 self._popup_utils.request_related_cuts_from_models()
 
     def update_cuts_with(self):
@@ -1021,10 +1023,10 @@ class RvActivityMode(rvt.MinorMode):
 
     def enable_cuts_action(self, enable=True, tooltip=None, enable_blue=False):
         '''
-        Enables cuts toolbar button. If enable is false the button
-        is disabled.
+        Enables cuts toolbar button; when enabled it may be blue. If enable is
+        false the button is disabled (and not blue).
         '''
-        if (enable_blue or not enable):
+        if (enable and enable_blue):
             cicon = QtGui.QIcon(":/tk-rv-shotgunreview/icon_player_cut_action_small_active.png")
             self.cuts_action.setIcon(cicon)
         else:
@@ -2362,9 +2364,19 @@ class RvActivityMode(rvt.MinorMode):
             if not self.details_hidden_this_session and self._prefs.auto_show_details: 
                 self.note_dock.show()
 
-            # it's a sequence of some kind, but maybe not a Cut; set menu etc
+            # it's a sequence of some kind, but maybe not a Cut; set menu and
             # control visibility accordingly
-            self.set_cut_control_visibility(query_target_entity.get("type") == "Cut")
+            its_a_cut = query_target_entity.get("type") == "Cut"
+            self.set_cut_control_visibility(its_a_cut)
+
+            # preliminary configuration of cut mode button: if we disable here
+            # we may enable later once we are stopped on a clip that has a
+            # default cut.
+            if its_a_cut:
+                self.enable_cuts_action(enable=True, tooltip='Turn off cuts mode', enable_blue=True)
+            else:
+                self.enable_cuts_action(enable=False, tooltip='', enable_blue=False)
+
 
         else:
             # it's not a Cut or a Playlist or a Version sequence.  But maybe
