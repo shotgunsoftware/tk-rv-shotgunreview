@@ -22,6 +22,7 @@ import rv.qtutils as rvqt
 
 shotgun_view = tank.platform.import_framework("tk-framework-qtwidgets", "views")
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
+shotgun_data = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_data")
 
 from .tray_delegate import RvTrayDelegate
 from .details_panel_widget import DetailsPanelWidget
@@ -830,7 +831,12 @@ class RvActivityMode(rvt.MinorMode):
 
     def __init__(self, app):
         rvt.MinorMode.__init__(self)
+        
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
+        self._ORIGINAL_THUMBNAIL = QtCore.Qt.UserRole + 1702
+        self._FILTER_THUMBNAIL = QtCore.Qt.UserRole + 1703
+        self._PINNED_THUMBNAIL = QtCore.Qt.UserRole + 1704
+
         self._bundle = sgtk.platform.current_bundle()
         
         self.cuts_action = None
@@ -1178,6 +1184,50 @@ class RvActivityMode(rvt.MinorMode):
         self.details_dirty = True
         self.details_timer.start()
 
+    def refresh_tray_thumbnails(self):
+        rows = self.tray_proxyModel.rowCount()
+        for index in range(0, rows):
+            item = self.tray_proxyModel.index(index, 0)
+            
+            orig = item.data(self._ORIGINAL_THUMBNAIL)
+            pinned = item.data(self._PINNED_THUMBNAIL)
+            filtered = item.data(self._FILTER_THUMBNAIL)
+
+            thumb = None
+            if pinned:
+                thumb = QtGui.QIcon(pinned)
+            if not pinned and filtered:
+                thumb = QtGui.QIcon(filtered)
+            if not pinned and not filtered:
+                thumb = QtGui.QIcon(orig)
+            if thumb:
+                self.tray_proxyModel.setData(item, thumb, QtCore.Qt.DecorationRole)
+
+        self.tray_list.repaint()
+
+
+    def update_pinned_thumbnail(self, v_data):
+        # version_data['__image_path'] holds the local cache path thumbnail for the pinned icon
+        # version_data['entity'] has our shot.
+        # drop this path into every item that has this shot
+        if '__image_path' not in v_data:
+            self._app.engine.log_warning('no image path passed into update_pinned_thumbnail.')
+            return
+
+        path = v_data['__image_path']
+        rows = self.tray_proxyModel.rowCount()
+        for index in range(0, rows):
+            item = self.tray_proxyModel.index(index, 0)
+            sg = shotgun_model.get_sg_data(item)
+ 
+            # sometimes the shot comes back as None XXX - sb
+            if 'shot' in sg and sg['shot']:
+                if sg['shot']['id'] == v_data['entity']['id']:
+                    self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
+             
+        self.refresh_tray_thumbnails()
+
+
     def replace_version_in_sequence(self, versions):
         #XXX go over this in mini-cut case, etc
         self._app.engine.log_info('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
@@ -1189,6 +1239,11 @@ class RvActivityMode(rvt.MinorMode):
 
         version_data = versions[0]
         seq_group = rvc.viewNode()
+        
+        try:
+            self.update_pinned_thumbnail(version_data)    
+        except Exception as e:
+            self._app.engine.log_error("update_pinned_thumbnail: %r" % e)
 
         if rvc.nodeType(seq_group) != "RVSequenceGroup":
             return
@@ -1310,6 +1365,12 @@ class RvActivityMode(rvt.MinorMode):
         self.incoming_pinned         = {}
         self.incoming_mini_cut_focus = None
         self.cached_mini_cut_data    = MiniCutData(False)
+
+        # ok, this is the place we want to save the original thumbnail of the incoming pinned.
+        self.tray_model.add_pinned_item(incoming_pinned)
+
+        # grab whats pinned now
+        self.tray_model.set_pinned_items(self.pinned_from_sequence())
 
         # notify user we're loading ...
         type_string = target_entity["type"]
@@ -1925,6 +1986,10 @@ class RvActivityMode(rvt.MinorMode):
             self.load_version_id_from_session()
             if self._prefs.auto_play:
                 rvc.play()
+
+        # update pinned list with pinned thumbs we saved from the last load
+        self.tray_model.update_pinned_items(self.pinned_from_sequence())
+        self.tray_list.repaint()
 
         self.compare_active = False
         
