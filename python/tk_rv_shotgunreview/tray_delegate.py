@@ -23,9 +23,12 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         self.tray_view = view
         shotgun_view.WidgetDelegate.__init__(self, view)
         self.__selection_model = view.selectionModel()
-        # make an alpha
-        # self._alpha_size = TrayWidget.calculate_size()
+
         self._pen = QtGui.QPen(QtCore.Qt.white, 1, QtCore.Qt.SolidLine)
+
+        self._ORIGINAL_THUMBNAIL = QtCore.Qt.UserRole + 1702
+        self._FILTER_THUMBNAIL = QtCore.Qt.UserRole + 1703
+        self._PINNED_THUMBNAIL = QtCore.Qt.UserRole + 1704
 
         # pinned icon
         try:
@@ -106,19 +109,38 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
 
         return w
 
+    def choose_thumbnail(self, model_index):
+        original_tn = model_index.data(self._ORIGINAL_THUMBNAIL)
+        pinned_tn = model_index.data(self._PINNED_THUMBNAIL)
+        filter_tn = model_index.data(self._FILTER_THUMBNAIL)
+
+        if pinned_tn:
+            return QtGui.QIcon(pinned_tn)
+        if filter_tn:
+            return QtGui.QIcon(filter_tn)
+        if original_tn:
+            return QtGui.QIcon(original_tn)
+
+        return None
+
     def _on_before_paint(self, widget, model_index, style_options, selected=False):
         """
         Called when a cell is being painted.
         """   
         # get the shotgun query data for this model item     
-        sg_item = shotgun_model.get_sg_data(model_index)   
-        #rv_item = model_index.data(self._RV_DATA_ROLE)
+        sg_item = shotgun_model.get_sg_data(model_index) 
 
-        icon = model_index.data(QtCore.Qt.DecorationRole)
+        icon = self.choose_thumbnail(model_index)
+        if not icon:
+            icon = model_index.data(QtCore.Qt.DecorationRole)
         if icon:
             thumb = icon.pixmap(widget.sizeHint())
             widget.set_thumbnail(thumb)
             widget.ui.thumbnail.setScaledContents(False)
+        else:
+            pixmap = QtGui.QPixmap(widget.sizeHint())
+            pixmap.fill(QtCore.Qt.black)
+            widget.set_thumbnail(pixmap)
 
         in_mini_cut = False
 
@@ -178,17 +200,11 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
         :param model_index:     The index in the data model that needs to be painted
         """
         sg_item = shotgun_model.get_sg_data(model_index)
-        # rv_item = model_index.data(self._RV_DATA_ROLE)
-        # if rv_item:
-        #     print "RV ITEM IS HERE %r" % rv_item  
-        # else:
-        #     icon = model_index.data(QtCore.Qt.DecorationRole)
-        #     if icon:
-        #         (_, item, model) = self._source_for_index(model_index)
-        #         item.setIcon(icon)
 
+        original_tn = model_index.data(self._ORIGINAL_THUMBNAIL)
+        pinned_tn = model_index.data(self._PINNED_THUMBNAIL)
+        filter_tn = model_index.data(self._FILTER_THUMBNAIL)
 
-        #     print "NO RV ITEM"
         # for performance reasons, we are not creating a widget every time
         # but merely moving the same widget around. 
         paint_widget = self._get_painter_widget(model_index, self.parent())
@@ -219,9 +235,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
 
             if self.tray_view.rv_mode.index_is_pinned(model_index.row()):
                 painter.drawPixmap(paint_widget.width() - self.pin_pixmap.width(), 0, self.pin_pixmap)
-                #painter.fillRect( self._alpha_size.width() - 10, 0, 10, 10, QtGui.QColor(240,200,50,127) )
-
-            # print "image: %r %r %r " % (sg_item['version.Version.id'] ,sg_item['cut.Cut.image'] ,sg_item['cut.Cut.version.Version.image'])
+ 
             if not sg_item.get('version.Version.id') and not sg_item.get('image') and not sg_item.get('cut.Cut.version.Version.image'):
                 target = QtCore.QRectF(0.0, 0.0, paint_widget.width(), paint_widget.height() )
                 source = QtCore.QRectF(0, 0, self.missing_pixmap.width(), self.missing_pixmap.height())
