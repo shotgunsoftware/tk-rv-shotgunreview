@@ -184,7 +184,10 @@ class RvActivityMode(rvt.MinorMode):
         if self.details_dirty:
             self.load_version_id_from_session()
             if not rvc.isPlaying():
-                self.update_cuts_with()
+                if self.target_entity and self.target_entity['type'] == "Cut":
+                    self.enable_cuts_action(enable=True, tooltip='Turn off cuts mode', enable_blue=True)
+                else:
+                    self.update_cuts_with()
                 self._popup_utils.request_related_cuts_from_models()
 
     def current_source(self):
@@ -386,9 +389,10 @@ class RvActivityMode(rvt.MinorMode):
                 # print "target_entity"
                 # pp.pprint(self.target_entity)
                 if self.target_entity['type'] == "Cut":
-                    self.enable_cuts_action(False, 'Turn off cuts mode')
+                    self.enable_cuts_action(enable=True, tooltip='Turn off cuts mode', enable_blue=True)
 
-                self.update_cuts_with()
+                else:
+                    self.update_cuts_with()
                 self._popup_utils.request_related_cuts_from_models()
 
     def update_cuts_with(self):
@@ -1008,10 +1012,19 @@ class RvActivityMode(rvt.MinorMode):
         '''
         cuts toolbar button listener
         '''
+        if self.target_entity and self.target_entity['type'] == "Cut":
+            if self.last_target_entity:
+                version_data = self.version_data_from_source()
+                self.load_tray_with_something_new(self.last_target_entity, False, 
+                    incoming_pinned={}, 
+                    incoming_mini_focus=version_data)
+
+            self._app.engine.log_info('Clapper disabled for Cut entities. Back to last target_entity.')
+            return
+
         # data is waiting for us:
         cut = self.get_cuts_with()
         if not cut:
-            print "HOW BOUT THIS?"
             return
 
         version_data = self.version_data_from_source()
