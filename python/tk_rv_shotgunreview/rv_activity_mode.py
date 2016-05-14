@@ -1051,17 +1051,22 @@ class RvActivityMode(rvt.MinorMode):
                     incoming_mini_focus=version_data)
             else:
                 # load the version we are on
-                print "LOADING"
-                pp.pprint(version_data)
                 if 'type' not in version_data or not version_data['type']:
-                    version_data['type'] = 'Version'
-                self.load_tray_with_something_new(version_data, False, 
+                    # type is None on version data from CutItems because
+                    # version.Version.type is None - type is not a real column?
+                    # but an 'entity' THANG?
+                    te = {}
+                    te['type'] = "Version"
+                    te['id'] = version_data['id']
+                    self.load_tray_with_something_new(te, False, 
+                    incoming_pinned={}, 
+                    incoming_mini_focus=version_data)
+                else:
+                    self.load_tray_with_something_new(version_data, False, 
                     incoming_pinned={}, 
                     incoming_mini_focus=version_data)
 
-
-            self._app.engine.log_info('Clapper disabled for Cut entities. Back to last target_entity.')
-            pp.pprint(self.last_target_entity)
+            self._app.engine.log_info('Clapper disabled for Cut entities. Back to last non-cut target_entity.')
             return
 
         # data is waiting for us:
@@ -1239,7 +1244,6 @@ class RvActivityMode(rvt.MinorMode):
         target_entity["server"] = self._app.tank.shotgun_url
 
         if target_entity['type'] == "Cut" or target_entity['type'] == "CutItem":
-            print "RESETTING LAST TARGET"
             self.last_target_entity = None
             self.gma_clear = True
 
@@ -1460,7 +1464,6 @@ class RvActivityMode(rvt.MinorMode):
 
         if not self.gma_clear:
             if self.target_entity and (self.target_entity['type'] == "Version" or self.target_entity['type'] == "Playlist"):
-                print "SETTING LAST TARGET %r" % self.target_entity
                 self.last_target_entity = self.target_entity
         else:
             self.gma_clear = False
@@ -1929,6 +1932,12 @@ class RvActivityMode(rvt.MinorMode):
             version_data["id"]   = 100000 + sg.get("cut.Cut.id", 0)
             version_data["code"] = "Missing Version"
 
+        # XXX - sb - does this break anything?
+        # cut items have None in version.Version.type
+        #print "ADDING VERSION TYPE"
+        #if not version_data['type']:
+        #    version_data['type'] = "Version"
+
         return (version_data, edit_data)
 
     def data_from_version(self, sg):
@@ -2348,7 +2357,6 @@ class RvActivityMode(rvt.MinorMode):
             pass
         else:
             self.last_target_entity = self.target_entity
-            print "LAST TARGET NOW %r" % self.last_target_entity
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
 
