@@ -2221,11 +2221,9 @@ class RvActivityMode(rvt.MinorMode):
         # XXX build status menu ONCE per project. - sb
         if not self.project_entity:
             self.project_entity = sequence_data["project"]
-            # self._popup_utils.set_project(self.project_entity)
 
         self._popup_utils.build_status_menu(self.project_entity)
-        print "STATUS HERE? happens always?"
-        print "WAS: %r" % self._prefs.status_filter
+        self._popup_utils.check_pipeline_menu()
          # this writes the current state to prefs
         self.set_default_status_menu()
         self.set_default_pipeline_menu()
@@ -2327,8 +2325,6 @@ class RvActivityMode(rvt.MinorMode):
             self.playback_queued = self._prefs.auto_play
         else :
             rve.displayFeedback("Loading complete", 2.0)
-
-
 
         # highlight the first clip
         self.frameChanged(None)
