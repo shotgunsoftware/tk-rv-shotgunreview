@@ -64,6 +64,10 @@ class PopupUtils(QtCore.QObject):
 
         self._query_ip = False
 
+        # sequence data IS UPDATED too late for us, so this tells us intent for related 
+        # cuts menu loading or clearing.
+        self._target_entity = None
+
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
 
@@ -294,17 +298,22 @@ class PopupUtils(QtCore.QObject):
 
         return sorted_cuts
  
-    def clear_rel_cuts_menu(self, remove_menu=False):
+    def clear_rel_cuts_menu(self, remove_menu=False, target_entity=None):
+        
+        if target_entity and (target_entity['type'] == "Version" or target_entity['type'] == "Playlist"):
+            self._target_entity = target_entity
+        else:
+            self._target_entity = None
+
         if self._related_cuts_menu:
             self._related_cuts_menu.clear()
             self._last_related_cuts = None
-            if remove_menu:
-                #self._related_cuts_menu.setVisible(False)
-                self._related_cuts_menu = None
-                self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu) 
+        if remove_menu:
+            self._related_cuts_menu = None
+            self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu) 
 
     def create_related_cuts_from_models(self):
-        if not self._related_cuts_menu:
+        if not self._related_cuts_menu and not self._target_entity:
             self._engine.log_info("create_related_cuts_from_models, CREATING MENU")
             self._related_cuts_menu = QtGui.QMenu(self._tray_frame.tray_button_browse_cut)
             self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu)        
@@ -325,6 +334,12 @@ class PopupUtils(QtCore.QObject):
             )
             self._related_cuts_menu.triggered.connect(self.handle_related_menu)
             # self._related_cuts_menu.aboutToShow.connect(self.handle_related_menu)
+        else:
+            # if we have a menu, and target_entity is None, then we are moving from
+            # cut to cut. if no menu and there is a target, then its a version or
+            # playlist so we can bail.
+            if not self._related_cuts_menu:
+                return
 
         seq_data = self._rv_mode.sequence_data_from_session()
         cut_id = seq_data["target_entity"]["ids"][0] if seq_data else None
