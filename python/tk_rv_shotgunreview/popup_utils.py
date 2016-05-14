@@ -91,7 +91,9 @@ class PopupUtils(QtCore.QObject):
     # related cuts menu menthods
 
     def get_status(self):
-        print "GET STATUS %r" % self._status_list
+        print "GET STATUS %r\n%r" % (self._status_list, self._incoming_status)
+        if self._incoming_status:
+            return self._incoming_status
         return self._status_list
 
     def set_status(self, incoming_json):
@@ -99,7 +101,7 @@ class PopupUtils(QtCore.QObject):
         self._incoming_status = incoming_status
 
     def get_pipeline(self):
-        print "GET PIPELINE %r" % self._pipeline_steps
+        print "GET PIPELINE %r\n%r" % (self._pipeline_steps, self._incoming_pipeline)
         if self._incoming_pipeline:
             return self._incoming_pipeline
         return self._pipeline_steps
@@ -679,7 +681,7 @@ class PopupUtils(QtCore.QObject):
     # methods for 'the crazy query', find versions that match criteria in steps and statuses
 
     def filters_exist(self):
-        if self._status_list or self._pipeline_steps != None:
+        if self._status_list or self._pipeline_steps != None or self._incoming_status or self._incoming_pipeline:
             return True
         return False
 
@@ -728,7 +730,7 @@ class PopupUtils(QtCore.QObject):
         self._tray_frame.tray_model.notify_filter_data_refreshed(True)
 
     def get_tray_filters(self):
-
+        print "GET TRAY FILTERS"
         if self._incoming_pipeline:
             if self._incoming_pipeline == "None":
                 print "CHANGING NONE"

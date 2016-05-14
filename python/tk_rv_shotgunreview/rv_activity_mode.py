@@ -2270,12 +2270,13 @@ class RvActivityMode(rvt.MinorMode):
 
         filter_query_required = self._popup_utils.filters_exist()
         
+        print "FILTERT QUERY %r" % filter_query_required
 
         if not incremental_update and filter_query_required:
             # trigger filter query
             self._popup_utils.request_versions_for_statuses_and_steps(True)
 
-            print "UPDATE STATUS HERE?"
+            print "UPDATE STATUS HERE? YES"
             # self._popup_utils.get_status()
         else :
             rve.displayFeedback("Loading complete", 2.0)
