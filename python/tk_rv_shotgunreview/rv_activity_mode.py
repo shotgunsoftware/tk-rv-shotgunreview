@@ -495,7 +495,6 @@ class RvActivityMode(rvt.MinorMode):
         j = json.dumps( p )
         self._prefs.pipeline_filter = j
         self._prefs.save()
-        print "PIPELINE SAVED %r" % self._prefs.pipeline_filter
 
     def default_media_type_state_movie(self):
         return rvc.CheckedMenuState if self._prefs.preferred_media_type == "Movie" else rvc.UncheckedMenuState
@@ -2177,11 +2176,9 @@ class RvActivityMode(rvt.MinorMode):
         # XXX build status menu ONCE per project. - sb
         if not self.project_entity:
             self.project_entity = sequence_data["project"]
-            # self._popup_utils.set_project(self.project_entity)
 
         self._popup_utils.build_status_menu(self.project_entity)
-        print "STATUS HERE? happens always?"
-        print "WAS: %r" % self._prefs.status_filter
+        self._popup_utils.check_pipeline_menu()
          # this writes the current state to prefs
         self.set_default_status_menu()
         self.set_default_pipeline_menu()
@@ -2270,18 +2267,12 @@ class RvActivityMode(rvt.MinorMode):
 
         filter_query_required = self._popup_utils.filters_exist()
         
-        print "FILTERT QUERY %r" % filter_query_required
-
         if not incremental_update and filter_query_required:
             # trigger filter query
             self._popup_utils.request_versions_for_statuses_and_steps(True)
 
-            print "UPDATE STATUS HERE? YES"
-            # self._popup_utils.get_status()
         else :
             rve.displayFeedback("Loading complete", 2.0)
-
-
 
         # highlight the first clip
         self.frameChanged(None)

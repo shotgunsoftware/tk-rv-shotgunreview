@@ -63,6 +63,7 @@ class PopupUtils(QtCore.QObject):
         self._last_rel_cut_id = -1
         self._incoming_status = None
         self._incoming_pipeline = None
+        self._preset_pipeline = False
 
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
@@ -91,7 +92,6 @@ class PopupUtils(QtCore.QObject):
     # related cuts menu menthods
 
     def get_status(self):
-        print "GET STATUS %r\n%r" % (self._status_list, self._incoming_status)
         if self._incoming_status:
             return self._incoming_status
         return self._status_list
@@ -101,15 +101,15 @@ class PopupUtils(QtCore.QObject):
         self._incoming_status = incoming_status
 
     def get_pipeline(self):
-        print "GET PIPELINE %r\n%r" % (self._pipeline_steps, self._incoming_pipeline)
-        if self._incoming_pipeline:
+        if self._incoming_pipeline != None:
             return self._incoming_pipeline
         return self._pipeline_steps
 
     def set_pipeline(self, incoming_json):
         incoming_pipeline = json.loads(incoming_json)
         self._incoming_pipeline = incoming_pipeline
-        print "PIPELINE SET TO %r" % self._incoming_pipeline
+        self._preset_pipeline = True
+        self.check_pipeline_menu()
 
     def find_rel_cuts_with_model(self, entity_in, shot_entity=None):
         """
@@ -122,7 +122,6 @@ class PopupUtils(QtCore.QObject):
         # [ <field>, 'is', dict ]
         # ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
         # ['cut_items.CutItem.shot', 'is', {'type': 'Shot', 'id': 1237}]
-        # print "find_rel_cuts_with_model %r %r %r" % (entity_in, shot_entity, self._project_entity['id'])
         self._rel_cuts_done = False
         self._rel_shots_done = False
 
@@ -491,7 +490,6 @@ class PopupUtils(QtCore.QObject):
             for x in status:
                 action.setText(status[x])
                 if x in self._incoming_status:
-                    print "YEAH"
                     action.setChecked(True)
                     count = count + 1
                     name = status[x]
@@ -512,17 +510,14 @@ class PopupUtils(QtCore.QObject):
 
         if self._incoming_status:
             self._status_list = self._incoming_status
-            #self._incoming_status = None
         else:
             self._status_list = []
         
         actions = self._status_menu.actions()
         if not event.data():
             for a in actions:
-                # print "%r" % a.text()
                 a.setChecked(False)
             self._status_list = []
-            #self._incoming_status = None
             self._tray_frame.status_filter_button.setText("Filter by Status")
             self.request_versions_for_statuses_and_steps()
             return
@@ -611,6 +606,49 @@ class PopupUtils(QtCore.QObject):
             action.setData(sg)
             menu.addAction(action)
 
+        self.check_pipeline_menu()
+
+
+    def check_pipeline_menu(self):
+        if not self._pipeline_steps_menu:
+            return
+        # once we get here we only want to run this once
+        if not self._preset_pipeline:
+            return
+        else:
+            if self._incoming_pipeline == "None":
+                return
+            if self._incoming_pipeline == None:
+                return
+            # chcek the incoming values
+            actions = self._pipeline_steps_menu.actions()
+            count = 0
+            name = None
+            tmp_incoming = []
+            if self._incoming_pipeline == []:
+                e = {}
+                e['cached_display_name'] = "Latest in Pipeline"
+                tmp_incoming.append(e)
+            else:
+                tmp_incoming = self._incoming_pipeline
+
+            for a in actions:
+                if a.data():
+                    for x in tmp_incoming:
+                        if a.data()['cached_display_name'] == x['cached_display_name']:
+                            a.setChecked(True)
+                            name = a.data()['cached_display_name']
+                            count = count + 1
+            if count == 0:
+                self._tray_frame.pipeline_filter_button.setText("Filter by Pipeline")
+            if count == 1:
+                self._tray_frame.pipeline_filter_button.setText(name)
+            if count > 1:
+                self._tray_frame.pipeline_filter_button.setText("%d steps" % count)
+
+        self._preset_pipeline = False
+    
+
     def handle_pipeline_menu(self, event):
         """
         This is run after the user makes a selection in the Pipeline Steps menu
@@ -624,7 +662,6 @@ class PopupUtils(QtCore.QObject):
             e = event.data()
             if e['cached_display_name'] == 'Latest in Pipeline':
                 want_latest = True
-                # print "want latest %r" % event.isChecked()
                 if not event.isChecked():
                     want_latest = False
         
@@ -632,19 +669,17 @@ class PopupUtils(QtCore.QObject):
         count = 0
         name = 'Error'
         # for later filtering, None tells us no step is selected vs [] which means latest in pipeline
-        if self._incoming_pipeline:
+        if self._incoming_pipeline != None:
             if self._incoming_pipeline == []:
                 want_latest = True
-            if self._incoming_pipeline == "None":
-                print "OTHER CHANGE NONE"
+            elif self._incoming_pipeline == "None":
                 self._incoming_pipeline = None
+
             self._pipeline_steps = self._incoming_pipeline
             #self._incoming_pipeline = None
         else:    
             self._pipeline_steps = None
         
-        print "HANDLE PIPe %r" % self._pipeline_steps
-
         last_name = None
         for a in actions:
             if a.isChecked():
@@ -675,13 +710,12 @@ class PopupUtils(QtCore.QObject):
         if count > 1:
             self._tray_frame.pipeline_filter_button.setText("%d steps" % count)
 
-        print "PIPE STEPS %r" % self._pipeline_steps
         self.request_versions_for_statuses_and_steps()
 
     # methods for 'the crazy query', find versions that match criteria in steps and statuses
 
     def filters_exist(self):
-        if self._status_list or self._pipeline_steps != None or self._incoming_status or self._incoming_pipeline:
+        if self._status_list or self._pipeline_steps != None or self._incoming_status or self._incoming_pipeline != None or self._incoming_pipeline != "None":
             return True
         return False
 
@@ -730,10 +764,8 @@ class PopupUtils(QtCore.QObject):
         self._tray_frame.tray_model.notify_filter_data_refreshed(True)
 
     def get_tray_filters(self):
-        print "GET TRAY FILTERS"
-        if self._incoming_pipeline:
+        if self._incoming_pipeline != None:
             if self._incoming_pipeline == "None":
-                print "CHANGING NONE"
                 self._incoming_pipeline = None
             self._pipeline_steps = self._incoming_pipeline
             self._incoming_pipeline = None
