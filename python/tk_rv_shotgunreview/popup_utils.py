@@ -68,6 +68,9 @@ class PopupUtils(QtCore.QObject):
         # cuts menu loading or clearing.
         self._target_entity = None
 
+        self._incoming_status = None
+        self._incoming_pipeline = None
+
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
 
@@ -95,8 +98,7 @@ class PopupUtils(QtCore.QObject):
     # related cuts menu menthods
 
     def get_status(self):
-        if self._incoming_status:
-            return self._incoming_status
+        print "GET STATUS %r" % self._status_list
         return self._status_list
 
     def set_status(self, incoming_json):
@@ -104,15 +106,15 @@ class PopupUtils(QtCore.QObject):
         self._incoming_status = incoming_status
 
     def get_pipeline(self):
-        if self._incoming_pipeline != None:
+        print "GET PIPELINE %r" % self._pipeline_steps
+        if self._incoming_pipeline:
             return self._incoming_pipeline
         return self._pipeline_steps
 
     def set_pipeline(self, incoming_json):
         incoming_pipeline = json.loads(incoming_json)
         self._incoming_pipeline = incoming_pipeline
-        self._preset_pipeline = True
-        self.check_pipeline_menu()
+        print "PIPELINE SET TO %r" % self._incoming_pipeline
 
     def find_rel_cuts_with_model(self, entity_in, shot_entity=None):
         """
@@ -708,12 +710,12 @@ class PopupUtils(QtCore.QObject):
         count = 0
         name = 'Error'
         # for later filtering, None tells us no step is selected vs [] which means latest in pipeline
-        if self._incoming_pipeline != None:
+        if self._incoming_pipeline:
             if self._incoming_pipeline == []:
                 want_latest = True
-            elif self._incoming_pipeline == "None":
+            if self._incoming_pipeline == "None":
+                print "OTHER CHANGE NONE"
                 self._incoming_pipeline = None
-
             self._pipeline_steps = self._incoming_pipeline
             #self._incoming_pipeline = None
         else:    
@@ -803,8 +805,10 @@ class PopupUtils(QtCore.QObject):
         self._tray_frame.tray_model.notify_filter_data_refreshed(True)
 
     def get_tray_filters(self):
-        if self._incoming_pipeline != None:
+
+        if self._incoming_pipeline:
             if self._incoming_pipeline == "None":
+                print "CHANGING NONE"
                 self._incoming_pipeline = None
             self._pipeline_steps = self._incoming_pipeline
             self._incoming_pipeline = None
