@@ -126,7 +126,8 @@ required_version_fields = [
     "sg_path_to_frames",
     "sg_path_to_movie",
     "sg_status_list",
-    "sg_uploaded_movie_frame_rate"
+    "sg_uploaded_movie_frame_rate",
+    "type",
     ]
 
 def setProp(prop, value):
@@ -865,6 +866,8 @@ class RvActivityMode(rvt.MinorMode):
         
         # keep track of where we just were to enable 'cuts off' mode
         self.last_target_entity = None
+        # XXX - sb - better way?
+        self.gma_clear = False
 
         self.main_query_active = False
         self.details_panel_last_loaded = None
@@ -903,6 +906,7 @@ class RvActivityMode(rvt.MinorMode):
         self._prefs = Preferences()
         self.incoming_pinned = {}
         self.incoming_mini_cut_focus = None
+
 
         self.init("RvActivityMode", None,
                 [ 
@@ -1021,13 +1025,24 @@ class RvActivityMode(rvt.MinorMode):
         cuts toolbar button listener
         '''
         if self.target_entity and self.target_entity['type'] == "Cut":
+            version_data = self.version_data_from_source()
             if self.last_target_entity:
-                version_data = self.version_data_from_source()
                 self.load_tray_with_something_new(self.last_target_entity, False, 
                     incoming_pinned={}, 
                     incoming_mini_focus=version_data)
+            else:
+                # load the version we are on
+                print "LOADING"
+                pp.pprint(version_data)
+                if 'type' not in version_data or not version_data['type']:
+                    version_data['type'] = 'Version'
+                self.load_tray_with_something_new(version_data, False, 
+                    incoming_pinned={}, 
+                    incoming_mini_focus=version_data)
+
 
             self._app.engine.log_info('Clapper disabled for Cut entities. Back to last target_entity.')
+            pp.pprint(self.last_target_entity)
             return
 
         # data is waiting for us:
@@ -1200,6 +1215,12 @@ class RvActivityMode(rvt.MinorMode):
         # XXX should check here that incoming server matches server to
         # which we are currently authenticated
         target_entity["server"] = self._app.tank.shotgun_url
+
+        if target_entity['type'] == "Cut" or target_entity['type'] == "CutItem":
+            print "RESETTING LAST TARGET"
+            self.last_target_entity = None
+            self.gma_clear = True
+
 
         self.load_tray_with_something_new(target_entity)
 
@@ -1415,19 +1436,23 @@ class RvActivityMode(rvt.MinorMode):
         if "id" in target_entity and "ids" not in target_entity:
             target_entity["ids"] = [ target_entity["id"] ]
 
-        self.last_target_entity = self.target_entity
+        if not self.gma_clear:
+            if self.target_entity and (self.target_entity['type'] == "Version" or self.target_entity['type'] == "Playlist"):
+                print "SETTING LAST TARGET %r" % self.target_entity
+                self.last_target_entity = self.target_entity
+        else:
+            self.gma_clear = False
+
         self.target_entity = target_entity
 
         t_type = target_entity["type"]
 
         if   t_type == "Version":
             self.load_tray_with_version_ids(target_entity["ids"])
-            self.tray_main_frame.show_steps_and_statuses(False)
-
+            self.tray_main_frame.show_steps_and_statuses(False)    
         elif t_type == "Playlist":
             self.load_tray_with_playlist_id(target_entity["ids"][0])
             self.tray_main_frame.show_steps_and_statuses(False)
-
         elif t_type == "CutItem":
             cut = target_entity.get("cut")
             if cut:
@@ -1883,7 +1908,6 @@ class RvActivityMode(rvt.MinorMode):
         return (version_data, edit_data)
 
     def data_from_version(self, sg):
-
         version_data = sg
         edit_data = {}
         edit_data["in"]  = sg.get("sg_first_frame", 1)
@@ -2293,8 +2317,12 @@ class RvActivityMode(rvt.MinorMode):
             self._popup_utils.create_related_cuts_from_models()
 
         else:
+            self.last_target_entity = self.target_entity
+            print "LAST TARGET NOW %r" % self.last_target_entity
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
+
+
 
 
     def set_cut_control_visibility(self, vis):
