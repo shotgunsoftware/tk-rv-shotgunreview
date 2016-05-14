@@ -130,6 +130,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             [
                 "image",
                 "user",
+                "project",
                 # XXX Below is required list for tray_work, should centralize!
                 "code",
                 "id",
@@ -338,7 +339,6 @@ class DetailsPanelWidget(QtGui.QWidget):
             self.ui.shot_info_widget.fields = self._active_fields
             self.ui.shot_info_widget.label_exempt_fields = self._persistent_fields
 
-        self.current_entity = entity
         self.ui.note_stream_widget.load_data(entity)
 
         shot_filters = [["id", "is", entity["id"]]]
@@ -486,6 +486,11 @@ class DetailsPanelWidget(QtGui.QWidget):
         else:
             self.version_model.clear()
 
+        self.current_entity = sg_data
+        self._setup_fields_menu()
+        self._setup_version_list_fields_menu()
+        self._setup_version_sort_by_menu()
+
     def _version_list_field_menu_triggered(self, action):
         """
         Adds or removes a field when it checked or unchecked
@@ -620,7 +625,11 @@ class DetailsPanelWidget(QtGui.QWidget):
         Sets up the EntityFieldMenu and attaches it as the "More fields"
         button's menu.
         """
-        menu = shotgun_menus.EntityFieldMenu("Version")
+        entity = self.current_entity or {}
+        menu = shotgun_menus.EntityFieldMenu(
+            "Version",
+            project_id=entity.get("project", {}).get("id"),
+        )
         menu.set_field_filter(self._field_filter)
         menu.set_checked_filter(self._checked_filter)
         menu.set_disabled_filter(self._disabled_filter)
@@ -633,7 +642,11 @@ class DetailsPanelWidget(QtGui.QWidget):
         Sets up the EntityFieldMenu and attaches it as the "More fields"
         button's menu.
         """
-        menu = shotgun_menus.EntityFieldMenu("Version")
+        entity = self.current_entity or {}
+        menu = shotgun_menus.EntityFieldMenu(
+            "Version",
+            project_id=entity.get("project", {}).get("id"),
+        )
         menu.set_field_filter(self._field_filter)
         menu.set_checked_filter(self._version_list_checked_filter)
         menu.set_disabled_filter(self._version_list_disabled_filter)
@@ -645,6 +658,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         """
         Sets up the sort-by menu in the Versions tab.
         """
+        entity = self.current_entity or {}
         self._version_sort_menu = QtGui.QMenu(self)
         self._version_sort_menu.setObjectName("version_sort_menu")
 
@@ -685,6 +699,7 @@ class DetailsPanelWidget(QtGui.QWidget):
             display_name = shotgun_globals.get_field_display_name(
                 "Version",
                 field_name,
+                project_id=entity.get("project", {}).get("id"),
             )
 
             action = QtGui.QAction(display_name, self)
