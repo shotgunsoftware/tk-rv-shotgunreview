@@ -54,6 +54,9 @@ class Preferences:
         self.auto_play              = rvc.readSettings(g, "auto_play",              True)
         self.mini_left_count        = rvc.readSettings(g, "mini_left_count",        2)
         self.mini_right_count       = rvc.readSettings(g, "mini_right_count",       2)
+        self.pipeline_filter        = rvc.readSettings(g, "pipeline_filter",        "None")
+        self.status_filter          = rvc.readSettings(g, "status_filter",          "[]")
+
 
     def save(self):
         g = self.group
@@ -68,6 +71,8 @@ class Preferences:
         rvc.writeSettings(g, "audo_play",              self.auto_play)
         rvc.writeSettings(g, "mini_left_count",        self.mini_left_count)
         rvc.writeSettings(g, "mini_right_count",       self.mini_right_count)
+        rvc.writeSettings(g, "pipeline_filter",        self.pipeline_filter)
+        rvc.writeSettings(g, "status_filter",          self.status_filter)
 
 class MediaType:
     def __init__(self, name, path_field, slate_field, aspect_field):
@@ -476,6 +481,21 @@ class RvActivityMode(rvt.MinorMode):
     def set_default_media_type_frames(self, event):
         self._prefs.preferred_media_type = "Frames"
         self._prefs.save()
+
+    def set_default_status_menu(self):
+        j = json.dumps(self._popup_utils.get_status())
+        self._prefs.status_filter = j
+        self._prefs.save()
+
+    def set_default_pipeline_menu(self):
+        p = self._popup_utils.get_pipeline()
+        if p == None:
+            # need to store a string...
+            p = "None"
+        j = json.dumps( p )
+        self._prefs.pipeline_filter = j
+        self._prefs.save()
+        print "PIPELINE SAVED %r" % self._prefs.pipeline_filter
 
     def default_media_type_state_movie(self):
         return rvc.CheckedMenuState if self._prefs.preferred_media_type == "Movie" else rvc.UncheckedMenuState
@@ -1073,6 +1093,9 @@ class RvActivityMode(rvt.MinorMode):
 
         # popup utils will try to handle all popup menu related things...
         self._popup_utils = PopupUtils(self)
+        self._popup_utils.set_status(self._prefs.status_filter)
+        self._popup_utils.set_pipeline(self._prefs.pipeline_filter)
+
         
         # just map these back for the moment...
         self.tray_model = self.tray_main_frame.tray_model
@@ -2155,7 +2178,13 @@ class RvActivityMode(rvt.MinorMode):
         if not self.project_entity:
             self.project_entity = sequence_data["project"]
             # self._popup_utils.set_project(self.project_entity)
+
         self._popup_utils.build_status_menu(self.project_entity)
+        print "STATUS HERE? happens always?"
+        print "WAS: %r" % self._prefs.status_filter
+         # this writes the current state to prefs
+        self.set_default_status_menu()
+        self.set_default_pipeline_menu()
 
         # Set or reset the UI Name of the sequence node
         rve.setUIName(seq_group_node, sequence_data["ui_name"])
@@ -2240,11 +2269,18 @@ class RvActivityMode(rvt.MinorMode):
         # initiate that query.  If not, display completion feedback 
 
         filter_query_required = self._popup_utils.filters_exist()
+        
+
         if not incremental_update and filter_query_required:
             # trigger filter query
             self._popup_utils.request_versions_for_statuses_and_steps(True)
+
+            print "UPDATE STATUS HERE?"
+            # self._popup_utils.get_status()
         else :
             rve.displayFeedback("Loading complete", 2.0)
+
+
 
         # highlight the first clip
         self.frameChanged(None)

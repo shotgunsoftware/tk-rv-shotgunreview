@@ -61,41 +61,22 @@ class PopupUtils(QtCore.QObject):
         self._last_rel_cut_entity = None
         self._last_rel_version_id = -1
         self._last_rel_cut_id = -1
+        self._incoming_status = None
+        self._incoming_pipeline = None
 
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
 
 
         # models
-
-        self._steps_task_manager = task_manager.BackgroundTaskManager(parent=None,
-                                                                    start_processing=True,
-                                                                    max_threads=2)
-
-        self._steps_model = FilterStepsModel(None, self._steps_task_manager)
-
+        self._steps_model = FilterStepsModel(None, self._rv_mode._app.engine.bg_task_manager)
         self._steps_proxyModel =  StepsSortFilter(None)
         self._steps_proxyModel.setSourceModel(self._steps_model)
 
-
-        # self._rel_cuts_task_manager = task_manager.BackgroundTaskManager(parent=None,
-        #                                                             start_processing=True,
-        #                                                             max_threads=2)
-
-        self._rel_cuts_model = RelCutsModel(None, self._steps_task_manager)
-
-        # self._rel_shots_task_manager = task_manager.BackgroundTaskManager(parent=None,
-        #                                                             start_processing=True,
-        #                                                             max_threads=2)
-
-        self._rel_shots_model = RelShotsModel(None, self._steps_task_manager)
-
+        self._rel_cuts_model = RelCutsModel(None, self._rv_mode._app.engine.bg_task_manager)
+        self._rel_shots_model = RelShotsModel(None, self._rv_mode._app.engine.bg_task_manager)
         
-        # self._filtered_versions_task_manager = task_manager.BackgroundTaskManager(parent=None,
-        #                                                             start_processing=True,
-        #                                                             max_threads=2)
-
-        self._filtered_versions_model = FilteredVersionsModel(None, self._steps_task_manager, self._tray_frame.tray_model)
+        self._filtered_versions_model = FilteredVersionsModel(None, self._rv_mode._app.engine.bg_task_manager, self._tray_frame.tray_model)
 
         # connections
         
@@ -108,6 +89,25 @@ class PopupUtils(QtCore.QObject):
         self._filtered_versions_model.data_refreshed.connect(self.filter_tray)
 
     # related cuts menu menthods
+
+    def get_status(self):
+        print "GET STATUS %r" % self._status_list
+        return self._status_list
+
+    def set_status(self, incoming_json):
+        incoming_status = json.loads(incoming_json)
+        self._incoming_status = incoming_status
+
+    def get_pipeline(self):
+        print "GET PIPELINE %r" % self._pipeline_steps
+        if self._incoming_pipeline:
+            return self._incoming_pipeline
+        return self._pipeline_steps
+
+    def set_pipeline(self, incoming_json):
+        incoming_pipeline = json.loads(incoming_json)
+        self._incoming_pipeline = incoming_pipeline
+        print "PIPELINE SET TO %r" % self._incoming_pipeline
 
     def find_rel_cuts_with_model(self, entity_in, shot_entity=None):
         """
@@ -481,24 +481,46 @@ class PopupUtils(QtCore.QObject):
         self._status_reload = False
 
         statii = self.get_status_menu(self._project_entity)
+        count = 0
+        name = None
         for status in statii:
             action = QtGui.QAction(self._tray_frame.status_filter_button)
             action.setCheckable(True)
             for x in status:
                 action.setText(status[x])
+                if x in self._incoming_status:
+                    print "YEAH"
+                    action.setChecked(True)
+                    count = count + 1
+                    name = status[x]
             action.setData(status)
             menu.addAction(action)
+
+        if count == 0:
+            self._tray_frame.status_filter_button.setText("Filter by Status")
+        if count == 1:
+            self._tray_frame.status_filter_button.setText(name)
+        if count > 1:
+            self._tray_frame.status_filter_button.setText("%d Statuses" % count)
+       
 
     def handle_status_menu(self, event):
         # if 'any status' is picked, then the other
         # choices are zeroed out. event.data will be None for any status
 
-        self._status_list = []
+        if self._incoming_status:
+            self._status_list = self._incoming_status
+            #self._incoming_status = None
+        else:
+            self._status_list = []
+        
         actions = self._status_menu.actions()
         if not event.data():
             for a in actions:
                 # print "%r" % a.text()
                 a.setChecked(False)
+            self._status_list = []
+            #self._incoming_status = None
             self._tray_frame.status_filter_button.setText("Filter by Status")
             self.request_versions_for_statuses_and_steps()
             return
@@ -600,7 +622,7 @@ class PopupUtils(QtCore.QObject):
             e = event.data()
             if e['cached_display_name'] == 'Latest in Pipeline':
                 want_latest = True
-                print "want latest %r" % event.isChecked()
+                # print "want latest %r" % event.isChecked()
                 if not event.isChecked():
                     want_latest = False
         
@@ -608,7 +630,19 @@ class PopupUtils(QtCore.QObject):
         count = 0
         name = 'Error'
         # for later filtering, None tells us no step is selected vs [] which means latest in pipeline
-        self._pipeline_steps = None
+        if self._incoming_pipeline:
+            if self._incoming_pipeline == []:
+                want_latest = True
+            if self._incoming_pipeline == "None":
+                print "OTHER CHANGE NONE"
+                self._incoming_pipeline = None
+            self._pipeline_steps = self._incoming_pipeline
+            #self._incoming_pipeline = None
+        else:    
+            self._pipeline_steps = None
+        
+        print "HANDLE PIPe %r" % self._pipeline_steps
+
         last_name = None
         for a in actions:
             if a.isChecked():
@@ -638,6 +672,8 @@ class PopupUtils(QtCore.QObject):
             self._tray_frame.pipeline_filter_button.setText(name)
         if count > 1:
             self._tray_frame.pipeline_filter_button.setText("%d steps" % count)
+
+        print "PIPE STEPS %r" % self._pipeline_steps
         self.request_versions_for_statuses_and_steps()
 
     # methods for 'the crazy query', find versions that match criteria in steps and statuses
@@ -692,6 +728,17 @@ class PopupUtils(QtCore.QObject):
         self._tray_frame.tray_model.notify_filter_data_refreshed(True)
 
     def get_tray_filters(self):
+
+        if self._incoming_pipeline:
+            if self._incoming_pipeline == "None":
+                print "CHANGING NONE"
+                self._incoming_pipeline = None
+            self._pipeline_steps = self._incoming_pipeline
+            self._incoming_pipeline = None
+        if self._incoming_status:
+            self._status_list = self._incoming_status
+            self._incoming_status = None
+
         rows = self._tray_frame.tray_proxyModel.rowCount()
         if rows < 1:
             return []
