@@ -1391,10 +1391,12 @@ class RvActivityMode(rvt.MinorMode):
         t_type = target_entity["type"]
 
         if   t_type == "Version":
+            self._popup_utils.clear_rel_cuts_menu(remove_menu=True, target_entity=target_entity)
             self.load_tray_with_version_ids(target_entity["ids"])
             self.tray_main_frame.show_steps_and_statuses(False)
 
         elif t_type == "Playlist":
+            self._popup_utils.clear_rel_cuts_menu(remove_menu=True, target_entity=target_entity)
             self.load_tray_with_playlist_id(target_entity["ids"][0])
             self.tray_main_frame.show_steps_and_statuses(False)
 
@@ -2260,8 +2262,8 @@ class RvActivityMode(rvt.MinorMode):
             # we want this to happen now, so that the menu will be ready
             # self._popup_utils.request_related_cuts_from_models()
             # creating just the menu alone leads to in progress refresh
-            self._popup_utils.create_related_cuts_from_models()
-
+            # self._popup_utils.create_related_cuts_from_models()
+            pass
         else:
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()

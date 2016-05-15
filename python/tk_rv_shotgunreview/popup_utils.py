@@ -61,6 +61,11 @@ class PopupUtils(QtCore.QObject):
         self._last_rel_cut_entity = None
         self._last_rel_version_id = -1
         self._last_rel_cut_id = -1
+        self._query_ip = False
+
+        # sequence data IS UPDATED too late for us, so this tells us intent for related 
+        # cuts menu loading or clearing.
+        self._target_entity = None
 
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
@@ -123,6 +128,7 @@ class PopupUtils(QtCore.QObject):
         # print "find_rel_cuts_with_model %r %r %r" % (entity_in, shot_entity, self._project_entity['id'])
         self._rel_cuts_done = False
         self._rel_shots_done = False
+        self._query_ip = True
 
         conditions = ['entity', 'is', entity_in]
         if self._project_entity and self._project_entity['id']:
@@ -149,6 +155,7 @@ class PopupUtils(QtCore.QObject):
             {'field_name': 'code', 'direction': 'asc'}, 
             {'field_name': 'cached_display_name', 'direction': 'asc'}
             ]
+
         self._rel_shots_model.load_data(entity_type="Cut", filters=shot_filters, fields=shot_fields, order=shot_orders)        
         #self._related_timer.start(20)
 
@@ -160,7 +167,8 @@ class PopupUtils(QtCore.QObject):
         seq_data = self._rv_mode.sequence_data_from_session()
 
         if (not seq_data or seq_data["target_entity"]["type"] != "Cut"):
-            self._engine.log_info('request_related_cuts_from_models: No cut info available')
+            self._engine.log_warning('request_related_cuts_from_models: No cut info available')
+            self.clear_rel_cuts_menu(remove_menu=True)
             return
 
         cut_link = seq_data['entity']
@@ -169,14 +177,16 @@ class PopupUtils(QtCore.QObject):
         version_data = self._rv_mode.version_data_from_source()
         # this probably shouldnt happen but seeing it when erroring on robustness tests
         if not version_data:
-            self._engine.log_info("request_related_cuts_from_models - No version data found in session.")
+            self._engine.log_warning("request_related_cuts_from_models - No version data found in session.")
+            self.clear_rel_cuts_menu(remove_menu=True)
             return
 
         # if this is the same as last time, then we can bail, its already rebuilt.
         # pp.pprint(version_data)
-        if self._last_rel_version_id == version_data['id'] and self._last_rel_cut_id == cut_id:
-            self._engine.log_info('still on version %d, not rebuilding rel cuts menu' % version_data['id'])
-            return
+        # print "actions: %d" % len(self._related_cuts_menu.actions())
+        if self._last_rel_version_id == version_data['id'] and self._last_rel_cut_id == cut_id and self._related_cuts_menu and len(self._related_cuts_menu.actions()) > 0:
+           self._engine.log_warning('still on version %d, not rebuilding rel cuts menu' % version_data['id'])
+           return
         
         self._last_rel_version_id = version_data['id']
         self._last_rel_cut_id = cut_id
@@ -199,18 +209,21 @@ class PopupUtils(QtCore.QObject):
                     return
                 else:
                     # we already have it cached.
-                    self.related_cuts_ready.emit()
+                    if not self._query_ip:
+                        self.related_cuts_ready.emit()
+                    return
 
         # XXX don't get this ? -- alan
-        # XXX there was a cut based on a Scene and the query returned the entity we want in a different column - sb.
+        # XXX is this another impossible workflow? - sb.
         if cut_link['type'] == "Scene":
+            self._engine.log_warning("cant find relative cuts for a scene? using shot linked to version?")
             if version_link:
                 self.find_rel_cuts_with_model(cut_link, version_link['shot'])
             return
 
     def handle_related_menu(self, action=None):
         self._engine.log_info("handle_related_menu called with action %r" % action)
-        if action.data():
+        if action and action.data():
             self._engine.log_info("action.data: %r" % action.data()) 
             self._rv_mode.load_tray_with_something_new(
                 {"type":"Cut", "ids":[action.data()['id']]}, 
@@ -222,6 +235,7 @@ class PopupUtils(QtCore.QObject):
         if self._rel_cuts_done and self._rel_shots_done:
             self._rel_shots_done = False
             self._rel_cuts_done = False
+            self._query_ip = False
             self.related_cuts_ready.emit()
 
     def on_rel_shots_refreshed(self):
@@ -229,6 +243,7 @@ class PopupUtils(QtCore.QObject):
         if self._rel_cuts_done and self._rel_shots_done:
             self._rel_shots_done = False
             self._rel_cuts_done = False
+            self._query_ip = False
             self.related_cuts_ready.emit()
         
     # def set_project(self, entity):
@@ -284,12 +299,26 @@ class PopupUtils(QtCore.QObject):
 
         return sorted_cuts
  
+    def clear_rel_cuts_menu(self, remove_menu=False, target_entity=None):
+        
+        if target_entity and (target_entity['type'] == "Version" or target_entity['type'] == "Playlist"):
+            self._target_entity = target_entity
+        else:
+            self._target_entity = None
+
+        if self._related_cuts_menu:
+            self._related_cuts_menu.clear()
+            self._last_related_cuts = None
+        if remove_menu:
+            self._related_cuts_menu = None
+            self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu) 
+
     def create_related_cuts_from_models(self):
-        if not self._related_cuts_menu:
+        if not self._related_cuts_menu and not self._target_entity:
+            self._engine.log_info("create_related_cuts_from_models, CREATING MENU")
             self._related_cuts_menu = QtGui.QMenu(self._tray_frame.tray_button_browse_cut)
             self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu)        
-            # self._related_cuts_menu.aboutToShow.connect(self.request_related_cuts_from_models)
-
+ 
             # Sadly, because this button didn't have a menu at the time that
             # the app-level styling was applied, it won't inherit menu-indicator
             # styling there. We have to set it here as a result.
@@ -305,9 +334,17 @@ class PopupUtils(QtCore.QObject):
                 """
             )
             self._related_cuts_menu.triggered.connect(self.handle_related_menu)
+            # self._related_cuts_menu.aboutToShow.connect(self.handle_related_menu)
+        else:
+            # if we have a menu, and target_entity is None, then we are moving from
+            # cut to cut. if no menu and there is a target, then its a version or
+            # playlist so we can bail.
+            if not self._related_cuts_menu:
+                return
 
         seq_data = self._rv_mode.sequence_data_from_session()
         cut_id = seq_data["target_entity"]["ids"][0] if seq_data else None
+        
         self._engine.log_info("create_related_cuts_from_models, cut_id: %r" % cut_id)
 
         seq_cuts = self.merge_rel_models_for_menu()
@@ -330,6 +367,7 @@ class PopupUtils(QtCore.QObject):
                         if bd['id'] == cut_id:
                             b.setChecked(True)
                             a.setChecked(True)
+            self._engine.log_warning("create_related_cuts_from_models, updating check marks only, %d" % len(seq_cuts) )
 
             return
 
@@ -346,6 +384,7 @@ class PopupUtils(QtCore.QObject):
         parent_menu = None
         last_code = None
         en = {}
+        self._engine.log_info("create_related_cuts_from_models, seq_cuts: %r" % len(seq_cuts))
 
         for x in seq_cuts:
             action = QtGui.QAction(self._tray_frame.tray_button_browse_cut)
@@ -383,6 +422,8 @@ class PopupUtils(QtCore.QObject):
  
             last_menu.addAction(action)
             last_code = x['code']
+
+        self._engine.log_info("DONE create_related_cuts_from_models, cut_id: %r" % cut_id)
 
     # approval status menu methods
 
