@@ -188,8 +188,8 @@ class RvActivityMode(rvt.MinorMode):
     
     def check_details(self):
         if self.details_dirty:
-            self.load_version_id_from_session()
-            if not rvc.isPlaying():
+            version_id = self.load_version_id_from_session()
+            if version_id and not rvc.isPlaying():
                 if self.target_entity and self.target_entity['type'] != "Cut":
                     self.update_cuts_with()
                 self._popup_utils.request_related_cuts_from_models()
@@ -245,6 +245,8 @@ class RvActivityMode(rvt.MinorMode):
         self.load_data({"type": "Version", "id": version_id})
 
         self.details_dirty = False
+
+        return version_id
 
     # RV Events
 
