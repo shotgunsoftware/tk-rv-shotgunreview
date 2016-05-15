@@ -185,9 +185,10 @@ class RvActivityMode(rvt.MinorMode):
         if self.details_dirty:
             self.load_version_id_from_session()
             if not rvc.isPlaying():
-                self.update_cuts_with()
+                if self.target_entity and self.target_entity['type'] != "Cut":
+                    self.update_cuts_with()
                 self._popup_utils.request_related_cuts_from_models()
- 
+
     def current_source(self):
         """
         The "current source" is the "first" RVSourceGroup used to render this
@@ -374,6 +375,13 @@ class RvActivityMode(rvt.MinorMode):
                     self._prefs.pin_details):
                 self.details_panel.set_pinned(True)
                 self.details_pinned_for_playback = True
+
+                # if the Cuts button is conditionally enabled (because we're
+                # looking at something other than a cut), then disable during
+                # playback.
+                if self.target_entity['type'] != "Cut":
+                    self.enable_cuts_action(False, 'Stop to enable.')
+
             # We only auto-unpin the details on stop if we auto-pinned them in
             # the first place.
             elif event.name() == "play-stop":
@@ -381,7 +389,13 @@ class RvActivityMode(rvt.MinorMode):
                     self.details_panel.set_pinned(False)
                     self.details_pinned_for_playback = False
 
-                self.update_cuts_with()
+                # if the Cuts button is conditionally enabled (because we're
+                # looking at something other than a cut), this is were we check
+                # to see if this clip has a default cut and update the button
+                # state accordingly.
+                if self.target_entity['type'] != "Cut":
+                    self.update_cuts_with()
+
                 self._popup_utils.request_related_cuts_from_models()
 
     def update_cuts_with(self):
@@ -848,6 +862,10 @@ class RvActivityMode(rvt.MinorMode):
 
         self._tray_height = 96
         self.target_entity = None
+        
+        # keep track of where we just were to enable 'cuts off' mode
+        self.last_target_entity = None
+
         self.main_query_active = False
         self.details_panel_last_loaded = None
 
@@ -885,6 +903,7 @@ class RvActivityMode(rvt.MinorMode):
         self._prefs = Preferences()
         self.incoming_pinned = {}
         self.incoming_mini_cut_focus = None
+
 
         self.init("RvActivityMode", None,
                 [ 
@@ -986,10 +1005,10 @@ class RvActivityMode(rvt.MinorMode):
 
     def enable_cuts_action(self, enable=True, tooltip=None, enable_blue=False):
         '''
-        Enables cuts toolbar button. If enable is false the button
-        is disabled.
+        Enables cuts toolbar button; when enabled it may be blue. If enable is
+        false the button is disabled (and not blue).
         '''
-        if (enable_blue or not enable):
+        if (enable and enable_blue):
             cicon = QtGui.QIcon(":/tk-rv-shotgunreview/icon_player_cut_action_small_active.png")
             self.cuts_action.setIcon(cicon)
         else:
@@ -1002,6 +1021,19 @@ class RvActivityMode(rvt.MinorMode):
         '''
         cuts toolbar button listener
         '''
+        if self.target_entity and self.target_entity['type'] == "Cut":
+            if self.last_target_entity:
+                # we're loading a non-cut, so no mini-cut state, pinned state, etc.
+                self.load_tray_with_something_new(self.last_target_entity)
+            else:
+                # load the version we are on
+                version_data = self.version_data_from_source()
+                if version_data:
+                    self.load_tray_with_something_new({"id":version_data["id"], "type":"Version"})
+
+            self._app.engine.log_info('Clapper disabled for Cut entities. Back to last non-cut target_entity.')
+            return
+
         # data is waiting for us:
         cut = self.get_cuts_with()
         if not cut:
@@ -1012,7 +1044,7 @@ class RvActivityMode(rvt.MinorMode):
             shot_id = self.shot_id_str_from_version_data(version_data)
             pinned = { shot_id:version_data } if shot_id else {}          
 
-            self.load_tray_with_something_new(cut, False, 
+            self.load_tray_with_something_new(cut,
                     incoming_pinned=pinned, 
                     incoming_mini_focus=version_data)
 
@@ -1173,7 +1205,7 @@ class RvActivityMode(rvt.MinorMode):
         # which we are currently authenticated
         target_entity["server"] = self._app.tank.shotgun_url
 
-        self.load_tray_with_something_new(target_entity)
+        self.load_tray_with_something_new(target_entity, load_from_gma=True)
 
         """
         except Exception as e:
@@ -1360,7 +1392,12 @@ class RvActivityMode(rvt.MinorMode):
 
         return self.version_data_from_source(source_group)
 
-    def load_tray_with_something_new(self, target_entity, preserve_pinned=False, preserve_mini=False, incoming_pinned={}, incoming_mini_focus=None):
+    def load_tray_with_something_new(self, target_entity, 
+            load_from_gma       = False, 
+            preserve_pinned     = False, 
+            preserve_mini       = False, 
+            incoming_pinned     = {}, 
+            incoming_mini_focus = None):
 
         self.incoming_pinned         = {}
         self.incoming_mini_cut_focus = None
@@ -1386,23 +1423,26 @@ class RvActivityMode(rvt.MinorMode):
         # XXX get rid of "id"
         if "id" in target_entity and "ids" not in target_entity:
             target_entity["ids"] = [ target_entity["id"] ]
+
         self.target_entity = target_entity
 
         t_type = target_entity["type"]
 
         if   t_type == "Version":
             self._popup_utils.clear_rel_cuts_menu(remove_menu=True, target_entity=target_entity)
+            self.last_target_entity = target_entity
             self.load_tray_with_version_ids(target_entity["ids"])
-            self.tray_main_frame.show_steps_and_statuses(False)
-
+            self.tray_main_frame.show_steps_and_statuses(False)    
         elif t_type == "Playlist":
             self._popup_utils.clear_rel_cuts_menu(remove_menu=True, target_entity=target_entity)
+            self.last_target_entity = target_entity
             self.load_tray_with_playlist_id(target_entity["ids"][0])
             self.tray_main_frame.show_steps_and_statuses(False)
-
         elif t_type == "CutItem":
             cut = target_entity.get("cut")
             if cut:
+                if load_from_gma:
+                    self.last_target_entity = None
                 self.target_entity = cut
                 self.target_entity["ids"] = [cut["id"]]
 
@@ -1414,6 +1454,9 @@ class RvActivityMode(rvt.MinorMode):
                 self.tray_main_frame.show_steps_and_statuses(True)
 
         elif t_type == "Cut":
+            if load_from_gma:
+                self.last_target_entity = None
+
             # We only care about "pinned" shots/versions if we are loading a
             # Cut.  If caller asks that pinned state be preserved (we are
             # "switching cuts"), get current state for sequence and set in mode
@@ -1855,7 +1898,6 @@ class RvActivityMode(rvt.MinorMode):
         return (version_data, edit_data)
 
     def data_from_version(self, sg):
-
         version_data = sg
         edit_data = {}
         edit_data["in"]  = sg.get("sg_first_frame", 1)
@@ -2269,6 +2311,8 @@ class RvActivityMode(rvt.MinorMode):
                 self.related_cuts_menu.clear()
 
 
+
+
     def set_cut_control_visibility(self, vis):
         self.tray_button_mini_cut.setVisible(vis)
         self.tray_button_entire_cut.setVisible(vis)
@@ -2306,9 +2350,19 @@ class RvActivityMode(rvt.MinorMode):
             if not self.details_hidden_this_session and self._prefs.auto_show_details: 
                 self.note_dock.show()
 
-            # it's a sequence of some kind, but maybe not a Cut; set menu etc
+            # it's a sequence of some kind, but maybe not a Cut; set menu and
             # control visibility accordingly
-            self.set_cut_control_visibility(query_target_entity.get("type") == "Cut")
+            its_a_cut = query_target_entity.get("type") == "Cut"
+            self.set_cut_control_visibility(its_a_cut)
+
+            # preliminary configuration of cut mode button: if we disable here
+            # we may enable later once we are stopped on a clip that has a
+            # default cut.
+            if its_a_cut:
+                self.enable_cuts_action(enable=True, tooltip='Turn off cuts mode', enable_blue=True)
+            else:
+                self.enable_cuts_action(enable=False, tooltip='', enable_blue=False)
+
 
         else:
             # it's not a Cut or a Playlist or a Version sequence.  But maybe
