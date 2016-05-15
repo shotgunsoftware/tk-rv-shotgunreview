@@ -126,8 +126,7 @@ required_version_fields = [
     "sg_path_to_frames",
     "sg_path_to_movie",
     "sg_status_list",
-    "sg_uploaded_movie_frame_rate",
-    "type",
+    "sg_uploaded_movie_frame_rate"
     ]
 
 def setProp(prop, value):
@@ -866,8 +865,6 @@ class RvActivityMode(rvt.MinorMode):
         
         # keep track of where we just were to enable 'cuts off' mode
         self.last_target_entity = None
-        # XXX - sb - better way?
-        self.gma_clear = False
 
         self.main_query_active = False
         self.details_panel_last_loaded = None
@@ -1025,27 +1022,14 @@ class RvActivityMode(rvt.MinorMode):
         cuts toolbar button listener
         '''
         if self.target_entity and self.target_entity['type'] == "Cut":
-            version_data = self.version_data_from_source()
             if self.last_target_entity:
-                self.load_tray_with_something_new(self.last_target_entity, False, 
-                    incoming_pinned={}, 
-                    incoming_mini_focus=version_data)
+                # we're loading a non-cut, so no mini-cut state, pinned state, etc.
+                self.load_tray_with_something_new(self.last_target_entity)
             else:
                 # load the version we are on
-                if 'type' not in version_data or not version_data['type']:
-                    # type is None on version data from CutItems because
-                    # version.Version.type is None - type is not a real column?
-                    # but an 'entity' THANG?
-                    te = {}
-                    te['type'] = "Version"
-                    te['id'] = version_data['id']
-                    self.load_tray_with_something_new(te, False, 
-                    incoming_pinned={}, 
-                    incoming_mini_focus=version_data)
-                else:
-                    self.load_tray_with_something_new(version_data, False, 
-                    incoming_pinned={}, 
-                    incoming_mini_focus=version_data)
+                version_data = self.version_data_from_source()
+                if version_data:
+                    self.load_tray_with_something_new({"id":version_data["id"], "type":"Version"})
 
             self._app.engine.log_info('Clapper disabled for Cut entities. Back to last non-cut target_entity.')
             return
@@ -1060,7 +1044,7 @@ class RvActivityMode(rvt.MinorMode):
             shot_id = self.shot_id_str_from_version_data(version_data)
             pinned = { shot_id:version_data } if shot_id else {}          
 
-            self.load_tray_with_something_new(cut, False, 
+            self.load_tray_with_something_new(cut,
                     incoming_pinned=pinned, 
                     incoming_mini_focus=version_data)
 
@@ -1221,12 +1205,7 @@ class RvActivityMode(rvt.MinorMode):
         # which we are currently authenticated
         target_entity["server"] = self._app.tank.shotgun_url
 
-        if target_entity['type'] == "Cut" or target_entity['type'] == "CutItem":
-            self.last_target_entity = None
-            self.gma_clear = True
-
-
-        self.load_tray_with_something_new(target_entity)
+        self.load_tray_with_something_new(target_entity, load_from_gma=True)
 
         """
         except Exception as e:
@@ -1413,7 +1392,12 @@ class RvActivityMode(rvt.MinorMode):
 
         return self.version_data_from_source(source_group)
 
-    def load_tray_with_something_new(self, target_entity, preserve_pinned=False, preserve_mini=False, incoming_pinned={}, incoming_mini_focus=None):
+    def load_tray_with_something_new(self, target_entity, 
+            load_from_gma       = False, 
+            preserve_pinned     = False, 
+            preserve_mini       = False, 
+            incoming_pinned     = {}, 
+            incoming_mini_focus = None):
 
         self.incoming_pinned         = {}
         self.incoming_mini_cut_focus = None
@@ -1440,25 +1424,23 @@ class RvActivityMode(rvt.MinorMode):
         if "id" in target_entity and "ids" not in target_entity:
             target_entity["ids"] = [ target_entity["id"] ]
 
-        if not self.gma_clear:
-            if self.target_entity and (self.target_entity['type'] == "Version" or self.target_entity['type'] == "Playlist"):
-                self.last_target_entity = self.target_entity
-        else:
-            self.gma_clear = False
-
         self.target_entity = target_entity
 
         t_type = target_entity["type"]
 
         if   t_type == "Version":
+            self.last_target_entity = target_entity
             self.load_tray_with_version_ids(target_entity["ids"])
             self.tray_main_frame.show_steps_and_statuses(False)    
         elif t_type == "Playlist":
+            self.last_target_entity = target_entity
             self.load_tray_with_playlist_id(target_entity["ids"][0])
             self.tray_main_frame.show_steps_and_statuses(False)
         elif t_type == "CutItem":
             cut = target_entity.get("cut")
             if cut:
+                if load_from_gma:
+                    self.last_target_entity = None
                 self.target_entity = cut
                 self.target_entity["ids"] = [cut["id"]]
 
@@ -1470,6 +1452,9 @@ class RvActivityMode(rvt.MinorMode):
                 self.tray_main_frame.show_steps_and_statuses(True)
 
         elif t_type == "Cut":
+            if load_from_gma:
+                self.last_target_entity = None
+
             # We only care about "pinned" shots/versions if we are loading a
             # Cut.  If caller asks that pinned state be preserved (we are
             # "switching cuts"), get current state for sequence and set in mode
@@ -1908,12 +1893,6 @@ class RvActivityMode(rvt.MinorMode):
             version_data["id"]   = 100000 + sg.get("cut.Cut.id", 0)
             version_data["code"] = "Missing Version"
 
-        # XXX - sb - does this break anything?
-        # cut items have None in version.Version.type
-        #print "ADDING VERSION TYPE"
-        #if not version_data['type']:
-        #    version_data['type'] = "Version"
-
         return (version_data, edit_data)
 
     def data_from_version(self, sg):
@@ -2326,7 +2305,6 @@ class RvActivityMode(rvt.MinorMode):
             self._popup_utils.create_related_cuts_from_models()
 
         else:
-            self.last_target_entity = self.target_entity
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
 
