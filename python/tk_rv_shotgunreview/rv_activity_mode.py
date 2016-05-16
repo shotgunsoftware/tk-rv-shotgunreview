@@ -883,6 +883,7 @@ class RvActivityMode(rvt.MinorMode):
 
         self._tray_height = 96
         self.target_entity = None
+        self.playback_queued = False
         
         # keep track of where we just were to enable 'cuts off' mode
         self.last_target_entity = None
@@ -2310,11 +2311,18 @@ class RvActivityMode(rvt.MinorMode):
         # initiate that query.  If not, display completion feedback 
 
         filter_query_required = self._popup_utils.filters_exist()
-        
+
+        # If we want to auto play in general, we can deduce that we want to in
+        # this case from playback_queued, or from the fact that this is a
+        # "first load" and no filter_query is scheduled.
+
+        trigger_playback = self._prefs.auto_play and (self.playback_queued or (
+                not incremental_update and not filter_query_required))
+
         if not incremental_update and filter_query_required:
             # trigger filter query
             self._popup_utils.request_versions_for_statuses_and_steps(True)
-
+            self.playback_queued = self._prefs.auto_play
         else :
             rve.displayFeedback("Loading complete", 2.0)
 
@@ -2323,8 +2331,10 @@ class RvActivityMode(rvt.MinorMode):
 
         self.load_version_id_from_session()
         rvc.redraw()
-        if not incremental_update and self._prefs.auto_play:
+        
+        if trigger_playback:
             rvc.play()
+            self.playback_queued = False
 
         if self.target_entity["type"] == "Cut":
             # self.create_related_cuts_menu(sequence_data["entity"], None)
