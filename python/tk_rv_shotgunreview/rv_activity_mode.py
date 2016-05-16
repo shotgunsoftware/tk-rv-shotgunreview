@@ -40,7 +40,8 @@ def groupMemberOfType(node, memberType):
     return None
 
 class Preferences:
-    def __init__(self):
+    def __init__(self, engine):
+        self._engine = engine
         self.group = "sg_review_mode"
         g = self.group
 
@@ -69,7 +70,7 @@ class Preferences:
             else:
                 self.pipeline_filter = s
         except Exception as e:
-            self._app.engine.log_error("self.pipline_filter parsing: r" % e)
+            self._engine.log_error("self.pipline_filter parsing: r" % e)
 
         self.status_filter = []
         try:
@@ -79,7 +80,7 @@ class Preferences:
             else:
                 self.status_filter = s
         except Exception as e:
-            self._app.engine.log_error("self.pipline_filter parsing: r" % e)
+            self._engine.log_error("self.pipline_filter parsing: r" % e)
 
 
     def save(self):
@@ -98,13 +99,15 @@ class Preferences:
 
         # json doesnt take None as input.
         if self.pipeline_filter == None:
-            self.pipeline_filter = "None"
-        json_pipeline = json.dumps(self.pipeline_filter)
+            json_pipeline = json.dumps("None")
+        else:
+            json_pipeline = json.dumps(self.pipeline_filter)
         rvc.writeSettings(g, "pipeline_filter",        json_pipeline)
 
         if self.status_filter == None:
-            self.status_filter = "None"
-        json_status = json.dumps(self.status_filter)
+            json_status = json.dumps("None")
+        else:
+            json_status = json.dumps(self.status_filter)
         rvc.writeSettings(g, "status_filter",          json_status)
 
 class MediaType:
@@ -941,7 +944,7 @@ class RvActivityMode(rvt.MinorMode):
         self._app = app
         self._queued_frame_change = -1
 
-        self._prefs = Preferences()
+        self._prefs = Preferences(self._app.engine)
         self.incoming_pinned = {}
         self.incoming_mini_cut_focus = None
 
