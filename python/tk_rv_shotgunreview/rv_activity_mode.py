@@ -61,21 +61,26 @@ class Preferences:
         self.status_filter_json     = rvc.readSettings(g, "status_filter",          "[]")
 
         self.pipeline_filter = None
-        s = json.loads(self.pipeline_filter_json)
-        # there is no None in JSON, so we store a "None" string to mean this.
-        if s == "None":
-            self.pipeline_filter = None
-        else:
-            self.pipeline_filter = s
+        try:
+            s = json.loads(self.pipeline_filter_json)
+            # there is no None in JSON, so we store a "None" string to mean this.
+            if s == "None":
+                self.pipeline_filter = None
+            else:
+                self.pipeline_filter = s
+        except Exception as e:
+            self._app.engine.log_error("self.pipline_filter parsing: r" % e)
 
         self.status_filter = []
-        s = json.loads(self.status_filter_json)
-        if s == "None":
-            self.status_filter = []
-        else:
-            self.status_filter = s
+        try:
+            s = json.loads(self.status_filter_json)
+            if s == "None":
+                self.status_filter = []
+            else:
+                self.status_filter = s
+        except Exception as e:
+            self._app.engine.log_error("self.pipline_filter parsing: r" % e)
 
-        print "PREFS: %r %r" % ( self.status_filter, self.pipeline_filter)
 
     def save(self):
         g = self.group
@@ -525,21 +530,6 @@ class RvActivityMode(rvt.MinorMode):
     def set_default_media_type_frames(self, event):
         self._prefs.preferred_media_type = "Frames"
         self._prefs.save()
-
-    # def set_default_status_menu(self):
-    #     # j = json.dumps(self._popup_utils.get_status())
-    #     # self._prefs.status_filter = j
-
-    #     self._prefs.save()
-
-    # def set_default_pipeline_menu(self):
-    #     # p = self._popup_utils.get_pipeline()
-    #     # if p == None:
-    #     #     # need to store a string...
-    #     #     p = "None"
-    #     # j = json.dumps( p )
-    #     # self._prefs.pipeline_filter = j
-    #     self._prefs.save()
 
     def default_media_type_state_movie(self):
         return rvc.CheckedMenuState if self._prefs.preferred_media_type == "Movie" else rvc.UncheckedMenuState
@@ -1156,9 +1146,6 @@ class RvActivityMode(rvt.MinorMode):
 
         # popup utils will try to handle all popup menu related things...
         self._popup_utils = PopupUtils(self)
-        # self._popup_utils.set_status(self._prefs.status_filter)
-        self._popup_utils.mark_pipeline_selections()
-
         
         # just map these back for the moment...
         self.tray_model = self.tray_main_frame.tray_model

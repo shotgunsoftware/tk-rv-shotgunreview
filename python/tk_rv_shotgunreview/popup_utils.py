@@ -67,16 +67,9 @@ class PopupUtils(QtCore.QObject):
         # sequence data IS UPDATED too late for us, so this tells us intent for related 
         # cuts menu loading or clearing.
         self._target_entity = None
-
-
-        # we should be able to get rid of all of these
-        #self._status_list = []
-        #self._pipeline_steps = None
-        #self._incoming_status = None
-        #self._incoming_pipeline = None
-        
+       
         # used to update menu checks on preset filter load ONCE.
-        self._preset_pipeline = False
+        self._preset_pipeline = True
 
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
@@ -104,29 +97,7 @@ class PopupUtils(QtCore.QObject):
 
     # related cuts menu menthods
 
-    # def get_status(self):
-    #     if self._incoming_status:
-    #         return self._incoming_status
-    #     return self._status_list
-
-    # def set_status(self, incoming_json):
-    #     incoming_status = json.loads(incoming_json)
-    #     self._incoming_status = incoming_status
-
-    # def get_pipeline(self):
-    #     if self._incoming_pipeline != None:
-    #         return self._incoming_pipeline
-    #     return self._pipeline_steps
-
-    # 
-    def mark_pipeline_selections(self):
-        self._preset_pipeline = True
-        self.check_pipeline_menu()
-
-
-    # def set_pipeline(self, incoming_json):
-    #     incoming_pipeline = json.loads(incoming_json)
-    #     self._incoming_pipeline = incoming_pipeline
+    # def mark_pipeline_selections(self):
     #     self._preset_pipeline = True
     #     self.check_pipeline_menu()
 
@@ -197,8 +168,6 @@ class PopupUtils(QtCore.QObject):
             return
 
         # if this is the same as last time, then we can bail, its already rebuilt.
-        # pp.pprint(version_data)
-        # print "actions: %d" % len(self._related_cuts_menu.actions())
         if self._last_rel_version_id == version_data['id'] and self._last_rel_cut_id == cut_id and self._related_cuts_menu and len(self._related_cuts_menu.actions()) > 0:
            self._engine.log_warning('still on version %d, not rebuilding rel cuts menu' % version_data['id'])
            return
@@ -325,7 +294,7 @@ class PopupUtils(QtCore.QObject):
 
     def create_related_cuts_from_models(self):
         if not self._related_cuts_menu and not self._target_entity:
-            self._engine.log_info("create_related_cuts_from_models, CREATING MENU")
+            # self._engine.log_info("create_related_cuts_from_models, CREATING MENU")
             self._related_cuts_menu = QtGui.QMenu(self._tray_frame.tray_button_browse_cut)
             self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu)        
  
@@ -358,7 +327,7 @@ class PopupUtils(QtCore.QObject):
         self._engine.log_info("create_related_cuts_from_models, cut_id: %r" % cut_id)
 
         seq_cuts = self.merge_rel_models_for_menu()
-        #  pp.pprint(seq_cuts)
+ 
         if seq_cuts == self._last_related_cuts:
             actions = self._related_cuts_menu.actions()
             for a in actions:
@@ -377,7 +346,7 @@ class PopupUtils(QtCore.QObject):
                         if bd['id'] == cut_id:
                             b.setChecked(True)
                             a.setChecked(True)
-            self._engine.log_warning("create_related_cuts_from_models, updating check marks only, %d" % len(seq_cuts) )
+            #self._engine.log_warning("create_related_cuts_from_models, updating check marks only, %d" % len(seq_cuts) )
 
             return
 
@@ -394,7 +363,7 @@ class PopupUtils(QtCore.QObject):
         parent_menu = None
         last_code = None
         en = {}
-        self._engine.log_info("create_related_cuts_from_models, seq_cuts: %r" % len(seq_cuts))
+        # self._engine.log_info("create_related_cuts_from_models, seq_cuts: %r" % len(seq_cuts))
 
         for x in seq_cuts:
             action = QtGui.QAction(self._tray_frame.tray_button_browse_cut)
@@ -433,7 +402,7 @@ class PopupUtils(QtCore.QObject):
             last_menu.addAction(action)
             last_code = x['code']
 
-        self._engine.log_info("DONE create_related_cuts_from_models, cut_id: %r" % cut_id)
+        # self._engine.log_info("DONE create_related_cuts_from_models, cut_id: %r" % cut_id)
 
     # approval status menu methods
 
@@ -452,7 +421,6 @@ class PopupUtils(QtCore.QObject):
 
         if not self._status_schema or project_entity['id'] != self._project_entity['id']:
             self._project_entity = project_entity
-            # print "PROJECT  %r" % project_entity
             project_id = self._project_entity['id']
             self._status_schema = self._shotgun.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
                 
@@ -556,11 +524,6 @@ class PopupUtils(QtCore.QObject):
     def handle_status_menu(self, event):
         # if 'any status' is picked, then the other
         # choices are zeroed out. event.data will be None for any status
-
-        # if self._incoming_status:
-        #     self._status_list = self._incoming_status
-        # else:
-        #     self._status_list = []
 
         if not self._rv_mode._prefs.status_filter:
             self._rv_mode._prefs.status_filter = []
@@ -724,8 +687,6 @@ class PopupUtils(QtCore.QObject):
         # you might also get a roll off event that you dont want.
         # so check the widget and then update the button text
 
-        print "HANDLE PIPELINE MENU %r" % self._rv_mode._prefs.pipeline_filter
-        #if self._rv_mode._prefs.pipeline_filter == "None":
         self._rv_mode._prefs.pipeline_filter = None
 
         want_latest = False
@@ -743,13 +704,6 @@ class PopupUtils(QtCore.QObject):
         if self._rv_mode._prefs.pipeline_filter != None:
             if self._rv_mode._prefs.pipeline_filter == []:
                 want_latest = True
-            # elif self._rv_mode._prefs.pipeline_filter == "None":
-            #     self._rv_mode._prefs.pipeline_filter = None
-
-            # self._pipeline_steps = self._incoming_pipeline
-            # #self._incoming_pipeline = None
-        # else:    
-        #     self._pipeline_steps = None
         
         last_name = None
         for a in actions:
@@ -835,19 +789,10 @@ class PopupUtils(QtCore.QObject):
         self._tray_frame.tray_model.notify_filter_data_refreshed(True)
 
     def get_tray_filters(self):
-        # if self._rv_mode._prefs.pipeline_filter != None:
-            # if self._rv_mode._prefs.pipeline_filter == "None":
-            #     self._incoming_pipeline = None
-            # self._pipeline_steps = self._incoming_pipeline
-            # self._incoming_pipeline = None
-        # if self._incoming_status:
-        #     self._status_list = self._incoming_status
-        #     self._incoming_status = None
-
+ 
         if self._rv_mode._prefs.pipeline_filter == "None":
             self._rv_mode._prefs.pipeline_filter = None
-        print "GET TRAY FILTERS %r %r" % (self._rv_mode._prefs.pipeline_filter, self._rv_mode._prefs.status_filter )
-
+ 
         rows = self._tray_frame.tray_proxyModel.rowCount()
         if rows < 1:
             return []
@@ -883,8 +828,7 @@ class PopupUtils(QtCore.QObject):
             rve.displayFeedback("Reloading ...", 60.0)
 
         full_filters = self.get_tray_filters()
-        print "FULL FILTERS"
-        pp.pprint(full_filters)
+
         if full_filters == None:
             self._filtered_versions_model.clear()
             self._filtered_versions_model.data_refreshed.emit(True)
