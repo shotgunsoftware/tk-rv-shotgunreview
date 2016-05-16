@@ -54,9 +54,28 @@ class Preferences:
         self.auto_play              = rvc.readSettings(g, "auto_play",              True)
         self.mini_left_count        = rvc.readSettings(g, "mini_left_count",        2)
         self.mini_right_count       = rvc.readSettings(g, "mini_right_count",       2)
-        self.pipeline_filter        = rvc.readSettings(g, "pipeline_filter",        "None")
-        self.status_filter          = rvc.readSettings(g, "status_filter",          "[]")
 
+        # pipeline filter is odd because a valid input into the query preset is [] meaning 'latest in pipeline'
+        # so it has 3 states. a list with stuff, an empty list (latest in pipe) and None.
+        self.pipeline_filter_json   = rvc.readSettings(g, "pipeline_filter",        "None")
+        self.status_filter_json     = rvc.readSettings(g, "status_filter",          "[]")
+
+        self.pipeline_filter = None
+        s = json.loads(self.pipeline_filter_json)
+        # there is no None in JSON, so we store a "None" string to mean this.
+        if s == "None":
+            self.pipeline_filter = None
+        else:
+            self.pipeline_filter = s
+
+        self.status_filter = []
+        s = json.loads(self.status_filter_json)
+        if s == "None":
+            self.status_filter = []
+        else:
+            self.status_filter = s
+
+        print "PREFS: %r %r" % ( self.status_filter, self.pipeline_filter)
 
     def save(self):
         g = self.group
@@ -68,11 +87,20 @@ class Preferences:
         rvc.writeSettings(g, "auto_show_details",      self.auto_show_details)
         rvc.writeSettings(g, "auto_show_tray",         self.auto_show_tray)
         rvc.writeSettings(g, "pin_details",            self.pin_details)
-        rvc.writeSettings(g, "audo_play",              self.auto_play)
+        rvc.writeSettings(g, "auto_play",              self.auto_play)
         rvc.writeSettings(g, "mini_left_count",        self.mini_left_count)
         rvc.writeSettings(g, "mini_right_count",       self.mini_right_count)
-        rvc.writeSettings(g, "pipeline_filter",        self.pipeline_filter)
-        rvc.writeSettings(g, "status_filter",          self.status_filter)
+
+        # json doesnt take None as input.
+        if self.pipeline_filter == None:
+            self.pipeline_filter = "None"
+        json_pipeline = json.dumps(self.pipeline_filter)
+        rvc.writeSettings(g, "pipeline_filter",        json_pipeline)
+
+        if self.status_filter == None:
+            self.status_filter = "None"
+        json_status = json.dumps(self.status_filter)
+        rvc.writeSettings(g, "status_filter",          json_status)
 
 class MediaType:
     def __init__(self, name, path_field, slate_field, aspect_field):
@@ -498,19 +526,20 @@ class RvActivityMode(rvt.MinorMode):
         self._prefs.preferred_media_type = "Frames"
         self._prefs.save()
 
-    def set_default_status_menu(self):
-        j = json.dumps(self._popup_utils.get_status())
-        self._prefs.status_filter = j
-        self._prefs.save()
+    # def set_default_status_menu(self):
+    #     # j = json.dumps(self._popup_utils.get_status())
+    #     # self._prefs.status_filter = j
 
-    def set_default_pipeline_menu(self):
-        p = self._popup_utils.get_pipeline()
-        if p == None:
-            # need to store a string...
-            p = "None"
-        j = json.dumps( p )
-        self._prefs.pipeline_filter = j
-        self._prefs.save()
+    #     self._prefs.save()
+
+    # def set_default_pipeline_menu(self):
+    #     # p = self._popup_utils.get_pipeline()
+    #     # if p == None:
+    #     #     # need to store a string...
+    #     #     p = "None"
+    #     # j = json.dumps( p )
+    #     # self._prefs.pipeline_filter = j
+    #     self._prefs.save()
 
     def default_media_type_state_movie(self):
         return rvc.CheckedMenuState if self._prefs.preferred_media_type == "Movie" else rvc.UncheckedMenuState
@@ -1127,8 +1156,8 @@ class RvActivityMode(rvt.MinorMode):
 
         # popup utils will try to handle all popup menu related things...
         self._popup_utils = PopupUtils(self)
-        self._popup_utils.set_status(self._prefs.status_filter)
-        self._popup_utils.set_pipeline(self._prefs.pipeline_filter)
+        # self._popup_utils.set_status(self._prefs.status_filter)
+        self._popup_utils.mark_pipeline_selections()
 
         
         # just map these back for the moment...
@@ -2224,9 +2253,8 @@ class RvActivityMode(rvt.MinorMode):
 
         self._popup_utils.build_status_menu(self.project_entity)
         self._popup_utils.check_pipeline_menu()
-         # this writes the current state to prefs
-        self.set_default_status_menu()
-        self.set_default_pipeline_menu()
+         # write the current state if filters and statues to prefs
+        self._prefs.save()
 
         # Set or reset the UI Name of the sequence node
         rve.setUIName(seq_group_node, sequence_data["ui_name"])
