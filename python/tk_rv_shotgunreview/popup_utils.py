@@ -149,7 +149,7 @@ class PopupUtils(QtCore.QObject):
         """
         this method is called at aboutToShow time by the menu button
         """
-        
+
         seq_data = self._rv_mode.sequence_data_from_session()
 
         if not seq_data or seq_data["target_entity"]["type"] != "Cut":
@@ -206,9 +206,9 @@ class PopupUtils(QtCore.QObject):
             return
 
     def handle_related_menu(self, action=None):
-        self._engine.log_info("handle_related_menu called with action %r" % action)
+        #self._engine.log_info("handle_related_menu called with action %r" % action)
         if action and action.data():
-            self._engine.log_info("action.data: %r" % action.data()) 
+            self._engine.log_info("Loading related cut: %r" % action.data()) 
             self._rv_mode.load_tray_with_something_new(
                 {"type":"Cut", "ids":[action.data()['id']]}, 
                 preserve_pinned=True,
@@ -346,7 +346,7 @@ class PopupUtils(QtCore.QObject):
                         if bd['id'] == cut_id:
                             b.setChecked(True)
                             a.setChecked(True)
-            #self._engine.log_warning("create_related_cuts_from_models, updating check marks only, %d" % len(seq_cuts) )
+            self._engine.log_info("create_related_cuts_from_models, updating check marks only, %d" % len(seq_cuts) )
 
             return
 
@@ -761,10 +761,11 @@ class PopupUtils(QtCore.QObject):
         self._tray_frame.tray_model.notify_filter_data_refreshed(True)
 
 
-    def filter_tray(self):
+    def filter_tray(self, msg):
         rows = self._filtered_versions_model.rowCount()
         if rows < 1:
             self.clear_out_rv_roles()
+            self._tray_frame.tray_model.notify_filter_data_refreshed(True)
             return None
 
         shot_map = {}
@@ -777,6 +778,7 @@ class PopupUtils(QtCore.QObject):
         rows = self._tray_frame.tray_proxyModel.rowCount()
         if rows < 1:
              self._engine.log_warning( "Tray is empty." )
+             self._tray_frame.tray_model.notify_filter_data_refreshed(True)
              return None
 
         for x in range(0,rows):
@@ -798,7 +800,9 @@ class PopupUtils(QtCore.QObject):
  
         rows = self._tray_frame.tray_proxyModel.rowCount()
         if rows < 1:
-            return []
+            # this was [] but i think it should be None
+            return None
+        
         shot_list = []
         for x in range(0,rows):
             item = self._tray_frame.tray_proxyModel.index(x, 0)
@@ -806,6 +810,14 @@ class PopupUtils(QtCore.QObject):
             if sg.get('shot'):
                 # cut item may not be linked to shot
                 shot_list.append(sg['shot'])
+        
+        if len(shot_list) < 1:
+            self._engine.log_info('This cut has no related shots. Aborting query.')
+            # XXX this means we need to refresh the rel cuts memu ourselves, since
+            # the mode wont.
+            self.request_related_cuts_from_models()
+            return None
+
         entity_list = [ 'entity', 'in', shot_list ]
         if self._rv_mode._prefs.status_filter and self._rv_mode._prefs.pipeline_filter != None:
             status_list = ['sg_status_list', 'in', self._rv_mode._prefs.status_filter ]

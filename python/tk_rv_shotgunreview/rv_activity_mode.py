@@ -372,7 +372,7 @@ class RvActivityMode(rvt.MinorMode):
 
     def sourceGroupComplete(self, event):
         event.reject()
-
+        
         """
         args         = event.contents().split(";;")
         # this source group was just created.
