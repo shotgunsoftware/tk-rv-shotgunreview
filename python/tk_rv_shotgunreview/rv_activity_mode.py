@@ -40,7 +40,8 @@ def groupMemberOfType(node, memberType):
     return None
 
 class Preferences:
-    def __init__(self):
+    def __init__(self, engine):
+        self._engine = engine
         self.group = "sg_review_mode"
         g = self.group
 
@@ -55,6 +56,25 @@ class Preferences:
         self.mini_left_count        = rvc.readSettings(g, "mini_left_count",        2)
         self.mini_right_count       = rvc.readSettings(g, "mini_right_count",       2)
 
+        # pipeline filter is odd because a valid input into the query preset is [] meaning 'latest in pipeline'
+        # so it has 3 states. a list with stuff, an empty list (latest in pipe) and None.
+        self.pipeline_filter_json   = rvc.readSettings(g, "pipeline_filter",        "null")
+        self.status_filter_json     = rvc.readSettings(g, "status_filter",          "[]")
+
+        self.pipeline_filter = None
+        try:
+            self.pipeline_filter = json.loads(self.pipeline_filter_json)
+        except Exception as e:
+            self._engine.log_error("self.pipeline_filter parsing: %r" % (e))
+            self.pipeline_filter = None
+
+        self.status_filter = []
+        try:
+            self.status_filter = json.loads(self.status_filter_json)
+        except Exception as e:
+            self._engine.log_error("self.status_filter parsing: %r" % (e))
+            self.status_filter = []
+
     def save(self):
         g = self.group
 
@@ -65,9 +85,12 @@ class Preferences:
         rvc.writeSettings(g, "auto_show_details",      self.auto_show_details)
         rvc.writeSettings(g, "auto_show_tray",         self.auto_show_tray)
         rvc.writeSettings(g, "pin_details",            self.pin_details)
-        rvc.writeSettings(g, "audo_play",              self.auto_play)
+        rvc.writeSettings(g, "auto_play",              self.auto_play)
         rvc.writeSettings(g, "mini_left_count",        self.mini_left_count)
         rvc.writeSettings(g, "mini_right_count",       self.mini_right_count)
+
+        rvc.writeSettings(g, "pipeline_filter",        json.dumps(self.pipeline_filter))
+        rvc.writeSettings(g, "status_filter",          json.dumps(self.status_filter))
 
 class MediaType:
     def __init__(self, name, path_field, slate_field, aspect_field):
@@ -903,7 +926,7 @@ class RvActivityMode(rvt.MinorMode):
         self._app = app
         self._queued_frame_change = -1
 
-        self._prefs = Preferences()
+        self._prefs = Preferences(self._app.engine)
         self.incoming_pinned = {}
         self.incoming_mini_cut_focus = None
 
@@ -2201,8 +2224,11 @@ class RvActivityMode(rvt.MinorMode):
         # XXX build status menu ONCE per project. - sb
         if not self.project_entity:
             self.project_entity = sequence_data["project"]
-            # self._popup_utils.set_project(self.project_entity)
+
         self._popup_utils.build_status_menu(self.project_entity)
+        self._popup_utils.check_pipeline_menu()
+         # write the current state if filters and statues to prefs
+        self._prefs.save()
 
         # Set or reset the UI Name of the sequence node
         rve.setUIName(seq_group_node, sequence_data["ui_name"])
@@ -2281,12 +2307,13 @@ class RvActivityMode(rvt.MinorMode):
 
         # filter query logic
         # 
-        # Test here if we need to run filtering query automatically. IE if we
-        # have non-trivial filtering parameters and incremental_update is
-        # false (because we are not _responding_ to a filter update).  If so,
-        # initiate that query.  If not, display completion feedback 
+        # Test here if we need to run filtering query automatically. IE if
+        # we're loading a Cut and we have non-trivial filtering parameters and
+        # incremental_update is false (because we are not _responding_ to a
+        # filter update).  If so, initiate that query.  If not, display
+        # completion feedback 
 
-        filter_query_required = self._popup_utils.filters_exist()
+        filter_query_required = self._popup_utils.filters_exist() and self.target_entity["type"] == "Cut"
 
         # If we want to auto play in general, we can deduce that we want to in
         # this case from playback_queued, or from the fact that this is a
