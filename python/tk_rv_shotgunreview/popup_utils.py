@@ -661,9 +661,12 @@ class PopupUtils(QtCore.QObject):
                 tmp_incoming.append(e)
             else:
                 tmp_incoming = self._rv_mode._prefs.pipeline_filter
+                if tmp_incoming == "None":
+                    tmp_incoming = None
+
 
             for a in actions:
-                if a.data():
+                if a.data() and 'cached_display_name' in a.data():
                     for x in tmp_incoming:
                         if a.data()['cached_display_name'] == x['cached_display_name']:
                             a.setChecked(True)

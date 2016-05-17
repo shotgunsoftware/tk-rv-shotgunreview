@@ -58,30 +58,28 @@ class Preferences:
 
         # pipeline filter is odd because a valid input into the query preset is [] meaning 'latest in pipeline'
         # so it has 3 states. a list with stuff, an empty list (latest in pipe) and None.
-        self.pipeline_filter_json   = rvc.readSettings(g, "pipeline_filter",        "None")
+        self.pipeline_filter_json   = rvc.readSettings(g, "pipeline_filter",        "\"None\"")
         self.status_filter_json     = rvc.readSettings(g, "status_filter",          "[]")
 
         self.pipeline_filter = None
         try:
-            s = json.loads(self.pipeline_filter_json)
-            # there is no None in JSON, so we store a "None" string to mean this.
-            if s == "None":
+            if self.pipeline_filter_json == '"None"':
                 self.pipeline_filter = None
             else:
-                self.pipeline_filter = s
+                self.pipeline_filter = json.loads(self.pipeline_filter_json)
         except Exception as e:
-            self._engine.log_error("self.pipline_filter parsing: r" % e)
+            self._engine.log_error("self.pipeline_filter parsing: %r" % (e))
+            self.pipeline_filter = None
 
         self.status_filter = []
         try:
-            s = json.loads(self.status_filter_json)
-            if s == "None":
+            if self.status_filter_json == '"None"':
                 self.status_filter = []
             else:
-                self.status_filter = s
+                self.status_filter = json.loads(self.status_filter_json)
         except Exception as e:
-            self._engine.log_error("self.pipline_filter parsing: r" % e)
-
+            self._engine.log_error("self.status_filter parsing: %r" % (e))
+            self.status_filter = []
 
     def save(self):
         g = self.group
