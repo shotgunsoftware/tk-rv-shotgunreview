@@ -194,7 +194,7 @@ class TrayModel(ShotgunModel):
             m_idx = self.index(x, 0)
             sg = m_idx.data(self.SG_DATA_ROLE)
             if 'shot' in sg:
-                if sg['shot']['id'] == shot['id']:
+                if sg['shot'] and sg['shot']['id'] == shot['id']:
                     t_item = self.itemFromIndex(m_idx)
                     if not image:
                         # we have no image, then revert to the one we stored on load 
