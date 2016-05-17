@@ -73,7 +73,9 @@ class PopupUtils(QtCore.QObject):
 
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
-
+        self._ORIGINAL_THUMBNAIL = QtCore.Qt.UserRole + 1702
+        self._FILTER_THUMBNAIL = QtCore.Qt.UserRole + 1703
+        self._PINNED_THUMBNAIL = QtCore.Qt.UserRole + 1704
 
         # models
         self._steps_model = FilterStepsModel(None, self._rv_mode._app.engine.bg_task_manager)
@@ -754,11 +756,24 @@ class PopupUtils(QtCore.QObject):
             index = self._tray_frame.tray_model.index(x, 0)
             self._tray_frame.tray_delegate.update_rv_role(index, None)
 
-            thumb = index.data(self._CUT_THUMB_ROLE)
-            item = self._tray_frame.tray_model.itemFromIndex(index)
-            item.setIcon(thumb)
+            # _CUT_THUMB_ROLE is the icon from the original query
+            # _ORIGINAL_THUMBNAIL is a path to the cache.
+            #thumb = index.data(self._CUT_THUMB_ROLE)
+            orig_tn = index.data(self._ORIGINAL_THUMBNAIL)
+            filtered_tn = index.data(self._FILTER_THUMBNAIL)
+            
+            if filtered_tn:
+                self._tray_frame.tray_model.setData(index, None, self._FILTER_THUMBNAIL)
+
+            if orig_tn:
+                thumb = QtGui.QIcon(orig_tn)
+                self._tray_frame.tray_model.setData(index, thumb, self._CUT_THUMB_ROLE)
+
+                item = self._tray_frame.tray_model.itemFromIndex(index)
+                item.setIcon(thumb)
                 
         self._tray_frame.tray_model.notify_filter_data_refreshed(True)
+        self._tray_frame.tray_list.repaint()
 
 
     def filter_tray(self, msg):
