@@ -10,6 +10,8 @@
 
 from tank.platform.qt import QtCore, QtGui
 from .tray_delegate import RvTrayDelegate
+from .mini_cut_widget import MiniCutWidget
+
 import tank
 task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
 
@@ -251,6 +253,8 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_list.setUniformItemSizes(True)
                 
         self.tray_list.setObjectName("tray_list")
+
+        self.mc_widget = MiniCutWidget(self)
        
 
 

@@ -480,6 +480,7 @@ class RvActivityMode(rvt.MinorMode):
         event.reject()
         traysize = self.tray_dock.size().width()
         self.tray_main_frame.resize(traysize - 10, self._tray_height)
+        self.tray_main_frame.mc_widget.enable_minicut(True)
 
     def version_submitted(self, event):
         event.reject()
