@@ -401,6 +401,9 @@ class RvActivityMode(rvt.MinorMode):
                 self.details_panel.set_pinned(True)
                 self.details_pinned_for_playback = True
 
+                # hide mini UI
+                self.tray_main_frame.mc_widget.setVisible( False )
+
                 # if the Cuts button is conditionally enabled (because we're
                 # looking at something other than a cut), then disable during
                 # playback.
@@ -480,6 +483,7 @@ class RvActivityMode(rvt.MinorMode):
         event.reject()
         traysize = self.tray_dock.size().width()
         self.tray_main_frame.resize(traysize - 10, self._tray_height)
+        self.tray_main_frame.mc_widget.enable_minicut(True)
 
     def version_submitted(self, event):
         event.reject()
@@ -1141,14 +1145,17 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_button_mini_cut = self.tray_main_frame.tray_button_mini_cut
         self.tray_button_browse_cut = self.tray_main_frame.tray_button_browse_cut
         self.tray_bar_button = self.tray_main_frame.tray_bar_button
-        self.tray_left_spinner = self.tray_main_frame.mini_left_spinner
-        self.tray_right_spinner = self.tray_main_frame.mini_right_spinner
-        self.tray_left_label = self.tray_main_frame.tray_left_label
-        self.tray_right_label = self.tray_main_frame.tray_right_label
+        self.tray_left_spinner = self.tray_main_frame.mc_widget.widget.mini_left_spinner
+        self.tray_right_spinner = self.tray_main_frame.mc_widget.widget.mini_right_spinner
+        self.tray_left_label = self.tray_main_frame.mc_widget.widget.left_label
+        self.tray_right_label = self.tray_main_frame.mc_widget.widget.right_label
 
         # init spinner values
         self.tray_left_spinner.setValue (self._prefs.mini_left_count)
         self.tray_right_spinner.setValue(self._prefs.mini_right_count)
+        # update mini UI
+        self.tray_main_frame.tray_mini_label.setText("-%d+%d" % (self.tray_left_spinner.value(), self.tray_right_spinner.value()))
+
 
         # CONNECTIONS
         self.tray_model.data_refreshed.connect(self.on_data_refreshed)
@@ -1156,11 +1163,15 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_list.clicked.connect(self.tray_clicked)        
         self.tray_list.doubleClicked.connect(self.tray_double_clicked)
 
-        self.tray_main_frame.mini_right_spinner.valueChanged.connect(self.right_spinner_clicked)
-        self.tray_main_frame.mini_left_spinner.valueChanged.connect(self.left_spinner_clicked)
+        self.tray_main_frame.mc_widget.widget.mini_right_spinner.valueChanged.connect(self.right_spinner_clicked)
+        self.tray_main_frame.mc_widget.widget.mini_left_spinner.valueChanged.connect(self.left_spinner_clicked)
 
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
+
+        # mini cut popup menu
+        self.tray_main_frame.down_arrow_button.clicked.connect(self.show_mini_cut)
+        self.tray_main_frame.tray_mini_label.clicked.connect(self.show_mini_cut)
         
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
 
@@ -1189,6 +1200,10 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_dock.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tray_dock.customContextMenuRequested.connect( self.dont_show_tray_context_menu)
  
+    def show_mini_cut(self):
+        v = self.tray_main_frame.mc_widget.isVisible()
+        self.tray_main_frame.mc_widget.setVisible( not v )
+
     def dont_show_tray_context_menu(self):
         pass
 
@@ -1548,6 +1563,8 @@ class RvActivityMode(rvt.MinorMode):
         self.cached_mini_cut_data = mini_data
 
     def on_entire_cut(self):
+        # hide the mini cut floater if visible
+        self.tray_main_frame.mc_widget.setVisible( False )
 
         seq_node = None
         seq_group = rvc.viewNode()
@@ -1608,6 +1625,8 @@ class RvActivityMode(rvt.MinorMode):
         self.load_mini_cut(index, offset=offset)
 
         self.tray_list.repaint()
+
+        # self.tray_main_frame.mc_widget.setVisible( True )
 
     def on_cache_loaded(self):
         pass
@@ -2367,6 +2386,9 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_right_spinner.setVisible(vis)
         self.tray_left_label.setVisible(vis)
         self.tray_right_label.setVisible(vis)
+        self.tray_main_frame.down_arrow_button.setVisible(vis)
+        self.tray_main_frame.tray_mini_label.setVisible(vis)
+
 
     def configure_visibility(self):
         """
@@ -2484,9 +2506,12 @@ class RvActivityMode(rvt.MinorMode):
         rvc.play()
 
     def get_mini_values(self):
-        self._prefs.mini_left_count  = self.tray_main_frame.mini_left_spinner.value() 
-        self._prefs.mini_right_count = self.tray_main_frame.mini_right_spinner.value() 
+        self._prefs.mini_left_count  = self.tray_left_spinner.value() 
+        self._prefs.mini_right_count = self.tray_right_spinner.value() 
         self._prefs.save()
+
+        # update UI
+        self.tray_main_frame.tray_mini_label.setText("-%d+%d" % (self.tray_left_spinner.value(), self.tray_right_spinner.value()))
 
         return (
             self._prefs.mini_left_count,

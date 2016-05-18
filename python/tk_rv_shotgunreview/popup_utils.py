@@ -171,7 +171,7 @@ class PopupUtils(QtCore.QObject):
 
         # if this is the same as last time, then we can bail, its already rebuilt.
         if self._last_rel_version_id == version_data['id'] and self._last_rel_cut_id == cut_id and self._related_cuts_menu and len(self._related_cuts_menu.actions()) > 0:
-           self._engine.log_warning('still on version %d, not rebuilding rel cuts menu' % version_data['id'])
+           # self._engine.log_warning('still on version %d, not rebuilding rel cuts menu' % version_data['id'])
            return
         
         self._last_rel_version_id = version_data['id']

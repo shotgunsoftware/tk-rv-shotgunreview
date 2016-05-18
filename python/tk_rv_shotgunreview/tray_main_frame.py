@@ -10,6 +10,9 @@
 
 from tank.platform.qt import QtCore, QtGui
 from .tray_delegate import RvTrayDelegate
+from .mini_cut_widget import MiniCutWidget
+
+import os
 import tank
 task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
 
@@ -111,24 +114,37 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_mini_cut.setText('Mini Cut')
         self.tray_button_bar_hlayout.addWidget(self.tray_button_mini_cut)
 
-        self.mini_left_spinner = QtGui.QSpinBox()
-        self.mini_left_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.mini_left_spinner.setValue(2)
-        self.tray_button_bar_hlayout.addWidget(self.mini_left_spinner)
 
-        self.tray_left_label = QtGui.QLabel()
-        self.tray_left_label.setText('Before')
-        self.tray_button_bar_hlayout.addWidget(self.tray_left_label)
+        self.tray_mini_label = QtGui.QPushButton()
+        self.tray_mini_label.setText('-2+2')
+        self.tray_button_bar_hlayout.addWidget(self.tray_mini_label)
 
-        self.mini_right_spinner = QtGui.QSpinBox()
-        self.mini_right_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.mini_right_spinner.setValue(2)
-        self.tray_button_bar_hlayout.addWidget(self.mini_right_spinner)
+        # arrow down button
+        self.down_arrow_button = QtGui.QPushButton()
+        # self.down_arrow_button.setStyleSheet( 'QPushButton { background: #ff0000;}' )
+        self.down_arrow_button.setObjectName("down_arrow_button")
+        self.down_arrow_button.setFixedSize(12,12)
+        self.down_arrow_button.setContentsMargins(0,0,0,0)
+        self.down_arrow_button.setMaximumSize( QtCore.QSize(10,10) )
+        self.down_arrow_button.setMinimumSize( QtCore.QSize(10,10) )
 
-        self.tray_right_label = QtGui.QLabel()
-        self.tray_right_label.setText('After')
-        self.tray_button_bar_hlayout.addWidget(self.tray_right_label)
+        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        self.down_arrow_button.setSizePolicy(sizePolicy)
 
+        # :tk-rv-shotgunreview/arrow.png);
+        # XXX - sb - using the above stype didnt work. there's more to it than
+        #            just placing a file in with the others. 
+
+        self.down_arrow_button.setIconSize(QtCore.QSize(10,10))
+
+        f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "arrow_smaller.png")
+        icon = QtGui.QIcon( f )
+
+        self.down_arrow_button.setIcon(icon)
+        self.tray_button_bar_hlayout.addWidget(self.down_arrow_button)
+ 
         self.tray_button_bar_hlayout.addStretch(1)
 
         self.pipeline_filter_button = QtGui.QPushButton()
@@ -251,6 +267,9 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_list.setUniformItemSizes(True)
                 
         self.tray_list.setObjectName("tray_list")
+
+        self.mc_widget = MiniCutWidget(self)
+        self.mc_widget.setVisible(False)
        
 
 
