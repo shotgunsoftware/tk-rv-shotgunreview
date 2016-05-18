@@ -1945,10 +1945,15 @@ class RvActivityMode(rvt.MinorMode):
     def data_from_version(self, sg):
         version_data = sg
         edit_data = {}
-        edit_data["in"]  = sg.get("sg_first_frame", 1)
-        edit_data["out"] = sg.get("sg_last_frame",  100)
+        edit_data["in"]  = sg.get("sg_first_frame", None)
+        edit_data["out"] = sg.get("sg_last_frame",  None)
         edit_data["shot"] = None
-        
+
+	if edit_data["in"]  is None:
+	    edit_data["in"]  = 1;
+	if edit_data["out"] is None:
+	    edit_data["out"] = 100;
+
         if sg.get("entity"):
             if sg.get("entity").get("type") == "Shot":
                 edit_data["shot"] = sg.get("entity")
