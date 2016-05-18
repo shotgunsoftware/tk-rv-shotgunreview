@@ -2386,6 +2386,9 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_right_spinner.setVisible(vis)
         self.tray_left_label.setVisible(vis)
         self.tray_right_label.setVisible(vis)
+        self.tray_main_frame.down_arrow_button.setVisible(vis)
+        self.tray_main_frame.tray_mini_label.setVisible(vis)
+
 
     def configure_visibility(self):
         """
