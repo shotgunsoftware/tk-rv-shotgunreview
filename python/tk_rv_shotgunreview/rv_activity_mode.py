@@ -23,10 +23,11 @@ import rv.qtutils as rvqt
 shotgun_view = tank.platform.import_framework("tk-framework-qtwidgets", "views")
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
 shotgun_data = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_data")
+version_details = tank.platform.import_framework("tk-framework-qtwidgets", "version_details")
 
 from .tray_delegate import RvTrayDelegate
-from .details_panel_widget import DetailsPanelWidget
 from .popup_utils import PopupUtils
+from .ui import resources_rc
 
 import sgtk
 
@@ -1053,14 +1054,70 @@ class RvActivityMode(rvt.MinorMode):
         self.show_cuts_action(True)
 
         # Setup the details panel.
-        self.details_panel = DetailsPanelWidget(
+        self.details_panel = version_details.VersionDetailsWidget(
             parent=self.note_dock,
             bg_task_manager=self._app.engine.bg_task_manager,
         )
-        self.note_dock.setWidget(self.details_panel)
-        
-        self._app.engine._apply_external_styleshet(self._app, self.details_panel)
 
+        # We need to add these fields to the query list so that when
+        # entities are passed back to us from Version list context
+        # menu actions we have all of this data available to us.
+        self.details_panel.add_query_fields(
+            [
+                "code",
+                "id",
+                "entity",
+                "sg_first_frame",
+                "sg_last_frame",
+                "sg_frames_aspect_ratio",
+                "sg_frames_have_slate",
+                "sg_movie_aspect_ratio",
+                "sg_movie_has_slate",
+                "sg_path_to_frames",
+                "sg_path_to_movie",
+                "sg_status_list",
+                "sg_uploaded_movie_frame_rate",
+            ],
+        )
+
+        # Each action has its own callback, text (the label shown in the
+        # menu), and selection requirement. If the selection requirement
+        # is met, the action will be enabled. If not, it will be disabled.
+        self.details_panel.add_version_context_menu_action(
+            action_definition=dict(
+                callback=self._compare_with_current,
+                required_selection="either",
+                text="Compare with Current",
+            )
+        )
+
+        self.details_panel.add_version_context_menu_action(
+            action_definition=dict(
+                callback=self._compare_selected,
+                required_selection="multi",
+                text="Compare Selected",
+                parent=self,
+            )
+        )
+
+        self.details_panel.add_version_context_menu_action(
+            action_definition=dict(
+                callback=self._swap_into_sequence,
+                required_selection="single",
+                text="Swap Into Sequence",
+            )
+        )
+
+        self.details_panel.add_version_context_menu_action(
+            action_definition=dict(
+                callback=self._replace_with_selected,
+                required_selection="single",
+                text="Replace",
+            )
+        )
+
+        self.note_dock.setWidget(self.details_panel)
+        self._app.engine._apply_external_styleshet(self._app, self.details_panel)
         self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 60))
         
         # ug, for now till i can clean up the methods
@@ -2506,6 +2563,56 @@ class RvActivityMode(rvt.MinorMode):
                 # self.tray_list.scrollTo(index, QtGui.QAbstractItemView.EnsureVisible)
 
         self.tray_list.repaint()
+
+    ##########################################################################
+    # version list actions
+
+    def _compare_with_current(self, versions):
+        """
+        Builds a new RV view that compares the given version entity
+        with what's currently active in RV.
+
+        :param versions:    The list of version entities to compare.
+        """
+        rv.commands.sendInternalEvent(
+            "compare_with_current",
+            json.dumps(versions),
+        )
+
+    def _compare_selected(self, versions):
+        """
+        Builds a new RV view that compares the given Versions.
+
+        :param versions:    The list of version entities to compare.
+        """
+        rv.commands.sendInternalEvent(
+            "compare_selected",
+            json.dumps(versions),
+        )
+
+    def _swap_into_sequence(self, versions):
+        """
+        Replaces the current Version in the current sequence view in RV
+        with the given Version.
+
+        :param versions:    A list containing a single version entity.
+        """
+        rv.commands.sendInternalEvent(
+            "swap_into_sequence",
+            json.dumps(versions),
+        )
+
+    def _replace_with_selected(self, versions):
+        """
+        Replaces the current view (whether a sequence or single Version) in
+        RV with the given Version.
+
+        :param versions:    A list containing a single version entity.
+        """
+        rv.commands.sendInternalEvent(
+            "replace_with_selected",
+            json.dumps(versions),
+        )
 
 
 
