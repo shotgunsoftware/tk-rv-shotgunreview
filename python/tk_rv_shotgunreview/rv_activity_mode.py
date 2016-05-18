@@ -1169,8 +1169,9 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
 
-        # mini cut down arrow
+        # mini cut popup menu
         self.tray_main_frame.down_arrow_button.clicked.connect(self.show_mini_cut)
+        self.tray_main_frame.tray_mini_label.clicked.connect(self.show_mini_cut)
         
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
 
@@ -1625,7 +1626,7 @@ class RvActivityMode(rvt.MinorMode):
 
         self.tray_list.repaint()
 
-        self.tray_main_frame.mc_widget.setVisible( True )
+        # self.tray_main_frame.mc_widget.setVisible( True )
 
     def on_cache_loaded(self):
         pass

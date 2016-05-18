@@ -55,7 +55,7 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.widget.right_label.setText('After')
         self.widget.hlayout.addWidget(self.widget.right_label)
 
-        self.widget.setStyleSheet('QFrame { background: rgb(37,38,41);  }')
+        self.widget.setStyleSheet('QFrame { background: rgb(37,38,41); }')
 
         s = QtCore.QSize(250,60)
 
