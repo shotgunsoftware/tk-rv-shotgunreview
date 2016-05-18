@@ -113,23 +113,37 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_mini_cut.setText('Mini Cut')
         self.tray_button_bar_hlayout.addWidget(self.tray_button_mini_cut)
 
-        self.mini_left_spinner = QtGui.QSpinBox()
-        self.mini_left_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.mini_left_spinner.setValue(2)
-        self.tray_button_bar_hlayout.addWidget(self.mini_left_spinner)
 
-        self.tray_left_label = QtGui.QLabel()
-        self.tray_left_label.setText('Before')
-        self.tray_button_bar_hlayout.addWidget(self.tray_left_label)
+        self.tray_mini_label = QtGui.QLabel()
+        self.tray_mini_label.setText('-2+2')
+        self.tray_button_bar_hlayout.addWidget(self.tray_mini_label)
 
-        self.mini_right_spinner = QtGui.QSpinBox()
-        self.mini_right_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.mini_right_spinner.setValue(2)
-        self.tray_button_bar_hlayout.addWidget(self.mini_right_spinner)
 
-        self.tray_right_label = QtGui.QLabel()
-        self.tray_right_label.setText('After')
-        self.tray_button_bar_hlayout.addWidget(self.tray_right_label)
+        # self.mini_left_spinner = QtGui.QSpinBox()
+        # self.mini_left_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
+        # self.mini_left_spinner.setValue(2)
+        # # self.tray_button_bar_hlayout.addWidget(self.mini_left_spinner)
+
+        # self.tray_left_label = QtGui.QLabel()
+        # self.tray_left_label.setText('Before')
+        # # self.tray_button_bar_hlayout.addWidget(self.tray_left_label)
+
+        # self.mini_right_spinner = QtGui.QSpinBox()
+        # self.mini_right_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
+        # self.mini_right_spinner.setValue(2)
+        # # self.tray_button_bar_hlayout.addWidget(self.mini_right_spinner)
+
+        # self.tray_right_label = QtGui.QLabel()
+        # self.tray_right_label.setText('After')
+        # #self.tray_button_bar_hlayout.addWidget(self.tray_right_label)
+
+        # arrow down button
+        self.down_arrow_button = QtGui.QPushButton()
+        # :tk-rv-shotgunreview/arrow.png);
+        icon = QtGui.QIcon( ':tk-rv-shotgunreview/arrow.png' )
+        self.down_arrow_button.setIcon(icon)
+        self.tray_button_bar_hlayout.addWidget(self.down_arrow_button)
+
 
         self.tray_button_bar_hlayout.addStretch(1)
 
@@ -255,6 +269,7 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_list.setObjectName("tray_list")
 
         self.mc_widget = MiniCutWidget(self)
+        self.mc_widget.setVisible(False)
        
 
 
