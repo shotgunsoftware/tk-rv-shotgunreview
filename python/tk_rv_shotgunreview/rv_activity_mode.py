@@ -407,7 +407,7 @@ class RvActivityMode(rvt.MinorMode):
                 # if the Cuts button is conditionally enabled (because we're
                 # looking at something other than a cut), then disable during
                 # playback.
-                if self.target_entity['type'] != "Cut":
+                if self.target_entity and self.target_entity.get("type") != "Cut":
                     self.enable_cuts_action(False, 'Stop to enable.')
 
             # We only auto-unpin the details on stop if we auto-pinned them in
@@ -421,7 +421,7 @@ class RvActivityMode(rvt.MinorMode):
                 # looking at something other than a cut), this is were we check
                 # to see if this clip has a default cut and update the button
                 # state accordingly.
-                if self.target_entity['type'] != "Cut":
+                if self.target_entity and self.target_entity.get("type") != "Cut":
                     self.update_cuts_with()
 
                 self._popup_utils.request_related_cuts_from_models()
