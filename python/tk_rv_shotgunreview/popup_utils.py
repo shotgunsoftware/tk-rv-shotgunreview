@@ -97,18 +97,14 @@ class PopupUtils(QtCore.QObject):
 
         self._filtered_versions_model.data_refreshed.connect(self.filter_tray)
 
-    # related cuts menu menthods
+    # related cuts menu methods
 
-    # def mark_pipeline_selections(self):
-    #     self._preset_pipeline = True
-    #     self.check_pipeline_menu()
 
     def find_rel_cuts_with_model(self, entity_in, shot_entity=None):
         """
         This initiates two queries, one for all related cuts, and the other
         for all related cuts that the shot_entity is in.
         
-        XXX we might call this without the shot_entity if we are playing?
         """
         # conditions is an array, with 3 vals
         # [ <field>, 'is', dict ]
@@ -131,7 +127,6 @@ class PopupUtils(QtCore.QObject):
         self._rel_cuts_model.load_data(entity_type="Cut", filters=cut_filters, fields=cut_fields, order=cut_orders)        
 
         if not shot_entity:
-            # XXX if there is no shot, then clear the shot model and set the shots done
             self._rel_shots_model.clear()
             self._rel_shots_done = True
             return
@@ -187,7 +182,9 @@ class PopupUtils(QtCore.QObject):
                     version_link = None
 
                 # XXX does this allow for cut_link == None ?
-                # XXX no it doesnt, what do we do with a cut with no entity link? - sb
+                # YYY it will return and not call the expensive query 
+                #     which i think is the right thing.
+                #     
                 if cut_link != self._last_rel_cut_entity or version_link != self._last_rel_shot_entity:
                     self.find_rel_cuts_with_model(cut_link, version_link)
                     self._last_rel_cut_entity = cut_link
@@ -200,7 +197,7 @@ class PopupUtils(QtCore.QObject):
                     return
 
         # XXX don't get this ? -- alan
-        # XXX is this another impossible workflow? - sb.
+        # YYY is this another impossible workflow? - sb.
         if cut_link['type'] == "Scene":
             self._engine.log_warning("cant find relative cuts for a scene? using shot linked to version?")
             if version_link:
@@ -414,6 +411,9 @@ class PopupUtils(QtCore.QObject):
         We cache the last query in memory.
         """
         # XXX - cache all queries in a map for bouncing between projects?
+        # YYY - we use the project entity in 2 places, here for statuses and the
+        #       other for related cuts. unless we're trying to support an offline
+        #       mode or quick-restore from session than im not sure its worth it?
         if not project_entity:
             project_entity = self._project_entity
 
@@ -598,17 +598,20 @@ class PopupUtils(QtCore.QObject):
         action.setCheckable(False)
         action.setChecked(False)
         action.setText('Pipeline Steps Priority')
-        # XXX what object do we want here?
+        # the rules for Pipeline Steps are:
+        # None means any step
+        # [] (empty list) means Latest in Pipeline
+        # otherwise, the menu will be a list of objects that have
+        # a cached_display_name key and a sort value unless its 'Latest in Pipeline'.
+        # so each menu item will contain None or one of the list objects.
         action.setData( None )
         menu.addAction(action)
         menu.addSeparator()
 
-        # XXX latest in pipeline means an empty steps list?
         action = QtGui.QAction(self._tray_frame.pipeline_filter_button)
         action.setCheckable(True)
         action.setChecked(False)
         action.setText('Latest in Pipeline')
-        # XXX what object do we want here?
         action.setData( { 'cached_display_name' : 'Latest in Pipeline' } )
         menu.addAction(action)
         self._steps_proxyModel.sort(0, QtCore.Qt.DescendingOrder)
@@ -715,7 +718,6 @@ class PopupUtils(QtCore.QObject):
             if a.isChecked():
                 count = count + 1
                 name = a.data()['cached_display_name']
-                # XXX better way?
                 if name == 'Latest in Pipeline' and not want_latest:
                     a.setChecked(False)
                     count = count - 1
@@ -828,7 +830,7 @@ class PopupUtils(QtCore.QObject):
         
         if len(shot_list) < 1:
             self._engine.log_info('This cut has no related shots. Aborting query.')
-            # XXX this means we need to refresh the rel cuts memu ourselves, since
+            # this means we need to refresh the rel cuts memu ourselves, since
             # the mode wont.
             self.request_related_cuts_from_models()
             return None
