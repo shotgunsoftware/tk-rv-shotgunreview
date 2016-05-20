@@ -775,7 +775,7 @@ class RvActivityMode(rvt.MinorMode):
 
     def configure_source_media(self, source_group, version_data=None):
         # XXX more to do here (stereo, fps, ...)
-
+        # YYY This sounds important, and I'm not sure how to address it. P1
         if not version_data:
             version_data = self.version_data_from_source(source_group)
 
@@ -816,6 +816,9 @@ class RvActivityMode(rvt.MinorMode):
 
         m_type = self.media_type_fallback(version_data, media_type_name)
         # XXX warn if falling back
+        # YYY would a HUD notification be acceptable or too noisy since you could have
+        #     multiple fallbacks for a given cut/playlist? maybe a red rectangle around
+        #     the thumbnail or text overlay in the tray?
 
         if m_type and m_type != current_media_type: 
             path = version_data[standard_media_types[m_type].path_field]
@@ -861,6 +864,7 @@ class RvActivityMode(rvt.MinorMode):
                 else:
                     # XXX Since the view is not an RVSourceGroup, assuming the
                     # _inputs_ of the view are ...
+                    # YYY unclear on this? what are the other cases?
                     inputs = rvc.nodeConnections(view, False)[0]
                     sources = filter(lambda x: rvc.nodeType(x) == "RVSourceGroup", inputs)
 
@@ -1181,6 +1185,8 @@ class RvActivityMode(rvt.MinorMode):
 
         # async cached request for pipeline steps.
         # XXX pipeline steps are 'global' to shotgun? so this only needs to happen once?
+        # YYY the Steps table IS NOT GLOBAL, it is ENTITY TYPE centric!!! BUT! Since we only
+        #     care about SHOT TYPE ENTITIES then we only have run it ONCE.
         self._popup_utils.get_pipeline_steps_with_model()
 
         self.details_timer = QTimer(rvqt.sessionWindow())
@@ -1215,6 +1221,7 @@ class RvActivityMode(rvt.MinorMode):
             # maybe we should be constructing a target_entity here from
             # whatever node we are looking at now ?   And not do anything if
             # it's not a Cut node, etc ...
+            # YYY needs clarification
             self.on_data_refreshed_internal(True, incremental_update=True)
 
     def right_spinner_clicked(self, event):
@@ -1230,7 +1237,8 @@ class RvActivityMode(rvt.MinorMode):
 
         # XXX should check here that incoming server matches server to
         # which we are currently authenticated
-        #
+        # YYY is this part of exisiting Auth tickets? does a way to check this exist
+        #     currently in the engine?
         target_entity["server"] = self._app.tank.shotgun_url
 
         vfilters = [["id", "in", target_entity["ids"]]]
@@ -1244,6 +1252,7 @@ class RvActivityMode(rvt.MinorMode):
 
         # XXX should check here that incoming server matches server to
         # which we are currently authenticated
+        # YYY +1 for Auth API investigation?
         target_entity["server"] = self._app.tank.shotgun_url
 
         self.load_tray_with_something_new(target_entity, load_from_gma=True)
@@ -1294,6 +1303,7 @@ class RvActivityMode(rvt.MinorMode):
             sg = shotgun_model.get_sg_data(item)
  
             # sometimes the shot comes back as None XXX - sb
+            # YYY Shot = None is a valid condition. nothing to do here.
             if 'shot' in sg and sg['shot']:
                 if sg['shot']['id'] == v_data['entity']['id']:
                     self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
@@ -1303,6 +1313,7 @@ class RvActivityMode(rvt.MinorMode):
 
     def replace_version_in_sequence(self, versions):
         #XXX go over this in mini-cut case, etc
+        #YYY i think this was just a reminder and is now working?
         self._app.engine.log_info('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
 
         if len(versions) != 1:
@@ -1357,6 +1368,7 @@ class RvActivityMode(rvt.MinorMode):
         self.set_details_dirty()
 
         # XXX how does below pick up new thumbnail ?   Ans: it doesn't yet ..
+        # YYY Rebuttal! Now it does!
         self.tray_list.repaint()
 
     def find_or_create_compare_node(self, num_sources):
@@ -1458,10 +1470,12 @@ class RvActivityMode(rvt.MinorMode):
         self.main_query_active = True
 
         # XXX assume entire-cut at this point, ok ?
+        # YYY I believe this is true.
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
 
         # XXX get rid of "id"
+        # YYY so we can remove this now or are there internal target entity cases where id comes back?
         if "id" in target_entity and "ids" not in target_entity:
             target_entity["ids"] = [ target_entity["id"] ]
 
@@ -1537,12 +1551,14 @@ class RvActivityMode(rvt.MinorMode):
         self._app.engine.log_debug('load_tray_with_cut_id %r' % QtCore.QThread.currentThread() )
 
         # XXX we shouldn't be storing this here, come back to this
-        if cut_id:
-            self.tray_cut_id = cut_id
+        # YYY i think this is no longer necessary at all. removing it for testing
+        # if cut_id:
+        #    self.tray_cut_id = cut_id
         
         # we need to know the project id to make the menus happen,
 
-        tray_filters = [ ['cut','is', {'type':'Cut', 'id': self.tray_cut_id }] ]
+        # YYY this was the only use of self.tray_cut_id, replaced with cut_id
+        tray_filters = [ ['cut','is', {'type':'Cut', 'id': cut_id }] ]
 
         tray_fields= ["cut_item_in", "cut_item_out", "cut_order",
                 "edit_in", "edit_out", "code", "entity", "shot", "project",
@@ -1618,6 +1634,7 @@ class RvActivityMode(rvt.MinorMode):
     def on_mini_cut(self):
         # XXX handle non-Cut situations
         # XXX are we looking at the right node ?
+        # YYY requires discussion - P1
 
         # we rely on tray selection being synced with frame
         (index, offset) = self.clip_index_and_offset_from_frame()
@@ -1626,7 +1643,6 @@ class RvActivityMode(rvt.MinorMode):
 
         self.tray_list.repaint()
 
-        # self.tray_main_frame.mc_widget.setVisible( True )
 
     def on_cache_loaded(self):
         pass
@@ -1725,6 +1741,7 @@ class RvActivityMode(rvt.MinorMode):
         for each Cut (one for entire-cut and one for min-cut).
         """
         # XXX handle target_entity["server"]
+        # YYY requires discussion
 
         t_type = target_entity["type"]
         t_id   = target_entity["ids"][0]
@@ -1788,6 +1805,7 @@ class RvActivityMode(rvt.MinorMode):
                 # XXX we should be storing/checking url too
                 # XXX possibly this version data is stale, think about when we
                 # might refresh ?
+                # YYY requires discussion
                 group =  s
 
         return group
@@ -1824,6 +1842,8 @@ class RvActivityMode(rvt.MinorMode):
             source_node = rvc.addSourceVerbose([path])
         except:
             # XXX
+            # YYY is there some kind of default group we can return?
+            # YYY as far as i can tell, we EXPECT this never to happen ( no error checking by callers)
             return
 
         source_group = rvc.nodeGroup(source_node)
@@ -2137,6 +2157,7 @@ class RvActivityMode(rvt.MinorMode):
                     if self.incoming_mini_cut_focus.get("shot"):
                         mini_focus_clip_shot_target = self.incoming_mini_cut_focus["shot"]["id"]
                 # XXX handle case when focus target is from cut-item (playing a cut-item)
+                # YYY this looks tp be happening directly above, or do we want the shot check to happen in cutitem?
             else:
                 # Note also if we come back to this with new query, we need
                 # to clear any previous mini-cut state !
@@ -2162,6 +2183,7 @@ class RvActivityMode(rvt.MinorMode):
         rows = self.tray_proxyModel.rowCount()
         # XXX handle sequence_data for queries that return no rows? - sb
         # I think just Error and return
+        # YYY what about session data when there are no rows?
 
         for index in range(0, rows):
             item = self.tray_proxyModel.index(index, 0)
@@ -2246,6 +2268,7 @@ class RvActivityMode(rvt.MinorMode):
         # needed for menus.
         # XXX may be problem later if we have to handle multiple Projects
         # XXX build status menu ONCE per project. - sb
+        # YYY popup utils handles the problem for us by caching the project id there.
         if not self.project_entity:
             self.project_entity = sequence_data["project"]
 
@@ -2320,6 +2343,7 @@ class RvActivityMode(rvt.MinorMode):
             # self.configure_visibility()
         else:
             # XXX 
+            # YYY I think these were all resolved?
             setProp(seq_node + ".edl.source", edl_source_nums)
             setProp(seq_node + ".edl.frame",  edl_frames)
             setProp(seq_node + ".edl.in",     edl_ins)
@@ -2475,6 +2499,7 @@ class RvActivityMode(rvt.MinorMode):
            
     def tray_double_clicked(self, index):
         # XXX go over
+        # YYY i thought the website had double click a thumbnail to loop that clip. I guess not.
         return
         sg_item = shotgun_model.get_sg_data(index)
         single_source = []
@@ -2630,6 +2655,8 @@ class RvActivityMode(rvt.MinorMode):
                 # self.tray_list.scrollTo(index, QtGui.QAbstractItemView.PositionAtCenter)
 
                 # XXX below should work according to docs
+                # YYY we are using PositionAtCenter in frameChanged instead. not sure i like either of
+                #     these. the scrolling might be nicer if we did it, discuss...
                 # self.tray_list.scrollTo(index, QtGui.QAbstractItemView.EnsureVisible)
 
         self.tray_list.repaint()
