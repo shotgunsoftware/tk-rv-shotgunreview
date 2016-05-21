@@ -936,7 +936,7 @@ class RvActivityMode(rvt.MinorMode):
 
 
         self.init("RvActivityMode", None,
-                [ 
+                [
                 ("after-session-read", self.afterSessionRead, ""),
                 ("before-session-read", self.beforeSessionRead, ""),
                 # ("source-group-complete", self.sourceSetup, ""),
@@ -1001,7 +1001,7 @@ class RvActivityMode(rvt.MinorMode):
                     ("_", None)]
                 )],
                 None)
-       
+    
     def activate(self):
         rvt.MinorMode.activate(self)
 
