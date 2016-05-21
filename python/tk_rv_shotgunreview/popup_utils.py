@@ -106,6 +106,8 @@ class PopupUtils(QtCore.QObject):
         for all related cuts that the shot_entity is in.
         
         """
+        # YYY ASK ERIC ABOUT PROJECT ID
+
         # conditions is an array, with 3 vals
         # [ <field>, 'is', dict ]
         # ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
@@ -183,7 +185,7 @@ class PopupUtils(QtCore.QObject):
 
                 # XXX does this allow for cut_link == None ?
                 # YYY it will return and not call the expensive query 
-                #     which i think is the right thing.
+                #     which i think is the right thing. LOOK INTO MOER
                 #     
                 if cut_link != self._last_rel_cut_entity or version_link != self._last_rel_shot_entity:
                     self.find_rel_cuts_with_model(cut_link, version_link)
@@ -198,6 +200,7 @@ class PopupUtils(QtCore.QObject):
 
         # XXX don't get this ? -- alan
         # YYY is this another impossible workflow? - sb.
+        #      FIND THE EXAMNPLE
         if cut_link['type'] == "Scene":
             self._engine.log_warning("cant find relative cuts for a scene? using shot linked to version?")
             if version_link:

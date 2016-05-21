@@ -356,7 +356,7 @@ class RvActivityMode(rvt.MinorMode):
             if sel_index not in sels:
                 sm = self.tray_list.selectionModel()           
                 sm.select(sel_index, sm.ClearAndSelect)
-                self.tray_list.scrollTo(sel_index, QtGui.QAbstractItemView.PositionAtCenter)            
+                self.tray_list.scrollTo(sel_index, QtGui.QAbstractItemView.PositionAtCenter)  
                 
         except Exception as e:
             print "ERROR: RV frameChanged EXCEPTION %r" % e
@@ -1205,7 +1205,7 @@ class RvActivityMode(rvt.MinorMode):
         # so add a no-op
         self.tray_dock.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tray_dock.customContextMenuRequested.connect( self.dont_show_tray_context_menu)
- 
+
     def show_mini_cut(self):
         v = self.tray_main_frame.mc_widget.isVisible()
         self.tray_main_frame.mc_widget.setVisible( not v )
