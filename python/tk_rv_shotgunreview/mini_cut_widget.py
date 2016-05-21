@@ -38,7 +38,7 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.widget.hlayout = QtGui.QHBoxLayout(self.widget)
 
         self.widget.mini_left_spinner = QtGui.QSpinBox()
-        self.widget.mini_left_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
+        #self.widget.mini_left_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
         self.widget.mini_left_spinner.setValue(2)
         self.widget.hlayout.addWidget(self.widget.mini_left_spinner)
 
@@ -47,8 +47,13 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.widget.hlayout.addWidget(self.widget.left_label)
 
         self.widget.mini_right_spinner = QtGui.QSpinBox()
-        self.widget.mini_right_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.widget.mini_right_spinner.setObjectName("right_spinner")
+        #self.widget.mini_right_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
         self.widget.mini_right_spinner.setValue(2)
+        self.widget.mini_right_spinner.setStyleSheet('QSpinBox:focus, QLineEdit:focus { border: 1px solid rgb(255,0,0); } QSpinBox, QLineEdit { selection-border-color: rgb(250,50,55);}')
+        #QLineEdit:focus,  QSpinBox:focus {
+        #    border: 2px solid rgb(42,42,255);
+        #}
         self.widget.hlayout.addWidget(self.widget.mini_right_spinner)
 
         self.widget.right_label = QtGui.QLabel()
