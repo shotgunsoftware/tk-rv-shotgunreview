@@ -1176,6 +1176,7 @@ class RvActivityMode(rvt.MinorMode):
         # mini cut popup menu
         self.tray_main_frame.down_arrow_button.clicked.connect(self.show_mini_cut)
         self.tray_main_frame.tray_mini_label.clicked.connect(self.show_mini_cut)
+        self.tray_list.horizontalScrollBar().valueChanged.connect(self.scroller_moved)
         
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
 
@@ -1205,6 +1206,11 @@ class RvActivityMode(rvt.MinorMode):
         # so add a no-op
         self.tray_dock.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tray_dock.customContextMenuRequested.connect( self.dont_show_tray_context_menu)
+ 
+    def scroller_moved(self, stuff):
+        if self.tray_main_frame.mc_widget.isVisible():
+            self.tray_list.repaint()
+            self.tray_main_frame.mc_widget.repaint()
 
     def show_mini_cut(self):
         v = self.tray_main_frame.mc_widget.isVisible()
