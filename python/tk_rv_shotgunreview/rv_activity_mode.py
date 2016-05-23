@@ -2384,7 +2384,7 @@ class RvActivityMode(rvt.MinorMode):
 
 
     def set_cut_control_visibility(self, vis):
-        # self.tray_button_mini_cut.setVisible(vis)
+        self.tray_button_mini_cut.setVisible(vis)
         self.tray_button_entire_cut.setVisible(vis)
         self.tray_bar_button.setVisible(vis)
         self.tray_left_spinner.setVisible(vis)
