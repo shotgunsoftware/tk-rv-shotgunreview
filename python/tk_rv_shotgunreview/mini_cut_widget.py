@@ -21,16 +21,27 @@ class MiniCutWidget(QtGui.QDockWidget):
         """
         window = parent._rv_mode._app.engine.get_dialog_parent()
         print "WIN %r" % window
-        QtGui.QDockWidget.__init__(self, "Blerg", window) 
+        QtGui.QDockWidget.__init__(self, "MiniCut", window) 
         # , QtGui.QDockWidget.DockWidgetFloatable | QtGui.QDockWidget.DockWidgetMovable)
 
         self._tray = parent
         self._mini_button = self._tray.tray_button_mini_cut
         self._rv_mode= parent._rv_mode
+        self.widget = None
 
         self.init_ui()
+        # self.widget.mini_left_spinner.doubleClicked.connect(self.double_click_handler)
+        self.topLevelChanged.connect(self.dock_handler)
+
+    def dock_handler(self, stuff):
+        print "DOCK %r" % stuff
+        self.setFloating(False)
 
     def init_ui(self):
+        self.setTitleBarWidget(None)
+        #self.setFloating(False)
+        self.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
+
         self.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea)
         self.widget = QtGui.QFrame(self)
 
@@ -50,7 +61,28 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.widget.mini_right_spinner.setObjectName("right_spinner")
         #self.widget.mini_right_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
         self.widget.mini_right_spinner.setValue(2)
-        self.widget.mini_right_spinner.setStyleSheet('QSpinBox:focus, QLineEdit:focus { border: 1px solid rgb(255,0,0); } QSpinBox, QLineEdit { selection-border-color: rgb(250,50,55);}')
+        #self.widget.mini_right_spinner.setStyleSheet('QSpinBox:focus, QLineEdit:focus { border: 1px solid rgb(255,0,0); } QSpinBox, QLineEdit { selection-border-color: rgb(250,50,55);}')
+        self.widget.mini_right_spinner.setStyleSheet(
+            """
+            QSpinBox  {
+            padding-left: .2em;
+            padding-right: .2em;
+            padding-top: .2ex;
+            padding-bottom: .2ex;
+            border-radius: .15em;
+            background-color: rgb(27,27,27);
+            opacity: 0;
+            min-height: 1.25em;
+            border: 0px solid rgb(242,42,42);
+            color: rgb(200, 200, 200);
+            selection-background-color: rgb(250,50,55);
+            selection-color: rgb(255,255,255);
+            }
+            QLineEdit::focus,  QSpinBox::focus {
+            border: 0px solid rgb(242,42,55);
+            }
+            """
+            )
         #QLineEdit:focus,  QSpinBox:focus {
         #    border: 2px solid rgb(42,42,255);
         #}
@@ -67,15 +99,21 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.widget.setMinimumSize(s)
         self.setMinimumSize(s)
  
-    def enable_minicut(self, visible=True):
+    def position_minicut(self):
         p = self._tray.down_arrow_button.pos()
         s = self._mini_button.size()
         y = self._rv_mode.tray_dock.pos().y() + s.height() + p.y() + 15
         p2 = QtCore.QPoint( p.x() - 100, y)
         self.move(p2)
-        #self.setVisible(visible)
         self.raise_()
 
+    def repaint_and_position(self):
+        self.setFloating(False)
+        self.position_minicut()
+        self.repaint()
 
+    def double_click_handler(self):
+        print "WORKS"
+        pass
 
 
