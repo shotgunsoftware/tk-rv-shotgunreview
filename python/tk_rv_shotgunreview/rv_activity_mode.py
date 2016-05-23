@@ -402,7 +402,7 @@ class RvActivityMode(rvt.MinorMode):
                 self.details_pinned_for_playback = True
 
                 # hide mini UI
-                self.tray_main_frame.mc_widget.setVisible( False )
+                # self.tray_main_frame.mc_widget.setVisible( False )
 
                 # if the Cuts button is conditionally enabled (because we're
                 # looking at something other than a cut), then disable during
@@ -478,12 +478,11 @@ class RvActivityMode(rvt.MinorMode):
         group_name = self.current_source()       
         setProp(group_name + ".sg_review.latest_cut_entity", json.dumps(cut_entity))
     
-
     def on_view_size_changed(self, event):
         event.reject()
         traysize = self.tray_dock.size().width()
         self.tray_main_frame.resize(traysize - 10, self._tray_height)
-        self.tray_main_frame.mc_widget.enable_minicut(True)
+        self.tray_main_frame.mc_widget.position_minicut()
 
     def version_submitted(self, event):
         event.reject()
@@ -1586,7 +1585,7 @@ class RvActivityMode(rvt.MinorMode):
 
     def on_entire_cut(self):
         # hide the mini cut floater if visible
-        self.tray_main_frame.mc_widget.setVisible( False )
+        # self.tray_main_frame.mc_widget.setVisible( False )
 
         seq_node = None
         seq_group = rvc.viewNode()
@@ -2409,7 +2408,7 @@ class RvActivityMode(rvt.MinorMode):
 
 
     def set_cut_control_visibility(self, vis):
-        self.tray_button_mini_cut.setVisible(vis)
+        # self.tray_button_mini_cut.setVisible(vis)
         self.tray_button_entire_cut.setVisible(vis)
         self.tray_bar_button.setVisible(vis)
         self.tray_left_spinner.setVisible(vis)
