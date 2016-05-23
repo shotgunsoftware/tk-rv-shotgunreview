@@ -401,9 +401,6 @@ class RvActivityMode(rvt.MinorMode):
                 self.details_panel.set_pinned(True)
                 self.details_pinned_for_playback = True
 
-                # hide mini UI
-                # self.tray_main_frame.mc_widget.setVisible( False )
-
                 # if the Cuts button is conditionally enabled (because we're
                 # looking at something other than a cut), then disable during
                 # playback.
@@ -1584,8 +1581,6 @@ class RvActivityMode(rvt.MinorMode):
         self.cached_mini_cut_data = mini_data
 
     def on_entire_cut(self):
-        # hide the mini cut floater if visible
-        # self.tray_main_frame.mc_widget.setVisible( False )
 
         seq_node = None
         seq_group = rvc.viewNode()
@@ -1647,7 +1642,6 @@ class RvActivityMode(rvt.MinorMode):
         self.load_mini_cut(index, offset=offset)
 
         self.tray_list.repaint()
-
 
     def on_cache_loaded(self):
         pass

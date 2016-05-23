@@ -9,9 +9,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 from tank.platform.qt import QtCore, QtGui
-# from .tray_delegate import RvTrayDelegate
 import tank
-# task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
 
 class MiniCutWidget(QtGui.QDockWidget):
 
@@ -30,16 +28,46 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.widget = None
 
         self.init_ui()
-        # self.widget.mini_left_spinner.doubleClicked.connect(self.double_click_handler)
         self.topLevelChanged.connect(self.dock_handler)
 
     def dock_handler(self, stuff):
-        print "DOCK %r" % stuff
         self.setFloating(False)
 
     def init_ui(self):
+        style =  """
+            QSpinBox  {
+                padding-left: 1px;
+                padding-right: 1px;
+                padding-top: 1px;
+                padding-bottom: 1px;
+                background-color: rgb(27,27,27);
+                opacity: 0;
+                min-height: 36px;
+                border: 1px solid rgb(42,42,42);
+                border-image: none;
+                color: rgb(200, 200, 200);
+                selection-background-color: rgb(50,50,51);
+                selection-color: rgb(255,255,255);
+            }
+            QSpinBox:focus {
+                border: 4px solid rgb(42,42,45);
+                selection-color: rgb(255,255,255);
+            }
+            QSpinBox::lineEdit:focus {
+                border: 4px solod rgb(0,0,0);
+                selection-color: rgb(255,255,255);
+            }
+            QSpinBox::up-button {
+                width: 14px;
+                height: 14px;
+            }
+            QSpinBox::down-button {
+                width: 14px;
+                height: 14px;
+            }
+
+        """
         self.setTitleBarWidget(None)
-        #self.setFloating(False)
         self.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
 
         self.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea)
@@ -51,6 +79,7 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.widget.mini_left_spinner = QtGui.QSpinBox()
         #self.widget.mini_left_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
         self.widget.mini_left_spinner.setValue(2)
+        self.widget.mini_left_spinner.setStyleSheet(style)
         self.widget.hlayout.addWidget(self.widget.mini_left_spinner)
 
         self.widget.left_label = QtGui.QLabel()
@@ -61,31 +90,7 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.widget.mini_right_spinner.setObjectName("right_spinner")
         #self.widget.mini_right_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
         self.widget.mini_right_spinner.setValue(2)
-        #self.widget.mini_right_spinner.setStyleSheet('QSpinBox:focus, QLineEdit:focus { border: 1px solid rgb(255,0,0); } QSpinBox, QLineEdit { selection-border-color: rgb(250,50,55);}')
-        self.widget.mini_right_spinner.setStyleSheet(
-            """
-            QSpinBox  {
-            padding-left: .2em;
-            padding-right: .2em;
-            padding-top: .2ex;
-            padding-bottom: .2ex;
-            border-radius: .15em;
-            background-color: rgb(27,27,27);
-            opacity: 0;
-            min-height: 1.25em;
-            border: 0px solid rgb(242,42,42);
-            color: rgb(200, 200, 200);
-            selection-background-color: rgb(250,50,55);
-            selection-color: rgb(255,255,255);
-            }
-            QLineEdit::focus,  QSpinBox::focus {
-            border: 0px solid rgb(242,42,55);
-            }
-            """
-            )
-        #QLineEdit:focus,  QSpinBox:focus {
-        #    border: 2px solid rgb(42,42,255);
-        #}
+        self.widget.mini_right_spinner.setStyleSheet(style)
         self.widget.hlayout.addWidget(self.widget.mini_right_spinner)
 
         self.widget.right_label = QtGui.QLabel()
