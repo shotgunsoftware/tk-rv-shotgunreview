@@ -401,9 +401,6 @@ class RvActivityMode(rvt.MinorMode):
                 self.details_panel.set_pinned(True)
                 self.details_pinned_for_playback = True
 
-                # hide mini UI
-                self.tray_main_frame.mc_widget.setVisible( False )
-
                 # if the Cuts button is conditionally enabled (because we're
                 # looking at something other than a cut), then disable during
                 # playback.
@@ -478,12 +475,11 @@ class RvActivityMode(rvt.MinorMode):
         group_name = self.current_source()       
         setProp(group_name + ".sg_review.latest_cut_entity", json.dumps(cut_entity))
     
-
     def on_view_size_changed(self, event):
         event.reject()
         traysize = self.tray_dock.size().width()
         self.tray_main_frame.resize(traysize - 10, self._tray_height)
-        self.tray_main_frame.mc_widget.enable_minicut(True)
+        self.tray_main_frame.mc_widget.position_minicut()
 
     def version_submitted(self, event):
         event.reject()
@@ -936,7 +932,7 @@ class RvActivityMode(rvt.MinorMode):
 
 
         self.init("RvActivityMode", None,
-                [ 
+                [
                 ("after-session-read", self.afterSessionRead, ""),
                 ("before-session-read", self.beforeSessionRead, ""),
                 # ("source-group-complete", self.sourceSetup, ""),
@@ -1001,7 +997,7 @@ class RvActivityMode(rvt.MinorMode):
                     ("_", None)]
                 )],
                 None)
-       
+    
     def activate(self):
         rvt.MinorMode.activate(self)
 
@@ -1172,6 +1168,7 @@ class RvActivityMode(rvt.MinorMode):
         # mini cut popup menu
         self.tray_main_frame.down_arrow_button.clicked.connect(self.show_mini_cut)
         self.tray_main_frame.tray_mini_label.clicked.connect(self.show_mini_cut)
+        self.tray_list.horizontalScrollBar().valueChanged.connect(self.scroller_moved)
         
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
 
@@ -1200,6 +1197,11 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_dock.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tray_dock.customContextMenuRequested.connect( self.dont_show_tray_context_menu)
  
+    def scroller_moved(self, stuff):
+        if self.tray_main_frame.mc_widget.isVisible():
+            self.tray_list.repaint()
+            self.tray_main_frame.mc_widget.repaint()
+
     def show_mini_cut(self):
         v = self.tray_main_frame.mc_widget.isVisible()
         self.tray_main_frame.mc_widget.setVisible( not v )
@@ -1563,8 +1565,6 @@ class RvActivityMode(rvt.MinorMode):
         self.cached_mini_cut_data = mini_data
 
     def on_entire_cut(self):
-        # hide the mini cut floater if visible
-        self.tray_main_frame.mc_widget.setVisible( False )
 
         seq_node = None
         seq_group = rvc.viewNode()
@@ -1626,8 +1626,7 @@ class RvActivityMode(rvt.MinorMode):
 
         self.tray_list.repaint()
 
-        # self.tray_main_frame.mc_widget.setVisible( True )
-
+ 
     def on_cache_loaded(self):
         pass
         #print "CACHE LOADED."

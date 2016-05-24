@@ -9,9 +9,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 from tank.platform.qt import QtCore, QtGui
-# from .tray_delegate import RvTrayDelegate
 import tank
-# task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
 
 class MiniCutWidget(QtGui.QDockWidget):
 
@@ -21,16 +19,57 @@ class MiniCutWidget(QtGui.QDockWidget):
         """
         window = parent._rv_mode._app.engine.get_dialog_parent()
         print "WIN %r" % window
-        QtGui.QDockWidget.__init__(self, "Blerg", window) 
+        QtGui.QDockWidget.__init__(self, "MiniCut", window) 
         # , QtGui.QDockWidget.DockWidgetFloatable | QtGui.QDockWidget.DockWidgetMovable)
 
         self._tray = parent
         self._mini_button = self._tray.tray_button_mini_cut
         self._rv_mode= parent._rv_mode
+        self.widget = None
 
         self.init_ui()
+        self.topLevelChanged.connect(self.dock_handler)
+
+    def dock_handler(self, stuff):
+        self.setFloating(False)
 
     def init_ui(self):
+        style =  """
+            QSpinBox  {
+                padding-left: 1px;
+                padding-right: 1px;
+                padding-top: 1px;
+                padding-bottom: 1px;
+                background-color: rgb(27,27,27);
+                opacity: 0;
+                min-height: 36px;
+                border: 1px solid rgb(42,42,42);
+                border-image: none;
+                color: rgb(200, 200, 200);
+                selection-background-color: rgb(50,50,51);
+                selection-color: rgb(255,255,255);
+            }
+            QSpinBox:focus {
+                border: 4px solid rgb(42,42,45);
+                selection-color: rgb(255,255,255);
+            }
+            QSpinBox::lineEdit:focus {
+                border: 4px solod rgb(0,0,0);
+                selection-color: rgb(255,255,255);
+            }
+            QSpinBox::up-button {
+                width: 14px;
+                height: 14px;
+            }
+            QSpinBox::down-button {
+                width: 14px;
+                height: 14px;
+            }
+
+        """
+        self.setTitleBarWidget(None)
+        self.setFeatures(QtGui.QDockWidget.NoDockWidgetFeatures)
+
         self.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea)
         self.widget = QtGui.QFrame(self)
 
@@ -38,8 +77,9 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.widget.hlayout = QtGui.QHBoxLayout(self.widget)
 
         self.widget.mini_left_spinner = QtGui.QSpinBox()
-        self.widget.mini_left_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
+        #self.widget.mini_left_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
         self.widget.mini_left_spinner.setValue(2)
+        self.widget.mini_left_spinner.setStyleSheet(style)
         self.widget.hlayout.addWidget(self.widget.mini_left_spinner)
 
         self.widget.left_label = QtGui.QLabel()
@@ -47,8 +87,10 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.widget.hlayout.addWidget(self.widget.left_label)
 
         self.widget.mini_right_spinner = QtGui.QSpinBox()
-        self.widget.mini_right_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.widget.mini_right_spinner.setObjectName("right_spinner")
+        #self.widget.mini_right_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
         self.widget.mini_right_spinner.setValue(2)
+        self.widget.mini_right_spinner.setStyleSheet(style)
         self.widget.hlayout.addWidget(self.widget.mini_right_spinner)
 
         self.widget.right_label = QtGui.QLabel()
@@ -62,15 +104,21 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.widget.setMinimumSize(s)
         self.setMinimumSize(s)
  
-    def enable_minicut(self, visible=True):
+    def position_minicut(self):
         p = self._tray.down_arrow_button.pos()
         s = self._mini_button.size()
         y = self._rv_mode.tray_dock.pos().y() + s.height() + p.y() + 15
         p2 = QtCore.QPoint( p.x() - 100, y)
         self.move(p2)
-        #self.setVisible(visible)
         self.raise_()
 
+    def repaint_and_position(self):
+        self.setFloating(False)
+        self.position_minicut()
+        self.repaint()
 
+    def double_click_handler(self):
+        print "WORKS"
+        pass
 
 
