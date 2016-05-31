@@ -1220,10 +1220,10 @@ class RvActivityMode(rvt.MinorMode):
             self.on_data_refreshed_internal(True, incremental_update=True)
 
     def right_spinner_clicked(self, event):
-        self.on_mini_cut()
+        self.on_mini_cut(from_spinner=True)
 
     def left_spinner_clicked(self, event):
-        self.on_mini_cut()
+        self.on_mini_cut(from_spinner=True)
 
     def on_compare_ids_from_gma(self, event):
         self._app.engine.log_info("on_compare_ids_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
@@ -1280,7 +1280,6 @@ class RvActivityMode(rvt.MinorMode):
 
         self.tray_list.repaint()
 
-
     def update_pinned_thumbnail(self, v_data):
         # version_data['__image_path'] holds the local cache path thumbnail for the pinned icon
         # version_data['entity'] has our shot.
@@ -1301,7 +1300,6 @@ class RvActivityMode(rvt.MinorMode):
                     self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
              
         self.refresh_tray_thumbnails()
-
 
     def replace_version_in_sequence(self, versions):
         #XXX go over this in mini-cut case, etc
@@ -1559,7 +1557,6 @@ class RvActivityMode(rvt.MinorMode):
         orders = [{'field_name':'cut_order','direction':'asc'}]
         self.tray_model.load_data(entity_type="CutItem", filters=tray_filters, fields=tray_fields, order=orders)
         
-
     def save_mini_cut_data(self, mini_data, node):
         mini_data.store_in_session(node)
         self.cached_mini_cut_data = mini_data
@@ -1615,12 +1612,30 @@ class RvActivityMode(rvt.MinorMode):
 
         self.tray_list.repaint()
 
-    def on_mini_cut(self):
+    def on_mini_cut(self, from_spinner=False):
         # XXX handle non-Cut situations
         # XXX are we looking at the right node ?
 
-        # we rely on tray selection being synced with frame
+        # find or make RV sequence node for this target entity
+        # seq_group_node = self.sequence_group_from_target(self.target_entity)
+        # seq_node = groupMemberOfType(seq_group_node, "RVSequence")
+        # mini_data = MiniCutData.load_from_session(seq_node)
+
+        mini_data = self.cached_mini_cut_data 
         (index, offset) = self.clip_index_and_offset_from_frame()
+
+        if mini_data.active:
+            # show mini cut popup like in web
+            if not from_spinner:
+                self.show_mini_cut()
+            focus_index = mini_data.focus_clip - mini_data.first_clip
+            self.load_mini_cut( focus_index, offset=offset )
+
+            # XXX web always resets to first clip of minicut.
+
+            return
+
+
 
         self.load_mini_cut(index, offset=offset)
 
@@ -1948,10 +1963,10 @@ class RvActivityMode(rvt.MinorMode):
         edit_data["out"] = sg.get("sg_last_frame",  None)
         edit_data["shot"] = None
 
-	if edit_data["in"]  is None:
-	    edit_data["in"]  = 1;
-	if edit_data["out"] is None:
-	    edit_data["out"] = 100;
+        if edit_data["in"]  is None:
+            edit_data["in"]  = 1;
+        if edit_data["out"] is None:
+            edit_data["out"] = 100;
 
         if sg.get("entity"):
             if sg.get("entity").get("type") == "Shot":
@@ -2374,9 +2389,6 @@ class RvActivityMode(rvt.MinorMode):
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
 
-
-
-
     def set_cut_control_visibility(self, vis):
         self.tray_button_mini_cut.setVisible(vis)
         self.tray_button_entire_cut.setVisible(vis)
@@ -2387,7 +2399,6 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_right_label.setVisible(vis)
         self.tray_main_frame.down_arrow_button.setVisible(vis)
         self.tray_main_frame.tray_mini_label.setVisible(vis)
-
 
     def configure_visibility(self):
         """
@@ -2470,7 +2481,6 @@ class RvActivityMode(rvt.MinorMode):
                     data = json.loads(edit_data_list[clip_index])
 
         return data
-
            
     def tray_double_clicked(self, index):
         # XXX go over
