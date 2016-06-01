@@ -117,6 +117,9 @@ class MiniCutData:
         setProp(node + ".mini_cut.first_clip", self.first_clip)
         setProp(node + ".mini_cut.last_clip",  self.last_clip)
 
+    def __repr__(self):
+        return "active: %r, focus_clip: %r, first_clip: %r, last_clip: %r" % ( self.active, self.focus_clip, self.first_clip, self.last_clip )
+
     @staticmethod
     def load_from_session(seq_node=None):
 
@@ -1105,7 +1108,6 @@ class RvActivityMode(rvt.MinorMode):
 
         self.related_cuts_menu = None
         self.pipeline_steps_menu = None
-        # self.status_menu = None
         
         # Add a cuts button to the bottom toolbar
         self.show_cuts_action(True)
@@ -1434,11 +1436,11 @@ class RvActivityMode(rvt.MinorMode):
         return self.version_data_from_source(source_group)
 
     def load_tray_with_something_new(self, target_entity, 
-            load_from_gma       = False, 
-            preserve_pinned     = False, 
-            preserve_mini       = False, 
-            incoming_pinned     = {}, 
-            incoming_mini_focus = None):
+        load_from_gma       = False, 
+        preserve_pinned     = False, 
+        preserve_mini       = False, 
+        incoming_pinned     = {}, 
+        incoming_mini_focus = None):
 
         self.incoming_pinned         = {}
         self.incoming_mini_cut_focus = None
@@ -1616,11 +1618,6 @@ class RvActivityMode(rvt.MinorMode):
         # XXX handle non-Cut situations
         # XXX are we looking at the right node ?
 
-        # find or make RV sequence node for this target entity
-        # seq_group_node = self.sequence_group_from_target(self.target_entity)
-        # seq_node = groupMemberOfType(seq_group_node, "RVSequence")
-        # mini_data = MiniCutData.load_from_session(seq_node)
-
         mini_data = self.cached_mini_cut_data 
         (index, offset) = self.clip_index_and_offset_from_frame()
 
@@ -1628,14 +1625,23 @@ class RvActivityMode(rvt.MinorMode):
             # show mini cut popup like in web
             if not from_spinner:
                 self.show_mini_cut()
+
+            (left_num, right_num) = self.get_mini_values()
+            incr = mini_data.first_clip - (mini_data.focus_clip - left_num)
+
             focus_index = mini_data.focus_clip - mini_data.first_clip
-            self.load_mini_cut( focus_index, offset=offset )
-
-            # XXX web always resets to first clip of minicut.
-
+            self.load_mini_cut( focus_index, offset=offset, from_spinner=from_spinner )
+                    
+            mini_data = self.cached_mini_cut_data 
+            
+            seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
+            mini_frame = rvc.getIntProperty(seq_node + ".edl.frame")
+            
+            if from_spinner:
+                self._queued_frame_change = mini_frame[index + incr] + offset
+            else:
+                self._queued_frame_change = mini_frame[index] + offset
             return
-
-
 
         self.load_mini_cut(index, offset=offset)
 
@@ -2526,7 +2532,7 @@ class RvActivityMode(rvt.MinorMode):
             self._prefs.mini_left_count,
             self._prefs.mini_right_count)
 
-    def load_mini_cut(self, focus_index, seq_group=None, offset=0):
+    def load_mini_cut(self, focus_index, seq_group=None, offset=0, from_spinner=False):
         self._app.log_info("load_mini_cut() focus %d seq_group %s offset %d" % (focus_index, seq_group, offset))
 
         seq_node = None
@@ -2611,7 +2617,8 @@ class RvActivityMode(rvt.MinorMode):
         self.save_mini_cut_data(MiniCutData(True, focus_index, first_index, last_index), seq_node)
 
         # restore frame location
-        rvc.setFrame(mini_frame[focus_index - first_index] + offset)
+        if not from_spinner:
+            rvc.setFrame(mini_frame[focus_index - first_index] + offset)
 
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
