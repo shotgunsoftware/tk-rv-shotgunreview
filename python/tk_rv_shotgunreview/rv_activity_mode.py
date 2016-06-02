@@ -278,8 +278,6 @@ class RvActivityMode(rvt.MinorMode):
             self.load_tray_with_something_new(data)
         except Exception as e:
             print "ERROR: replaceWithSelected %r" % e
-        finally:
-            event.reject()
 
     def swapIntoSequence(self, event):
         s = copy.copy(event.contents())
@@ -291,12 +289,8 @@ class RvActivityMode(rvt.MinorMode):
             self.replace_version_in_sequence(v)
         except Exception as e:
             print "ERROR: swapIntoSequence %r" % e
-        finally:
-            event.reject()
 
     def compare_with_current(self, event):
-        event.reject()
-
         vd      = json.loads(event.contents())[0]
         source1 = self.current_source()
         source2 = self.source_group_from_version_data(vd)
@@ -305,8 +299,6 @@ class RvActivityMode(rvt.MinorMode):
         self.compare_sources(sources)
             
     def compare_selected(self, event):
-        event.reject()
-
         vd      = json.loads(event.contents())
         sources = map(lambda x: self.source_group_from_version_data(x), vd)
 
@@ -392,6 +384,8 @@ class RvActivityMode(rvt.MinorMode):
         # Ignore the event if no DetailsPanel built yet, or if we are
         # "buffering" (ie playback paused to fill cache) or in "turn-around"
         # (ie looping)
+
+        event.reject()
         cont = event.contents()
         if self.details_panel and cont != "buffering" and cont != "turn-around":
             # We only auto-pin the details if they are not already pinned
