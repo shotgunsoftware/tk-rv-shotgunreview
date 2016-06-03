@@ -1620,23 +1620,30 @@ class RvActivityMode(rvt.MinorMode):
 
         mini_data = self.cached_mini_cut_data 
         (index, offset) = self.clip_index_and_offset_from_frame()
-
+        
         if mini_data.active:
             # show mini cut popup like in web
             if not from_spinner:
                 self.show_mini_cut()
+                return
 
             (left_num, right_num) = self.get_mini_values()
-            incr = mini_data.first_clip - (mini_data.focus_clip - left_num)
-
-            focus_index = mini_data.focus_clip - mini_data.first_clip
-            self.load_mini_cut( focus_index, offset=offset )
-                                
+ 
             seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
+            mini_frame = rvc.getIntProperty(seq_node + ".edl.frame")
+ 
+            focus_index = mini_data.focus_clip - mini_data.first_clip
+            new_first_clip = (mini_data.focus_clip - left_num)
+ 
+            tl_index = index + mini_data.first_clip
+            ph_index = tl_index - new_first_clip
+
+            self.load_mini_cut( focus_index, offset=offset, playhead_index=ph_index, from_spinner=True )
+                                
             mini_frame = rvc.getIntProperty(seq_node + ".edl.frame")
             
             if from_spinner:
-                self._queued_frame_change = mini_frame[index + incr] + offset
+                self._queued_frame_change = mini_frame[ph_index] + offset
             else:
                 self._queued_frame_change = mini_frame[index] + offset
             return
@@ -2530,7 +2537,7 @@ class RvActivityMode(rvt.MinorMode):
             self._prefs.mini_left_count,
             self._prefs.mini_right_count)
 
-    def load_mini_cut(self, focus_index, seq_group=None, offset=0):
+    def load_mini_cut(self, focus_index, seq_group=None, offset=0, playhead_index=None, from_spinner=False):
         self._app.log_info("load_mini_cut() focus %d seq_group %s offset %d" % (focus_index, seq_group, offset))
 
         seq_node = None
@@ -2615,7 +2622,10 @@ class RvActivityMode(rvt.MinorMode):
         self.save_mini_cut_data(MiniCutData(True, focus_index, first_index, last_index), seq_node)
 
         # restore frame location
-        rvc.setFrame(mini_frame[focus_index - first_index] + offset)
+        if from_spinner:
+            rvc.setFrame(mini_frame[playhead_index] + offset)
+        else:
+            rvc.setFrame(mini_frame[focus_index - first_index] + offset)
 
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
