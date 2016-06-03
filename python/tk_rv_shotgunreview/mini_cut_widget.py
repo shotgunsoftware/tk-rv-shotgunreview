@@ -18,9 +18,7 @@ class MiniCutWidget(QtGui.QDockWidget):
         Constructor
         """
         window = parent._rv_mode._app.engine.get_dialog_parent()
-        print "WIN %r" % window
         QtGui.QDockWidget.__init__(self, "MiniCut", window) 
-        # , QtGui.QDockWidget.DockWidgetFloatable | QtGui.QDockWidget.DockWidgetMovable)
 
         self._tray = parent
         self._mini_button = self._tray.tray_button_mini_cut

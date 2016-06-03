@@ -1564,6 +1564,8 @@ class RvActivityMode(rvt.MinorMode):
         self.cached_mini_cut_data = mini_data
 
     def on_entire_cut(self):
+        # hide minicut UI
+        self.tray_main_frame.mc_widget.setVisible(False)
 
         seq_node = None
         seq_group = rvc.viewNode()
@@ -1632,10 +1634,17 @@ class RvActivityMode(rvt.MinorMode):
             seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
             mini_frame = rvc.getIntProperty(seq_node + ".edl.frame")
  
+            # mini_data stores indexes in entire timeline space
+            # get relative position of focus clip
             focus_index = mini_data.focus_clip - mini_data.first_clip
+            # determine new first clip in 'entire' space
             new_first_clip = (mini_data.focus_clip - left_num)
- 
+            # clamp negatives
+            if new_first_clip < 0:
+                new_first_clip = 0
+            # now find the 'entire' index for the clip we are parked on
             tl_index = index + mini_data.first_clip
+            # and then the relative index 
             ph_index = tl_index - new_first_clip
 
             self.load_mini_cut( focus_index, offset=offset, playhead_index=ph_index, from_spinner=True )
