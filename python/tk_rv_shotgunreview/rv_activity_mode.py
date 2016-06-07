@@ -117,6 +117,9 @@ class MiniCutData:
         setProp(node + ".mini_cut.first_clip", self.first_clip)
         setProp(node + ".mini_cut.last_clip",  self.last_clip)
 
+    def __repr__(self):
+        return "active: %r, focus_clip: %r, first_clip: %r, last_clip: %r" % ( self.active, self.focus_clip, self.first_clip, self.last_clip )
+
     @staticmethod
     def load_from_session(seq_node=None):
 
@@ -1099,7 +1102,6 @@ class RvActivityMode(rvt.MinorMode):
 
         self.related_cuts_menu = None
         self.pipeline_steps_menu = None
-        # self.status_menu = None
         
         # Add a cuts button to the bottom toolbar
         self.show_cuts_action(True)
@@ -1214,10 +1216,10 @@ class RvActivityMode(rvt.MinorMode):
             self.on_data_refreshed_internal(True, incremental_update=True)
 
     def right_spinner_clicked(self, event):
-        self.on_mini_cut()
+        self.on_mini_cut(from_spinner=True)
 
     def left_spinner_clicked(self, event):
-        self.on_mini_cut()
+        self.on_mini_cut(from_spinner=True)
 
     def on_compare_ids_from_gma(self, event):
         self._app.engine.log_info("on_compare_ids_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
@@ -1274,7 +1276,6 @@ class RvActivityMode(rvt.MinorMode):
 
         self.tray_list.repaint()
 
-
     def update_pinned_thumbnail(self, v_data):
         # version_data['__image_path'] holds the local cache path thumbnail for the pinned icon
         # version_data['entity'] has our shot.
@@ -1295,7 +1296,6 @@ class RvActivityMode(rvt.MinorMode):
                     self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
              
         self.refresh_tray_thumbnails()
-
 
     def replace_version_in_sequence(self, versions):
         #XXX go over this in mini-cut case, etc
@@ -1430,11 +1430,11 @@ class RvActivityMode(rvt.MinorMode):
         return self.version_data_from_source(source_group)
 
     def load_tray_with_something_new(self, target_entity, 
-            load_from_gma       = False, 
-            preserve_pinned     = False, 
-            preserve_mini       = False, 
-            incoming_pinned     = {}, 
-            incoming_mini_focus = None):
+        load_from_gma       = False, 
+        preserve_pinned     = False, 
+        preserve_mini       = False, 
+        incoming_pinned     = {}, 
+        incoming_mini_focus = None):
 
         self.incoming_pinned         = {}
         self.incoming_mini_cut_focus = None
@@ -1553,12 +1553,13 @@ class RvActivityMode(rvt.MinorMode):
         orders = [{'field_name':'cut_order','direction':'asc'}]
         self.tray_model.load_data(entity_type="CutItem", filters=tray_filters, fields=tray_fields, order=orders)
         
-
     def save_mini_cut_data(self, mini_data, node):
         mini_data.store_in_session(node)
         self.cached_mini_cut_data = mini_data
 
     def on_entire_cut(self):
+        # hide minicut UI
+        self.tray_main_frame.mc_widget.setVisible(False)
 
         seq_node = None
         seq_group = rvc.viewNode()
@@ -1609,12 +1610,46 @@ class RvActivityMode(rvt.MinorMode):
 
         self.tray_list.repaint()
 
-    def on_mini_cut(self):
+    def on_mini_cut(self, from_spinner=False):
         # XXX handle non-Cut situations
         # XXX are we looking at the right node ?
 
-        # we rely on tray selection being synced with frame
+        mini_data = self.cached_mini_cut_data 
         (index, offset) = self.clip_index_and_offset_from_frame()
+        
+        if mini_data.active:
+            # show mini cut popup like in web
+            if not from_spinner:
+                self.show_mini_cut()
+                return
+
+            (left_num, right_num) = self.get_mini_values()
+ 
+            seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
+            mini_frame = rvc.getIntProperty(seq_node + ".edl.frame")
+ 
+            # mini_data stores indexes in entire timeline space
+            # get relative position of focus clip
+            focus_index = mini_data.focus_clip - mini_data.first_clip
+            # determine new first clip in 'entire' space
+            new_first_clip = (mini_data.focus_clip - left_num)
+            # clamp negatives
+            if new_first_clip < 0:
+                new_first_clip = 0
+            # now find the 'entire' index for the clip we are parked on
+            tl_index = index + mini_data.first_clip
+            # and then the relative index 
+            ph_index = tl_index - new_first_clip
+
+            self.load_mini_cut( focus_index, offset=offset, playhead_index=ph_index, from_spinner=True )
+                                
+            mini_frame = rvc.getIntProperty(seq_node + ".edl.frame")
+            
+            if from_spinner:
+                self._queued_frame_change = mini_frame[ph_index] + offset
+            else:
+                self._queued_frame_change = mini_frame[index] + offset
+            return
 
         self.load_mini_cut(index, offset=offset)
 
@@ -1942,10 +1977,10 @@ class RvActivityMode(rvt.MinorMode):
         edit_data["out"] = sg.get("sg_last_frame",  None)
         edit_data["shot"] = None
 
-	if edit_data["in"]  is None:
-	    edit_data["in"]  = 1;
-	if edit_data["out"] is None:
-	    edit_data["out"] = 100;
+        if edit_data["in"]  is None:
+            edit_data["in"]  = 1;
+        if edit_data["out"] is None:
+            edit_data["out"] = 100;
 
         if sg.get("entity"):
             if sg.get("entity").get("type") == "Shot":
@@ -2368,9 +2403,6 @@ class RvActivityMode(rvt.MinorMode):
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
 
-
-
-
     def set_cut_control_visibility(self, vis):
         self.tray_button_mini_cut.setVisible(vis)
         self.tray_button_entire_cut.setVisible(vis)
@@ -2381,7 +2413,6 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_right_label.setVisible(vis)
         self.tray_main_frame.down_arrow_button.setVisible(vis)
         self.tray_main_frame.tray_mini_label.setVisible(vis)
-
 
     def configure_visibility(self):
         """
@@ -2464,7 +2495,6 @@ class RvActivityMode(rvt.MinorMode):
                     data = json.loads(edit_data_list[clip_index])
 
         return data
-
            
     def tray_double_clicked(self, index):
         # XXX go over
@@ -2510,7 +2540,7 @@ class RvActivityMode(rvt.MinorMode):
             self._prefs.mini_left_count,
             self._prefs.mini_right_count)
 
-    def load_mini_cut(self, focus_index, seq_group=None, offset=0):
+    def load_mini_cut(self, focus_index, seq_group=None, offset=0, playhead_index=None, from_spinner=False):
         self._app.log_info("load_mini_cut() focus %d seq_group %s offset %d" % (focus_index, seq_group, offset))
 
         seq_node = None
@@ -2595,7 +2625,10 @@ class RvActivityMode(rvt.MinorMode):
         self.save_mini_cut_data(MiniCutData(True, focus_index, first_index, last_index), seq_node)
 
         # restore frame location
-        rvc.setFrame(mini_frame[focus_index - first_index] + offset)
+        if from_spinner:
+            rvc.setFrame(mini_frame[playhead_index] + offset)
+        else:
+            rvc.setFrame(mini_frame[focus_index - first_index] + offset)
 
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')

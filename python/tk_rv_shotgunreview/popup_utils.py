@@ -155,7 +155,7 @@ class PopupUtils(QtCore.QObject):
         seq_data = self._rv_mode.sequence_data_from_session()
 
         if not seq_data or seq_data["target_entity"]["type"] != "Cut":
-            self._engine.log_info('request_related_cuts_from_models: No cut info available')
+            self._engine.log_debug('request_related_cuts_from_models: No cut info available')
             self.clear_rel_cuts_menu(remove_menu=True)
             return
 
