@@ -239,10 +239,11 @@ class ListItemWidget(QtGui.QWidget):
         if not self.entity:
             return
 
-        field_widget = self.field_manager.create_display_widget(
-            self.entity.get("type"),
-            field_name,
-            self.entity,
+        field_widget = self.field_manager.create_widget(
+            sg_entity_type=self.entity.get("type"),
+            field_name=field_name,
+            entity=self.entity,
+            widget_type=self.field_manager.DISPLAY,
         )
 
         self._fields[field_name]["widget"] = field_widget
@@ -369,10 +370,11 @@ class ListItemWidget(QtGui.QWidget):
                     field_widget.set_value(entity.get(field))
         else:
             self.entity = entity
-            self.thumbnail = self.field_manager.create_display_widget(
-                entity.get("type"),
-                "image",
-                self.entity,
+            self.thumbnail = self.field_manager.create_widget(
+                sg_entity_type=entity.get("type"),
+                field_name="image",
+                entity=self.entity,
+                widget_type=self.field_manager.DISPLAY,
             )
 
             # The stretch factor helps the item widget scale horizontally
@@ -389,10 +391,11 @@ class ListItemWidget(QtGui.QWidget):
             field_grid_layout.setColumnStretch(1, 3)
 
             for i, field in enumerate(self.fields):
-                field_widget = self.field_manager.create_display_widget(
-                    entity.get("type"),
-                    field,
-                    self.entity,
+                field_widget = self.field_manager.create_widget(
+                    sg_entity_type=entity.get("type"),
+                    field_name=field,
+                    entity=self.entity,
+                    widget_type=self.field_manager.DISPLAY,
                 )
 
                 # If we've been asked to show labels for the fields, then
