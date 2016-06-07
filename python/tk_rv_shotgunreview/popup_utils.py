@@ -43,7 +43,6 @@ class PopupUtils(QtCore.QObject):
     def __init__(self, rv_mode):
         QtCore.QObject.__init__(self)
         self._engine = rv_mode._app.engine
-        self._shotgun = rv_mode._bundle.shotgun
         self._project_entity = rv_mode.project_entity
         self._sequence_cuts = []
         self._sequence_entity = None
@@ -424,7 +423,11 @@ class PopupUtils(QtCore.QObject):
         if not self._status_schema or project_entity['id'] != self._project_entity['id']:
             self._project_entity = project_entity
             project_id = self._project_entity['id']
-            self._status_schema = self._shotgun.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
+            self._status_schema = self._engine.shotgun.schema_field_read(
+                'Version',
+                field_name='sg_status_list',
+                project_entity={'id': project_id, 'type': 'Project'}
+            )
                 
         return self._status_schema
 
