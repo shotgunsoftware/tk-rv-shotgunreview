@@ -89,6 +89,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         self._requested_entity = None
         self._sort_versions_ascending = False
         self._upload_task_ids = []
+        self._pre_submit_callback = None
 
         self.ui = Ui_DetailsPanelWidget() 
         self.ui.setupUi(self)
@@ -267,6 +268,23 @@ class DetailsPanelWidget(QtGui.QWidget):
         updates, and False if it is not pinned.
         """
         return self._pinned
+
+    def _get_pre_submit_callback(self):
+        """
+        The pre-submit callback function, if one is registered. If so, this
+        Python callable will be run prior to Note or Reply submission, and
+        will be given the calling :class:`NoteInputWidget` as its first and
+        only argument.
+        """
+        return self.ui.note_stream_widget.pre_submit_callback
+
+    def _set_pre_submit_callback(self, callback):
+        self.ui.note_stream_widget.pre_submit_callback = callback
+
+    pre_submit_callback = property(
+        _get_pre_submit_callback,
+        _set_pre_submit_callback,
+    )
 
     ##########################################################################
     # public methods

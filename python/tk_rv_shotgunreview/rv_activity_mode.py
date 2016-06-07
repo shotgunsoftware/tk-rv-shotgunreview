@@ -665,7 +665,7 @@ class RvActivityMode(rvt.MinorMode):
         # The keys are the frames with unsaved annotation
         return self.get_unstored_frame_props().keys()
 
-    def make_note_attachments(self, note_entity):
+    def make_note_attachments(self, note_input_widget):
         '''
         Find the annotated frames for the given version, export them through RVIO, then submit them
         '''
@@ -752,7 +752,11 @@ class RvActivityMode(rvt.MinorMode):
         os.remove(session)
 
         # Submit the frames
-        self.submit_note_attachments(attachments, note_entity)
+        note_input_widget.add_files_to_attachments(
+            attachments,
+            cleanup_after_upload=True,
+            apply_attachments=True,
+        )
 
         # Update the graph to reflect which strokes have been submitted
         for frame in saved:
@@ -1073,16 +1077,6 @@ class RvActivityMode(rvt.MinorMode):
 
             self.tray_list.repaint()
 
-    def submit_note_attachments(self, attachments, note_entity):
-        """
-        Send the created and collected annotation exports off for saving.
-
-        :param attachments: A list of file paths to attach.
-        :param note_entity: A Note entity in the form of a dictionary as returned
-                            by the Shotgun Python API.
-        """
-        self.details_panel.add_note_attachments(attachments, note_entity)
-
     def load_data(self, entity):
         try:
             # self._app.engine.log_info( "loading details panel with %r" % entity )
@@ -1111,6 +1105,7 @@ class RvActivityMode(rvt.MinorMode):
             parent=self.note_dock,
             bg_task_manager=self._app.engine.bg_task_manager,
         )
+        self.details_panel.pre_submit_callback = self.make_note_attachments
         self.note_dock.setWidget(self.details_panel)
         
         self._app.engine._apply_external_styleshet(self._app, self.details_panel)
@@ -1167,8 +1162,6 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_list.horizontalScrollBar().valueChanged.connect(self.scroller_moved)
         
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
-
-        self.details_panel.entity_created.connect(self.make_note_attachments)
         
         # self._popup_utils.related_cuts_ready.connect(self.create_related_cuts_from_models)
 
