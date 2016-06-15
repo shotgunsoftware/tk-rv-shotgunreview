@@ -612,7 +612,7 @@ class DetailsPanelWidget(QtGui.QWidget):
         for i in indexes:
             entity = shotgun_model.get_sg_data(i)
             try:
-                image_file = self.version_delegate.widget_cache[i].thumbnail.image_file_path
+                image_file = self.version_delegate.widget_cache[i].thumbnail.image_url
             except Exception:
                 image_file = ""
             entity["__image_path"] = image_file
