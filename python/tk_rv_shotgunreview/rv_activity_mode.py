@@ -325,7 +325,8 @@ class RvActivityMode(rvt.MinorMode):
         self.set_details_dirty()
  
         if not self._prefs.auto_play:
-            self.update_cuts_with()
+            if self.target_entity and self.target_entity['type'] != "Cut":
+                self.update_cuts_with()
 
     def frameChanged(self, event):
         if event:
@@ -406,7 +407,6 @@ class RvActivityMode(rvt.MinorMode):
 
     def update_cuts_with(self):
         cuts = self.get_cuts_with()
-        print "UPDATE CUTS WITH %r" % cuts
         if cuts == {}:
             # we've done this before, disable the clapper
             self.enable_cuts_action(False, 'No cut for this version')
