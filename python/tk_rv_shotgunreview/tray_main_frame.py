@@ -11,6 +11,7 @@
 from tank.platform.qt import QtCore, QtGui
 from .tray_delegate import RvTrayDelegate
 from .mini_cut_widget import MiniCutWidget
+from .tray_dock_dragbar import TrayDockDragbar
 
 import os
 import tank
@@ -57,6 +58,9 @@ class TrayMainFrame(QtGui.QFrame):
             self.tray_dock.setFloating(False)
             self.dock_location_changed()
         else:
+            # tbar = TrayDockDragbar(self.tray_dock.parent(), self.tray_dock)
+            # tbar.setMinimumSize(QtCore.QSize(720,50))
+            # self.tray_dock.setTitleBarWidget(tbar)
             self.tray_dock.setTitleBarWidget(None)
             self.tray_dock.setFloating(True)
 
@@ -71,7 +75,8 @@ class TrayMainFrame(QtGui.QFrame):
         Handles the dock being redocked in some location. This will
         trigger removing the default title bar.
         """
-        self.tray_dock.setTitleBarWidget(QtGui.QWidget(self.tray_dock.parent()))
+        # self.tray_dock.setTitleBarWidget(QtGui.QWidget(self.tray_dock.parent()))
+        pass
 
     def init_ui(self):
         self.setObjectName('tray_frame')
@@ -270,6 +275,9 @@ class TrayMainFrame(QtGui.QFrame):
 
         self.mc_widget = MiniCutWidget(self)
         self.mc_widget.setVisible(False)
+        self.tray_dock.mc_widget = self.mc_widget
+        # know thy tray
+        self.mc_widget.tray_dock = self.tray_dock
        
 
 

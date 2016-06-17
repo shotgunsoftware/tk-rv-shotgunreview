@@ -18,6 +18,7 @@ import rv.qtutils
 import rv.commands
 
 class RVShotgunReviewApp(Application):
+
     """
     The app entry point. This class is responsible for intializing and tearing down
     the application, handle menu registration etc.
@@ -34,6 +35,7 @@ class RVShotgunReviewApp(Application):
 
         notes_dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea | QtCore.Qt.RightDockWidgetArea)
         notes_dock.setTitleBarWidget(QtGui.QWidget(parent_widget))
+
         tray_dock.setAllowedAreas(QtCore.Qt.BottomDockWidgetArea)
         tray_dock.setTitleBarWidget(QtGui.QWidget(parent_widget))
 

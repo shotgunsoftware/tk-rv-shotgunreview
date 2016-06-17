@@ -13,13 +13,23 @@ import tank
 
 class MiniCutWidget(QtGui.QDockWidget):
 
-    def __init__(self, parent):
+    def __init__(self, parent, window=None):
         """
         Constructor
         """
-        window = parent._rv_mode._app.engine.get_dialog_parent()
+        # so i may have created a mutant here.
+        # i dont really do anything with parent here,
+        # and i force the parent to be the session window.
+        # which lets me float over the docs.
+        # however, then the dock pops out its parent window
+        # changes to a new ad-hoc native window
+        # we need to reparent to the new window and be able
+        # to return when docked,
+        if not window:
+            window = parent._rv_mode._app.engine.get_dialog_parent()
         QtGui.QDockWidget.__init__(self, "MiniCut", window) 
 
+        self._window = window
         self._tray = parent
         self._mini_button = self._tray.tray_button_mini_cut
         self._rv_mode= parent._rv_mode
@@ -27,6 +37,9 @@ class MiniCutWidget(QtGui.QDockWidget):
 
         self.init_ui()
         self.topLevelChanged.connect(self.dock_handler)
+
+    def set_tray(self, tray):
+        self._tray = tray
 
     def dock_handler(self, stuff):
         self.setFloating(False)
@@ -103,10 +116,13 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.setMinimumSize(s)
  
     def position_minicut(self):
+
         p = self._tray.down_arrow_button.pos()
         s = self._mini_button.size()
-        y = self._rv_mode.tray_dock.pos().y() + s.height() + p.y() + 15
+        y = s.height() + p.y() + 15
+        
         p2 = QtCore.QPoint( p.x() - 100, y)
+        
         self.move(p2)
         self.raise_()
 
