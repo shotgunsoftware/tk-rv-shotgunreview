@@ -9,5 +9,3 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 from .rv_activity_mode import RvActivityMode
-from .tray_dock import TrayDockWidget
-from .tray_dock_dragbar import TrayDockDragbar

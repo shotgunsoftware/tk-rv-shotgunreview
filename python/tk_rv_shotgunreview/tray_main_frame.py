@@ -11,7 +11,6 @@
 from tank.platform.qt import QtCore, QtGui
 from .tray_delegate import RvTrayDelegate
 from .mini_cut_widget import MiniCutWidget
-# from .tray_dock_dragbar import TrayDockDragbar
 
 import os
 import tank
