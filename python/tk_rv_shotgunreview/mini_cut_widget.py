@@ -17,14 +17,12 @@ class MiniCutWidget(QtGui.QDockWidget):
         """
         Constructor
         """
-        # so i may have created a mutant here.
-        # i dont really do anything with parent here,
-        # and i force the parent to be the session window.
-        # which lets me float over the docs.
-        # however, then the dock pops out its parent window
-        # changes to a new ad-hoc native window
+        # NOTE: when the dock pops out its parent window
+        # the parent changes to a new ad-hoc native window.
         # we need to reparent to the new window and be able
-        # to return when docked,
+        # to return when docked. we call setParent when we 
+        # reveal this widget from the calling class so that
+        # it will be placed properly before it appears.
         if not window:
             window = parent._rv_mode._app.engine.get_dialog_parent()
         QtGui.QDockWidget.__init__(self, "MiniCut", window) 
