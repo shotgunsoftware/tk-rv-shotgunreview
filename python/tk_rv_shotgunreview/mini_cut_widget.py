@@ -36,9 +36,6 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.init_ui()
         self.topLevelChanged.connect(self.dock_handler)
 
-    def set_tray(self, tray):
-        self._tray = tray
-
     def dock_handler(self, stuff):
         self.setFloating(False)
 
