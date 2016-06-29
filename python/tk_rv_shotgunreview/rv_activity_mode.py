@@ -28,6 +28,7 @@ from .tray_delegate import RvTrayDelegate
 from .details_panel_widget import DetailsPanelWidget
 from .popup_utils import PopupUtils
 
+
 import sgtk
 
 import pprint
@@ -936,7 +937,7 @@ class RvActivityMode(rvt.MinorMode):
                 [
                 ("after-session-read", self.afterSessionRead, ""),
                 ("before-session-read", self.beforeSessionRead, ""),
-                # ("source-group-complete", self.sourceSetup, ""),
+                #   ("pointer-1--drag", self.pointer_drag, ""),
                 ("after-graph-view-change", self.viewChange, ""),
                 ("frame-changed", self.frameChanged, ""),
                 ("graph-node-inputs-changed", self.inputsChanged, ""),
@@ -1163,8 +1164,6 @@ class RvActivityMode(rvt.MinorMode):
         
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
         
-        # self._popup_utils.related_cuts_ready.connect(self.create_related_cuts_from_models)
-
         # async cached request for pipeline steps.
         # XXX pipeline steps are 'global' to shotgun? so this only needs to happen once?
         self._popup_utils.get_pipeline_steps_with_model()
@@ -1192,8 +1191,10 @@ class RvActivityMode(rvt.MinorMode):
             self.tray_main_frame.mc_widget.repaint()
 
     def show_mini_cut(self):
+        self.tray_main_frame.mc_widget.setParent(self.tray_dock)
         v = self.tray_main_frame.mc_widget.isVisible()
         self.tray_main_frame.mc_widget.setVisible( not v )
+        self.tray_main_frame.mc_widget.position_minicut()
 
     def dont_show_tray_context_menu(self):
         pass

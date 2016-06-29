@@ -71,7 +71,8 @@ class TrayMainFrame(QtGui.QFrame):
         Handles the dock being redocked in some location. This will
         trigger removing the default title bar.
         """
-        self.tray_dock.setTitleBarWidget(QtGui.QWidget(self.tray_dock.parent()))
+        # self.tray_dock.setTitleBarWidget(QtGui.QWidget(self.tray_dock.parent()))
+        pass
 
     def init_ui(self):
         self.setObjectName('tray_frame')
@@ -121,7 +122,6 @@ class TrayMainFrame(QtGui.QFrame):
 
         # arrow down button
         self.down_arrow_button = QtGui.QPushButton()
-        # self.down_arrow_button.setStyleSheet( 'QPushButton { background: #ff0000;}' )
         self.down_arrow_button.setObjectName("down_arrow_button")
         self.down_arrow_button.setFixedSize(12,12)
         self.down_arrow_button.setContentsMargins(0,0,0,0)
@@ -132,10 +132,6 @@ class TrayMainFrame(QtGui.QFrame):
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         self.down_arrow_button.setSizePolicy(sizePolicy)
-
-        # :tk-rv-shotgunreview/arrow.png);
-        # XXX - sb - using the above stype didnt work. there's more to it than
-        #            just placing a file in with the others. 
 
         self.down_arrow_button.setIconSize(QtCore.QSize(10,10))
 
@@ -270,6 +266,10 @@ class TrayMainFrame(QtGui.QFrame):
 
         self.mc_widget = MiniCutWidget(self)
         self.mc_widget.setVisible(False)
+        self.tray_dock.mc_widget = self.mc_widget
+        # mc_widget can change its parent when undocked, so we need to store a reference to 
+        # tray_dock so we dont have to rely on parent exclusively.
+        self.mc_widget.tray_dock = self.tray_dock
        
 
 
