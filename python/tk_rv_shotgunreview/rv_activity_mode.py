@@ -476,7 +476,7 @@ class RvActivityMode(rvt.MinorMode):
     def on_view_size_changed(self, event):
         event.reject()
         traysize = self.tray_dock.size().width()
-        self.tray_main_frame.resize(traysize - 10, self._tray_height)
+        self.tray_main_frame.resize(traysize, self._tray_height)
         self.tray_main_frame.mc_widget.position_minicut()
 
     def version_submitted(self, event):
@@ -1111,7 +1111,7 @@ class RvActivityMode(rvt.MinorMode):
         
         self._app.engine._apply_external_styleshet(self._app, self.details_panel)
 
-        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 60))
+        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 20))
         
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame
@@ -1158,7 +1158,6 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
 
         # mini cut popup menu
-        self.tray_main_frame.down_arrow_button.clicked.connect(self.show_mini_cut)
         self.tray_main_frame.tray_mini_label.clicked.connect(self.show_mini_cut)
         self.tray_list.horizontalScrollBar().valueChanged.connect(self.scroller_moved)
         
@@ -2405,7 +2404,6 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_right_spinner.setVisible(vis)
         self.tray_left_label.setVisible(vis)
         self.tray_right_label.setVisible(vis)
-        self.tray_main_frame.down_arrow_button.setVisible(vis)
         self.tray_main_frame.tray_mini_label.setVisible(vis)
 
     def configure_visibility(self):

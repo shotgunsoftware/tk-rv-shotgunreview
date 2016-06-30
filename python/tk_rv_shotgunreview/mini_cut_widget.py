@@ -109,7 +109,7 @@ class MiniCutWidget(QtGui.QDockWidget):
  
     def position_minicut(self):
 
-        p = self._tray.down_arrow_button.pos()
+        p = self._tray.tray_mini_label.pos()
         s = self._mini_button.size()
         y = s.height() + p.y() + 15
         
