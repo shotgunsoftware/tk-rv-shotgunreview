@@ -19,9 +19,17 @@ QWidget {
     padding: 0px;
 }
 
+QScrollBar::sub-page {
+    background: transparent;
+}
+
+QScrollBar::add-page {
+    background: transparent;
+}
+
 QListView, QTableView, QScrollArea {
     border: none;
-    background: rgb(37,38,41);
+    background: rgb(137,38,41);
 }
 
 QTabBar {
@@ -69,4 +77,5 @@ QMenu::item#version_sort_menu:checked {
 #empty_label {
     background: transparent;
 }
+
 
