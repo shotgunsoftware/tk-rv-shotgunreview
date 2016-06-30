@@ -42,34 +42,22 @@ class MiniCutWidget(QtGui.QDockWidget):
     def init_ui(self):
         style =  """
             QSpinBox  {
-                padding-left: 1px;
-                padding-right: 1px;
-                padding-top: 1px;
-                padding-bottom: 1px;
-                background-color: rgb(27,27,27);
+                background-color: rgb(15,15,15);
                 opacity: 0;
-                min-height: 36px;
-                border: 1px solid rgb(42,42,42);
+                min-height: 24px;
+                border: 1px solid rgb(75,75,75);
                 border-image: none;
                 color: rgb(200, 200, 200);
-                selection-background-color: rgb(50,50,51);
-                selection-color: rgb(255,255,255);
-            }
-            QSpinBox:focus {
-                border: 4px solid rgb(42,42,45);
-                selection-color: rgb(255,255,255);
-            }
-            QSpinBox::lineEdit:focus {
-                border: 4px solod rgb(0,0,0);
+                selection-background-color: rgb(50,50,50);
                 selection-color: rgb(255,255,255);
             }
             QSpinBox::up-button {
-                width: 14px;
-                height: 14px;
+                border: none;
+                background-color: rgb(15,15,15);
             }
             QSpinBox::down-button {
-                width: 14px;
-                height: 14px;
+                border: none;
+                background-color: rgb(15,15,15);
             }
 
         """
@@ -90,6 +78,7 @@ class MiniCutWidget(QtGui.QDockWidget):
 
         self.widget.left_label = QtGui.QLabel()
         self.widget.left_label.setText('Before')
+        self.widget.left_label.setStyleSheet("color: white")
         self.widget.hlayout.addWidget(self.widget.left_label)
 
         self.widget.mini_right_spinner = QtGui.QSpinBox()
@@ -101,11 +90,19 @@ class MiniCutWidget(QtGui.QDockWidget):
 
         self.widget.right_label = QtGui.QLabel()
         self.widget.right_label.setText('After')
+        self.widget.right_label.setStyleSheet("color: white")
         self.widget.hlayout.addWidget(self.widget.right_label)
 
-        self.widget.setStyleSheet('QFrame { background: rgb(37,38,41); }')
+        self.widget.setStyleSheet(
+            """
+            #mini_cut_widget {
+                background: rgb(37,38,41);
+                border: 1px solid rgb(75,75,75);
+            }
+            """
+        )
 
-        s = QtCore.QSize(250,60)
+        s = QtCore.QSize(200,60)
 
         self.widget.setMinimumSize(s)
         self.setMinimumSize(s)
@@ -127,7 +124,6 @@ class MiniCutWidget(QtGui.QDockWidget):
         self.repaint()
 
     def double_click_handler(self):
-        print "WORKS"
         pass
 
 
