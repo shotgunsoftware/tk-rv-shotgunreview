@@ -309,27 +309,25 @@ class RvActivityMode(rvt.MinorMode):
         self.compare_sources(sources)
             
     def beforeSessionRead (self, event):
-        # print "################### beforeSessionRead"
         event.reject()
         self._readingSession = True
 
     def afterSessionRead (self, event):
-        # print "################### afterSessionRead"
         event.reject()
         self._readingSession = False
 
     def inputsChanged(self, event):
-        # print "################### inputsChanged %r" % event
-        # print event.contents()
         event.reject()
         self.set_details_dirty()
 
     def viewChange(self, event):
-        # print "################### viewChange %r" % event
-        # print "contents %r" % event.contents()
         event.reject()
         self.configure_visibility()
         self.set_details_dirty()
+ 
+        if not self._prefs.auto_play:
+            if self.target_entity and self.target_entity['type'] != "Cut":
+                self.update_cuts_with()
 
     def frameChanged(self, event):
         if event:
@@ -359,26 +357,13 @@ class RvActivityMode(rvt.MinorMode):
 
     def sourcePath(self, event):
         event.reject()
-        # print "################### sourcePath %r" % event
-        # print event.contents()
-
+ 
     def graphStateChange(self, event):
         event.reject()
         self.set_details_dirty()
 
     def sourceGroupComplete(self, event):
         event.reject()
-        
-        """
-        args         = event.contents().split(";;")
-        # this source group was just created.
-        if args[1] == "new":
-            return
-        else:
-            print "################### sourceGroupComplete %r" % event
-            print args[1]
-            print event.contents()
-        """
 
     def on_play_state_change(self, event):
 
@@ -1238,11 +1223,6 @@ class RvActivityMode(rvt.MinorMode):
         target_entity["server"] = self._app.tank.shotgun_url
 
         self.load_tray_with_something_new(target_entity, load_from_gma=True)
-
-        """
-        except Exception as e:
-            print "ERROR: on_id_from_gma %r" % e
-            """
 
     def set_details_dirty(self):
         self.details_dirty = True
