@@ -253,7 +253,7 @@ class RvTrayDelegate(shotgun_view.WidgetDelegate):
                     painter.drawRect( 1, 1, ws.width()-2, ws.height()-2)
 
                 if mini_data.first_clip > model_index.row() or mini_data.last_clip < model_index.row():
-                    painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(0,0,0,127) )
+                    painter.fillRect( 0, 0, paint_widget.width(), paint_widget.height(), QtGui.QColor(0,0,0,220) )
 
 
         finally:
