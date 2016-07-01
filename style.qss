@@ -29,7 +29,7 @@ QScrollBar::add-page {
 
 QListView, QTableView, QScrollArea {
     border: none;
-    background: rgb(137,38,41);
+    background: rgb(37,38,41);
 }
 
 QTabBar {
