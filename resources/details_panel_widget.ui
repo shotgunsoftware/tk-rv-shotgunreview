@@ -566,6 +566,9 @@
            </item>
            <item>
             <widget class="QListView" name="entity_version_view">
+             <property name="focusPolicy">
+              <enum>Qt::NoFocus</enum>
+             </property>
              <property name="contextMenuPolicy">
               <enum>Qt::CustomContextMenu</enum>
              </property>

@@ -240,6 +240,7 @@ class Ui_DetailsPanelWidget(object):
         self.line.setObjectName("line")
         self.verticalLayout_2.addWidget(self.line)
         self.entity_version_view = QtGui.QListView(self.entity_version_tab)
+        self.entity_version_view.setFocusPolicy(QtCore.Qt.NoFocus)
         self.entity_version_view.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.entity_version_view.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.entity_version_view.setVerticalScrollMode(QtGui.QAbstractItemView.ScrollPerPixel)
