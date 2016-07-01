@@ -20,41 +20,14 @@ QWidget {
     padding: 0px;
 }
 
-QMenu {
-    color: rgb(200,200,200); 
+ShotgunMenu {
+    border-radius: 0px;
     border: 1px solid rgb(100,100,100);
-    border-radius: 1px;
     background-color: rgb(50, 50, 50);
-    selection-color: rgb(255, 255, 255);
-    selection-background-color: #18A7E3;
 }
 
-QMenu::separator {
-    background: rgb(200, 200, 200);
-    height: 1px;
-}
-
-QMenu::item {
-    background: transparent;
-    color: rgb(200,200,200);
-    selection-color: rgb(255, 255, 255);
-    selection-background-color: #18A7E3;
-}
-
-QMenu::right-arrow {
-    background: transparent;
-    image: url(:tk-rv-shotgunreview/right_arrow_large.png);
-}
-
-QMenu::down-arrow {
-    background: transparent;
-}
-
-
-QMenu::item:disabled {
-    background: transparent;
-    color: rgb(120,120,120);
-    selection-background-color: rgb(50, 50, 50);
+ShotgunMenu QLabel {
+    background-color: rgb(50, 50, 50);
 }
 
 QTreeView {

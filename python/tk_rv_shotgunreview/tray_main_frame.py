@@ -71,8 +71,7 @@ class TrayMainFrame(QtGui.QFrame):
         Handles the dock being redocked in some location. This will
         trigger removing the default title bar.
         """
-        # self.tray_dock.setTitleBarWidget(QtGui.QWidget(self.tray_dock.parent()))
-        pass
+        self.tray_dock.setTitleBarWidget(QtGui.QWidget(self.tray_dock.parent()))
 
     def init_ui(self):
         self.setObjectName('tray_frame')
@@ -93,6 +92,7 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_bar.setSizePolicy(sizePolicy)
 
         self.tray_button_bar_hlayout = QtGui.QHBoxLayout()
+        self.tray_button_bar_hlayout.setSpacing(8)
         self.tray_button_bar_grid.addLayout(self.tray_button_bar_hlayout, 0, 0)
         self.tray_button_bar_hlayout.setContentsMargins(0, 0, 0, 0)
         
@@ -105,7 +105,6 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_entire_cut = QtGui.QPushButton()
         self.tray_button_entire_cut.setText('Entire Cut')
         self.tray_button_bar_hlayout.addWidget(self.tray_button_entire_cut)
-        
 
         self.tray_bar_button = QtGui.QPushButton()
         self.tray_bar_button.setText('|')
@@ -115,32 +114,15 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_mini_cut.setText('Mini Cut')
         self.tray_button_bar_hlayout.addWidget(self.tray_button_mini_cut)
 
-
         self.tray_mini_label = QtGui.QPushButton()
+        self.tray_mini_label.setLayoutDirection(QtCore.Qt.RightToLeft)
         self.tray_mini_label.setText('-2+2')
-        self.tray_button_bar_hlayout.addWidget(self.tray_mini_label)
-
-        # arrow down button
-        self.down_arrow_button = QtGui.QPushButton()
-        self.down_arrow_button.setObjectName("down_arrow_button")
-        self.down_arrow_button.setFixedSize(12,12)
-        self.down_arrow_button.setContentsMargins(0,0,0,0)
-        self.down_arrow_button.setMaximumSize( QtCore.QSize(10,10) )
-        self.down_arrow_button.setMinimumSize( QtCore.QSize(10,10) )
-
-        sizePolicy = QtGui.QSizePolicy(QtGui.QSizePolicy.Fixed, QtGui.QSizePolicy.Fixed)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        self.down_arrow_button.setSizePolicy(sizePolicy)
-
-        self.down_arrow_button.setIconSize(QtCore.QSize(10,10))
 
         f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "arrow_smaller.png")
-        icon = QtGui.QIcon( f )
+        icon = QtGui.QIcon(f)
+        self.tray_mini_label.setIcon(icon)
 
-        self.down_arrow_button.setIcon(icon)
-        self.tray_button_bar_hlayout.addWidget(self.down_arrow_button)
- 
+        self.tray_button_bar_hlayout.addWidget(self.tray_mini_label) 
         self.tray_button_bar_hlayout.addStretch(1)
 
         self.pipeline_filter_button = QtGui.QPushButton()
@@ -231,8 +213,12 @@ class TrayMainFrame(QtGui.QFrame):
         # The buttons will be stacked vertically, with the close button
         # even with the button bar at the top of the tray, and the float
         # button immediately below it.
-        self.tray_button_bar_grid.addWidget(self.close_button, 0, 1)
-        self.tray_button_bar_grid.addWidget(self.float_button, 1, 1)
+        self.tray_dock_control_layout = QtGui.QHBoxLayout()
+        self.tray_dock_control_layout.setSpacing(0)
+        self.tray_dock_control_layout.setContentsMargins(8, 0, 0, 0)
+        self.tray_dock_control_layout.addWidget(self.float_button)
+        self.tray_dock_control_layout.addWidget(self.close_button)
+        self.tray_button_bar_grid.addLayout(self.tray_dock_control_layout, 0, 1)
 
         self.tray_frame_vlayout.addWidget(self.tray_button_bar)
         self.tray_frame_vlayout.setStretchFactor(self.tray_button_bar, 1)

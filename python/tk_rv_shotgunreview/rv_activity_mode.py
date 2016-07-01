@@ -461,7 +461,7 @@ class RvActivityMode(rvt.MinorMode):
     def on_view_size_changed(self, event):
         event.reject()
         traysize = self.tray_dock.size().width()
-        self.tray_main_frame.resize(traysize - 10, self._tray_height)
+        self.tray_main_frame.resize(traysize, self._tray_height)
         self.tray_main_frame.mc_widget.position_minicut()
 
     def version_submitted(self, event):
@@ -1076,7 +1076,7 @@ class RvActivityMode(rvt.MinorMode):
         # saw False even if we fail? endless loop? delay?
         self.details_dirty = False
  
-    def init_ui(self, note_dock, tray_dock, version_id):
+    def init_ui(self, note_dock, tray_dock):
         self.note_dock = note_dock
         self.tray_dock = tray_dock
 
@@ -1096,12 +1096,11 @@ class RvActivityMode(rvt.MinorMode):
         
         self._app.engine._apply_external_styleshet(self._app, self.details_panel)
 
-        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 60))
+        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 30))
         
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame
         self.tray_main_frame = TrayMainFrame(self.tray_dock, self)
-        #self.tray_main_frame.set_rv_mode(self)
 
         self.tray_hidden_this_session = False
         self.details_hidden_this_session = False
@@ -1143,7 +1142,6 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
 
         # mini cut popup menu
-        self.tray_main_frame.down_arrow_button.clicked.connect(self.show_mini_cut)
         self.tray_main_frame.tray_mini_label.clicked.connect(self.show_mini_cut)
         self.tray_list.horizontalScrollBar().valueChanged.connect(self.scroller_moved)
         
@@ -2385,7 +2383,6 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_right_spinner.setVisible(vis)
         self.tray_left_label.setVisible(vis)
         self.tray_right_label.setVisible(vis)
-        self.tray_main_frame.down_arrow_button.setVisible(vis)
         self.tray_main_frame.tray_mini_label.setVisible(vis)
 
     def configure_visibility(self):
