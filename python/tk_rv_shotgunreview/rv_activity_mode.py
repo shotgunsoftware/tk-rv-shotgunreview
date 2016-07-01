@@ -1076,7 +1076,7 @@ class RvActivityMode(rvt.MinorMode):
         # saw False even if we fail? endless loop? delay?
         self.details_dirty = False
  
-    def init_ui(self, note_dock, tray_dock, version_id):
+    def init_ui(self, note_dock, tray_dock):
         self.note_dock = note_dock
         self.tray_dock = tray_dock
 

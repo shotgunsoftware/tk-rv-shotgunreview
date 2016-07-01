@@ -14,7 +14,7 @@ class Ui_DetailsPanelWidget(object):
         DetailsPanelWidget.resize(390, 737)
         self.verticalLayout_17 = QtGui.QVBoxLayout(DetailsPanelWidget)
         self.verticalLayout_17.setSpacing(0)
-        self.verticalLayout_17.setContentsMargins(5, 0, 5, 0)
+        self.verticalLayout_17.setContentsMargins(0, 0, 0, 0)
         self.verticalLayout_17.setObjectName("verticalLayout_17")
         self.details_title_bar = QtGui.QFrame(DetailsPanelWidget)
         self.details_title_bar.setMaximumSize(QtCore.QSize(16777215, 13))
