@@ -621,10 +621,9 @@ class PopupUtils(QtCore.QObject):
         action.setText('Latest in Pipeline')
         # XXX what object do we want here?
         action.setData( { 'cached_display_name' : 'Latest in Pipeline' } )
-        menu.addAction(action)
         self._steps_proxyModel.sort(0, QtCore.Qt.DescendingOrder)
         rows = self._steps_proxyModel.rowCount()
-        actions = []
+        actions = [action]
 
         for x in range(0, rows):
             item = self._steps_proxyModel.index(x, 0)
