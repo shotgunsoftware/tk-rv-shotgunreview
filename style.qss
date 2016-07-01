@@ -75,6 +75,7 @@ QToolButton#more_fields_button:menu-indicator, QToolButton#version_fields_button
 }
 
 #version_sort_menu, #related_cuts_menu {
+    padding: 2px;
     border-radius: 0px;
     border: 1px solid rgb(100,100,100);
     background-color: rgb(50, 50, 50);

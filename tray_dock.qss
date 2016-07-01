@@ -21,6 +21,7 @@ QWidget {
 }
 
 ShotgunMenu {
+    padding: 2px;
     border-radius: 0px;
     border: 1px solid rgb(100,100,100);
     background-color: rgb(50, 50, 50);
