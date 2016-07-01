@@ -35,6 +35,11 @@ required_version_fields = [
     "sg_uploaded_movie_frame_rate"
     ]
 
+shotgun_menus = tank.platform.import_framework(
+    "tk-framework-qtwidgets",
+    "shotgun_menus",
+)
+
 
 class PopupUtils(QtCore.QObject):
 
@@ -295,8 +300,10 @@ class PopupUtils(QtCore.QObject):
 
     def create_related_cuts_from_models(self):
         if not self._related_cuts_menu and not self._target_entity:
-            # self._engine.log_info("create_related_cuts_from_models, CREATING MENU")
-            self._related_cuts_menu = QtGui.QMenu(self._tray_frame.tray_button_browse_cut)
+            self._related_cuts_menu = shotgun_menus.ShotgunMenu(
+                self._tray_frame.tray_button_browse_cut,
+            )
+            self._related_cuts_menu.setObjectName("related_cuts_menu")
             self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu)        
  
             # Sadly, because this button didn't have a menu at the time that
@@ -314,7 +321,6 @@ class PopupUtils(QtCore.QObject):
                 """
             )
             self._related_cuts_menu.triggered.connect(self.handle_related_menu)
-            # self._related_cuts_menu.aboutToShow.connect(self.handle_related_menu)
         else:
             # if we have a menu, and target_entity is None, then we are moving from
             # cut to cut. if no menu and there is a target, then its a version or
@@ -355,16 +361,16 @@ class PopupUtils(QtCore.QObject):
         self._related_cuts_menu.clear()
 
         menu = self._related_cuts_menu
-        action = QtGui.QAction(self._tray_frame.tray_button_browse_cut)
-        action.setText('Related Cuts')
-        menu.addAction(action)
-        menu.addSeparator()
+        # action = QtGui.QAction(self._tray_frame.tray_button_browse_cut)
+        # action.setText('Related Cuts')
+        # menu.addAction(action)
+        # menu.addSeparator()
 
         last_menu = menu
         parent_menu = None
         last_code = None
         en = {}
-        # self._engine.log_info("create_related_cuts_from_models, seq_cuts: %r" % len(seq_cuts))
+        actions = []
 
         for x in seq_cuts:
             action = QtGui.QAction(self._tray_frame.tray_button_browse_cut)
@@ -400,10 +406,11 @@ class PopupUtils(QtCore.QObject):
 
             action.setData(en)
  
-            last_menu.addAction(action)
+            # last_menu.addAction(action)
+            actions.append(action)
             last_code = x['code']
 
-        # self._engine.log_info("DONE create_related_cuts_from_models, cut_id: %r" % cut_id)
+        menu.add_group(actions, title="Related Cuts")
 
     # approval status menu methods
 
@@ -462,7 +469,10 @@ class PopupUtils(QtCore.QObject):
 
         # might as well make the menu if its not there yet.
         if not self._status_menu:
-            self._status_menu = QtGui.QMenu(self._tray_frame.status_filter_button)
+            self._status_menu = shotgun_menus.ShotgunMenu(
+                self._tray_frame.status_filter_button,
+            )
+            self._status_menu.setObjectName("status_menu")
             self._tray_frame.status_filter_button.setMenu(self._status_menu)
 
             # Sadly, because this button didn't have a menu at the time that
@@ -500,13 +510,14 @@ class PopupUtils(QtCore.QObject):
         action.setChecked(False)
         action.setText('Any Status')
         action.setData(None)
-        menu.addAction(action)
-        menu.addSeparator()
+        menu.add_group([action])
         self._status_reload = False
 
         statii = self.get_status_menu(self._project_entity)
         count = 0
         name = None
+        actions = []
+
         for status in statii:
             action = QtGui.QAction(self._tray_frame.status_filter_button)
             action.setCheckable(True)
@@ -517,7 +528,9 @@ class PopupUtils(QtCore.QObject):
                     count = count + 1
                     name = status[x]
             action.setData(status)
-            menu.addAction(action)
+            actions.append(action)
+
+        menu.add_group(actions)
 
         if count == 0:
             self._tray_frame.status_filter_button.setText("Filter by Status")
@@ -576,7 +589,10 @@ class PopupUtils(QtCore.QObject):
         This loads the menu with values returned when the _steps_model returns data_refreshed
         """
         if not self._pipeline_steps_menu:
-            self._pipeline_steps_menu = QtGui.QMenu(self._tray_frame.pipeline_filter_button)
+            self._pipeline_steps_menu = shotgun_menus.ShotgunMenu(
+                self._tray_frame.pipeline_filter_button,
+            )
+            self._pipeline_steps_menu.setObjectName("pipeline_steps_menu")
             self._tray_frame.pipeline_filter_button.setMenu(self._pipeline_steps_menu)
 
             # Sadly, because this button didn't have a menu at the time that
@@ -594,17 +610,9 @@ class PopupUtils(QtCore.QObject):
                 """
             )      
             self._pipeline_steps_menu.triggered.connect(self.handle_pipeline_menu)
+        
         menu = self._pipeline_steps_menu
         menu.clear()
-
-        action = QtGui.QAction(self._tray_frame.pipeline_filter_button)
-        action.setCheckable(False)
-        action.setChecked(False)
-        action.setText('Pipeline Steps Priority')
-        # XXX what object do we want here?
-        action.setData( None )
-        menu.addAction(action)
-        menu.addSeparator()
 
         # XXX latest in pipeline means an empty steps list?
         action = QtGui.QAction(self._tray_frame.pipeline_filter_button)
@@ -616,6 +624,7 @@ class PopupUtils(QtCore.QObject):
         menu.addAction(action)
         self._steps_proxyModel.sort(0, QtCore.Qt.DescendingOrder)
         rows = self._steps_proxyModel.rowCount()
+        actions = []
 
         for x in range(0, rows):
             item = self._steps_proxyModel.index(x, 0)
@@ -625,8 +634,9 @@ class PopupUtils(QtCore.QObject):
             action.setChecked(False)
             action.setText(sg['cached_display_name'])
             action.setData(sg)
-            menu.addAction(action)
+            actions.append(action)
 
+        menu.add_group(actions, title="Pipeline Steps Priority")
         self.check_pipeline_menu()
 
 

@@ -66,16 +66,22 @@ QToolButton#more_fields_button:menu-indicator, QToolButton#version_fields_button
     image: none;
 }
 
-QMenu::item#version_sort_menu:checked {
-    color: {{SG_HIGHLIGHT_COLOR}};
-}
-
 #close_button, #float_button {
     background: transparent;
 }
 
 #empty_label {
     background: transparent;
+}
+
+#version_sort_menu, #related_cuts_menu {
+    border-radius: 0px;
+    border: 1px solid rgb(100,100,100);
+    background-color: rgb(50, 50, 50);
+}
+
+#version_sort_menu QLabel, #related_cuts_menu QLabel {
+    background-color: rgb(50, 50, 50);
 }
 
 

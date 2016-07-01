@@ -1101,7 +1101,6 @@ class RvActivityMode(rvt.MinorMode):
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame
         self.tray_main_frame = TrayMainFrame(self.tray_dock, self)
-        #self.tray_main_frame.set_rv_mode(self)
 
         self.tray_hidden_this_session = False
         self.details_hidden_this_session = False

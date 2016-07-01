@@ -640,6 +640,17 @@ class DetailsPanelWidget(QtGui.QWidget):
         button's menu.
         """
         menu = shotgun_menus.EntityFieldMenu("Version")
+        menu.setObjectName("fields_menu")
+        # Having trouble overriding RV's default styling for the field
+        # menus, so we are forced to apply it explicitly to the instance.
+        menu.setStyleSheet(
+            """
+            #fields_menu {
+                border-radius: 0px;
+                border: 1px solid rgb(100,100,100);
+            }
+            """
+        )
         menu.set_field_filter(self._field_filter)
         menu.set_checked_filter(self._checked_filter)
         menu.set_disabled_filter(self._disabled_filter)
@@ -653,6 +664,17 @@ class DetailsPanelWidget(QtGui.QWidget):
         button's menu.
         """
         menu = shotgun_menus.EntityFieldMenu("Version")
+        menu.setObjectName("version_fields_menu")
+        # Having trouble overriding RV's default styling for the field
+        # menus, so we are forced to apply it explicitly to the instance.
+        menu.setStyleSheet(
+            """
+            #version_fields_menu {
+                border-radius: 0px;
+                border: 1px solid rgb(100,100,100);
+            }
+            """
+        )
         menu.set_field_filter(self._field_filter)
         menu.set_checked_filter(self._version_list_checked_filter)
         menu.set_disabled_filter(self._version_list_disabled_filter)
@@ -664,31 +686,14 @@ class DetailsPanelWidget(QtGui.QWidget):
         """
         Sets up the sort-by menu in the Versions tab.
         """
-        self._version_sort_menu = QtGui.QMenu(self)
+        self._version_sort_menu = shotgun_menus.ShotgunMenu(self)
         self._version_sort_menu.setObjectName("version_sort_menu")
 
-        ascending = QtGui.QAction("Sort Ascending", self)
-        descending = QtGui.QAction("Sort Descending", self)
+        ascending = QtGui.QAction("Ascending", self)
+        descending = QtGui.QAction("Descending", self)
         ascending.setCheckable(True)
         descending.setCheckable(True)
         descending.setChecked(True)
-
-        up_icon = QtGui.QIcon(":tk-rv-shotgunreview/sort_up.png")
-        up_icon.addPixmap(
-            QtGui.QPixmap(":tk-rv-shotgunreview/sort_up_on.png"),
-            QtGui.QIcon.Active,
-            QtGui.QIcon.On,
-        )
-
-        down_icon = QtGui.QIcon(":tk-rv-shotgunreview/sort_down.png")
-        down_icon.addPixmap(
-            QtGui.QPixmap(":tk-rv-shotgunreview/sort_down_on.png"),
-            QtGui.QIcon.Active,
-            QtGui.QIcon.On,
-        )
-
-        ascending.setIcon(up_icon)
-        descending.setIcon(down_icon)
 
         self._version_sort_menu_directions = QtGui.QActionGroup(self)
         self._version_sort_menu_fields = QtGui.QActionGroup(self)
@@ -697,8 +702,9 @@ class DetailsPanelWidget(QtGui.QWidget):
 
         self._version_sort_menu_directions.addAction(ascending)
         self._version_sort_menu_directions.addAction(descending)
-        self._version_sort_menu.addActions([ascending, descending])
-        self._version_sort_menu.addSeparator()
+        self._version_sort_menu.add_group([ascending, descending], title="Direction")
+
+        field_actions = []
 
         for field_name in self._version_list_sort_by_fields:
             display_name = shotgun_globals.get_field_display_name(
@@ -714,8 +720,9 @@ class DetailsPanelWidget(QtGui.QWidget):
             action.setCheckable(True)
             action.setChecked((field_name == "id"))
             self._version_sort_menu_fields.addAction(action)
-            self._version_sort_menu.addAction(action)
+            field_actions.append(action)
 
+        self._version_sort_menu.add_group(field_actions, title="By Field")
         self._version_sort_menu_directions.triggered.connect(self._toggle_sort_order)
         self._version_sort_menu_fields.triggered.connect(self._sort_version_list)
         self.ui.version_sort_button.setMenu(self._version_sort_menu)
@@ -731,6 +738,15 @@ class DetailsPanelWidget(QtGui.QWidget):
         selection_model = self.ui.entity_version_view.selectionModel()
         versions = self._selected_version_entities()
         menu = VersionContextMenu(versions)
+        menu.setObjectName("version_context_menu")
+        menu.setStyleSheet(
+            """
+            #version_context_menu {
+                border-radius: 0px;
+                border: 1px solid rgb(100,100,100);
+            }
+            """
+        )
 
         # Each action has its own callback, text (the label shown in the
         # menu), and selection requirement. If the selection requirement
