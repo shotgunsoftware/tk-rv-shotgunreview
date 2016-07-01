@@ -1096,7 +1096,7 @@ class RvActivityMode(rvt.MinorMode):
         
         self._app.engine._apply_external_styleshet(self._app, self.details_panel)
 
-        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 20))
+        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 30))
         
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame
