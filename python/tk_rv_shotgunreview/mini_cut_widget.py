@@ -44,7 +44,8 @@ class MiniCutWidget(QtGui.QDockWidget):
             QSpinBox  {
                 background-color: rgb(15,15,15);
                 opacity: 0;
-                min-height: 24px;
+                min-height: 20px;
+                min-width: 40px;
                 border: 1px solid rgb(75,75,75);
                 border-image: none;
                 color: rgb(200, 200, 200);
@@ -52,10 +53,12 @@ class MiniCutWidget(QtGui.QDockWidget):
                 selection-color: rgb(255,255,255);
             }
             QSpinBox::up-button {
+                max-height: 8px;
                 border: none;
                 background-color: rgb(15,15,15);
             }
             QSpinBox::down-button {
+                max-height: 8px;
                 border: none;
                 background-color: rgb(15,15,15);
             }
@@ -102,7 +105,7 @@ class MiniCutWidget(QtGui.QDockWidget):
             """
         )
 
-        s = QtCore.QSize(200,60)
+        s = QtCore.QSize(200,50)
 
         self.widget.setMinimumSize(s)
         self.setMinimumSize(s)

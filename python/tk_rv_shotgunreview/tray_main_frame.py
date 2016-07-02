@@ -92,7 +92,7 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_bar.setSizePolicy(sizePolicy)
 
         self.tray_button_bar_hlayout = QtGui.QHBoxLayout()
-        self.tray_button_bar_hlayout.setSpacing(8)
+        self.tray_button_bar_hlayout.setSpacing(16)
         self.tray_button_bar_grid.addLayout(self.tray_button_bar_hlayout, 0, 0)
         self.tray_button_bar_hlayout.setContentsMargins(0, 0, 0, 0)
         
