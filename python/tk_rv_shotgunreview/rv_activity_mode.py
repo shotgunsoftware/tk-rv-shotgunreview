@@ -855,6 +855,9 @@ class RvActivityMode(rvt.MinorMode):
 
         return swap_media
 
+    def launchMediaApp(self, event):
+        rvc.openUrl(self._app.tank.shotgun_url + "/page/media_center")
+
     def __init__(self, app):
         rvt.MinorMode.__init__(self)
         
@@ -941,6 +944,9 @@ class RvActivityMode(rvt.MinorMode):
                 ('submit-tool-submission-complete', self.version_submitted, ''),
                 ],
                 [("SG Review", [
+                    ("Launch Media App", self.launchMediaApp, None, lambda: rvc.UncheckedMenuState),
+                    ("_", None),
+                    
                     ("Swap Media - Current Clip", None, None, lambda: rvc.DisabledMenuState),
                     ("    Movie",  self.swap_media_factory("Movie", "one"),  None, lambda: rvc.UncheckedMenuState),
                     ("    Frames", self.swap_media_factory("Frames", "one"), None, lambda: rvc.UncheckedMenuState),
