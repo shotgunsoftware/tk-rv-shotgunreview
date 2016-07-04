@@ -158,13 +158,19 @@ required_version_fields = [
 
 def setProp(prop, value):
     '''
-    Convenience function to set Int of String proprty, creating it first if
-    necessary.  In coming value can be scalar or list of the appropriate type.
+    Convenience function to set Int or Float or String proprty, creating it
+    first if necessary.  In coming value can be scalar or list of the
+    appropriate type.
     '''
-    if type(value) == int or (type(value) == list and len(value) and type(value[0]) == int):
+    if   type(value) == int or (type(value) == list and len(value) and type(value[0]) == int):
         if not rvc.propertyExists(prop):
             rvc.newProperty(prop, rvc.IntType, 1)
         rvc.setIntProperty(prop, value if (type(value) == list) else [value], True)
+
+    elif type(value) == float or (type(value) == list and len(value) and type(value[0]) == float):
+        if not rvc.propertyExists(prop):
+            rvc.newProperty(prop, rvc.FloatType, 1)
+        rvc.setFloatProperty(prop, value if (type(value) == list) else [value], True)
 
     elif ((type(value) == str     or (type(value) == list and len(value) and type(value[0]) == str)) or 
           (type(value) == unicode or (type(value) == list and len(value) and type(value[0]) == unicode))):
@@ -748,7 +754,7 @@ class RvActivityMode(rvt.MinorMode):
         for frame in saved:
             for prop in props[frame]:
                 rvc.newProperty(prop, rvc.IntType, 1)
-                rvc.setIntProperty(prop, [1234], True) # XXX should be note id
+                setProp(prop, 1234) # XXX should be note id
 
     def set_media_type_property(self, source_group, media_type):
         setProp(source_group + ".sg_review.media_type", media_type)
@@ -766,6 +772,9 @@ class RvActivityMode(rvt.MinorMode):
         file_source = groupMemberOfType(source_group, "RVFileSource")
 
         # Set up correct source frame mapping
+
+        if version_data["sg_uploaded_movie_frame_rate"]:
+            setProp(file_source + ".group.fps", version_data["sg_uploaded_movie_frame_rate"])
 
         range_start_prop = file_source + ".group.rangeStart"
         first_frame = version_data["sg_first_frame"]
@@ -1650,15 +1659,15 @@ class RvActivityMode(rvt.MinorMode):
         rvc.newProperty("%s.text" % node, rvc.StringType, 1)
         rvc.newProperty('%s.debug' % node, rvc.IntType, 1)
 
-        rvc.setFloatProperty('%s.position' % node, [ float(hpos), float(vpos) ], True)
-        rvc.setFloatProperty('%s.color' % node, [ 1.0, 1.0, 1.0, 1.0 ], True)
-        rvc.setFloatProperty('%s.spacing' % node, [ 1.0 ], True)
-        rvc.setFloatProperty('%s.size' % node, [ 0.004 ], True)
-        rvc.setFloatProperty('%s.scale' % node, [ 1.0 ], True)
-        rvc.setFloatProperty('%s.rotation' % node, [ 0.0 ], True)
-        rvc.setStringProperty("%s.font" % node, [""], True)
-        rvc.setStringProperty("%s.text" % node, [text], True)
-        rvc.setIntProperty('%s.debug' % node, [ 0 ], True)
+        setProp('%s.position' % node, [ float(hpos), float(vpos) ])
+        setProp('%s.color' % node, [ 1.0, 1.0, 1.0, 1.0 ])
+        setProp('%s.spacing' % node, [ 1.0 ])
+        setProp('%s.size' % node, [ 0.004 ])
+        setProp('%s.scale' % node, [ 1.0 ])
+        setProp('%s.rotation' % node, [ 0.0 ])
+        setProp("%s.font" % node, [""])
+        setProp("%s.text" % node, [text])
+        setProp('%s.debug' % node, [ 0 ])
 
     def find_latest_cut_for_version(self, shot_entity, version_data, project_entity):
         
@@ -1822,7 +1831,10 @@ class RvActivityMode(rvt.MinorMode):
 
         if not path:
             self._app.engine.log_error("Version '%s' has no local media" % version_data["code"])
-            path = "black,start=1,end=24.movieproc"
+            fps = 24.0
+            if version_data["sg_uploaded_movie_frame_rate"]:
+                fps = float(version_data["sg_uploaded_movie_frame_rate"])
+            path = "black,start=1,end=24,fps=%f.movieproc" % fps
             m_type = "Movie"
             no_media = True
 
@@ -1858,11 +1870,13 @@ class RvActivityMode(rvt.MinorMode):
         data["ui_name"]       = target_entity["type"]
         data["entity"]        = None
         data["project"]       = None
+        data["fps"]           = 0.0
 
         if   target_entity["type"] == "Cut":
             if sg_item:
                 data["ui_name"] = sg_item["cut.Cut.cached_display_name"]
                 data["entity"]  = sg_item["cut.Cut.entity"]
+                data["fps"]     = sg_item["cut.Cut.fps"] if sg_item["cut.Cut.fps"] else 0.0
 
         elif target_entity["type"] == "Playlist":
             data["ui_name"]     = "Playlist %d" % target_entity["ids"][0]
@@ -2265,8 +2279,8 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_main_frame.tray_button_browse_cut.setText(sequence_data["ui_name"])
 
         # make sure RV doesn't automatically create the EDL
-        rvc.setIntProperty(seq_node + ".mode.autoEDL",    [0])
-        rvc.setIntProperty(seq_node + ".mode.useCutInfo", [0])
+        setProp(seq_node + ".mode.autoEDL",    0)
+        setProp(seq_node + ".mode.useCutInfo", 0)
 
         setProp(seq_node + ".shadow_edl.inputs", seq_inputs)
 
@@ -2282,6 +2296,8 @@ class RvActivityMode(rvt.MinorMode):
         setProp(seq_node + ".shadow_edl.frame",  edl_frames)
         setProp(seq_node + ".shadow_edl.in",     edl_ins)
         setProp(seq_node + ".shadow_edl.out",    edl_outs)
+
+        setProp(seq_node + ".output.fps", float(sequence_data["fps"]))
 
         setProp(seq_group_node + ".sg_review.sequence_data", json.dumps(sequence_data))
         setProp(seq_group_node + ".sg_review.edit_data", edit_data_list)
@@ -2491,12 +2507,12 @@ class RvActivityMode(rvt.MinorMode):
         single_source.append(0)
         single_ins.append(0)
         single_outs.append(0)
-        rvc.setIntProperty('%s.edl.frame' % self.cut_seq_name, single_frames, True)
-        rvc.setIntProperty('%s.edl.in' % self.cut_seq_name, single_ins, True)
-        rvc.setIntProperty('%s.edl.out' % self.cut_seq_name, single_outs, True)
+        setProp('%s.edl.frame' % self.cut_seq_name, single_frames)
+        setProp('%s.edl.in' % self.cut_seq_name, single_ins)
+        setProp('%s.edl.out' % self.cut_seq_name, single_outs)
         
-        rvc.setIntProperty("%s.mode.autoEDL" % self.cut_seq_name, [0])
-        rvc.setIntProperty("%s.mode.useCutInfo" % self.cut_seq_name, [0])
+        setProp("%s.mode.autoEDL" % self.cut_seq_name, 0)
+        setProp("%s.mode.useCutInfo" % self.cut_seq_name, 0)
 
         sources = rvc.nodesOfType("RVSourceGroup")
         single = [ sources[index.row()] ]
