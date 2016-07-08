@@ -141,7 +141,10 @@ class PopupUtils(QtCore.QObject):
             return
 
         shot_conditions = ['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }]
-        shot_filters = [ shot_conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]]
+        if self._project_entity and self._project_entity['id']:
+            shot_filters = [ shot_conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]]
+        else:
+            shot_filters = [ shot_conditions ]
         shot_fields = ['id', 'entity', 'code', 'cached_display_name']
         shot_orders = [
             {'field_name': 'code', 'direction': 'asc'}, 
