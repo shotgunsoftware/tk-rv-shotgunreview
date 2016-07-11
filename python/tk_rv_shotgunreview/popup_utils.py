@@ -413,8 +413,10 @@ class PopupUtils(QtCore.QObject):
 
             action.setData(en)
  
-            # last_menu.addAction(action)
-            actions.append(action)
+            if last_menu is menu:
+                actions.append(action)
+            else:
+                last_menu.addAction(action)
             last_code = x['code']
 
         menu.add_group(actions, title="Related Cuts")
