@@ -384,7 +384,11 @@ class PopupUtils(QtCore.QObject):
 
             if last_code != x['code']: # this is the first time weve seen this code
                 if x['count'] > 1: # make a submenu
-                    last_menu = last_menu.addMenu(x['code'])
+                    if last_menu is menu:
+                        last_menu = shotgun_menus.ShotgunMenu(x['code'])
+                        actions.append(last_menu)
+                    else:
+                        last_menu = last_menu.addMenu(x['code'])
                     a = last_menu.menuAction()
                     a.setCheckable(True)
                     a.setChecked(False)
