@@ -2104,6 +2104,7 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_list.repaint()
 
         self.compare_active = False
+        self.set_details_dirty()
         
     # the way data from shotgun gets into the tray
     def on_data_refreshed_internal(self, was_refreshed, incremental_update=False):
