@@ -1190,6 +1190,7 @@ class RvActivityMode(rvt.MinorMode):
 
     def show_mini_cut(self):
         self.tray_main_frame.mc_widget.setParent(self.tray_dock)
+        self._popup_utils.set_menu_parents(self.tray_dock)
         v = self.tray_main_frame.mc_widget.isVisible()
         self.tray_main_frame.mc_widget.setVisible( not v )
         self.tray_main_frame.mc_widget.position_minicut()

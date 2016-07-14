@@ -101,11 +101,17 @@ class PopupUtils(QtCore.QObject):
 
         self._filtered_versions_model.data_refreshed.connect(self.filter_tray)
 
-    # related cuts menu menthods
 
-    # def mark_pipeline_selections(self):
-    #     self._preset_pipeline = True
-    #     self.check_pipeline_menu()
+    # update parents for menus while floating
+    def set_menu_parents(self, parent):
+        print "SETTING PARENT TO %r" % parent
+        if not parent:
+            return
+        self._related_cuts_menu.setParent(parent)
+        self._pipeline_steps_menu.setParent(parent)
+        self._status_menu.setParent(parent)
+
+    # related cuts menu methods
 
     def find_rel_cuts_with_model(self, entity_in, shot_entity=None):
         """
