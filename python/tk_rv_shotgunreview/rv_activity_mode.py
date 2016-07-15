@@ -867,6 +867,9 @@ class RvActivityMode(rvt.MinorMode):
     def launchMediaApp(self, event):
         rvc.openUrl(self._app.tank.shotgun_url + "/page/media_center")
 
+    def getHelp(self, event):
+        rvc.openUrl("https://shotgunsoftware.zendesk.com/hc/en-us/articles/222840748")
+
     def __init__(self, app):
         rvt.MinorMode.__init__(self)
         
@@ -951,8 +954,16 @@ class RvActivityMode(rvt.MinorMode):
                 ('view-size-changed', self.on_view_size_changed, ''),
                 ('per-render-event-processing', self.per_render_event, ''),
                 ('submit-tool-submission-complete', self.version_submitted, ''),
+                # Shortcuts:
+                ('key-down--alt--d', self.toggle_view_details, ''),
+                ('key-down--alt--t', self.toggle_view_tray, ''),
+                ('key-down--alt--c', self.cuts_button_pushed_event, ''),
+                ('key-down--alt--m', self.mini_cut_mode_toggle, ''),
                 ],
                 [("SG Review", [
+                    ("Get Help ...", self.getHelp, None, lambda: rvc.UncheckedMenuState),
+                    ("_", None),
+
                     ("Launch Media App", self.launchMediaApp, None, lambda: rvc.UncheckedMenuState),
                     ("_", None),
                     
@@ -966,8 +977,8 @@ class RvActivityMode(rvt.MinorMode):
 
                     ("_", None),
                     ("View", None, None, lambda: rvc.DisabledMenuState),
-                    ("    Details Pane",       self.toggle_view_details, None, self.view_state_details),
-                    ("    Thumbnail Timeline", self.toggle_view_tray,    None, self.view_state_tray),
+                    ("    Details Pane",       self.toggle_view_details, "alt d", self.view_state_details),
+                    ("    Thumbnail Timeline", self.toggle_view_tray,    "alt t", self.view_state_tray),
 
                     ("_", None),
                     ("Submit Tool", self.launchSubmitTool, None, lambda: rvc.UncheckedMenuState),
@@ -1044,6 +1055,13 @@ class RvActivityMode(rvt.MinorMode):
             self.cuts_action.setIcon(cicon)
         self.cuts_action.setEnabled(enable)
         self.cuts_action.setToolTip(tooltip)
+
+
+    def cuts_button_pushed_event(self, event):
+        if not self.cuts_action.isEnabled():
+            return
+
+        self.cuts_button_pushed()
 
     def cuts_button_pushed(self):
         '''
@@ -1182,7 +1200,19 @@ class RvActivityMode(rvt.MinorMode):
         # so add a no-op
         self.tray_dock.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tray_dock.customContextMenuRequested.connect( self.dont_show_tray_context_menu)
- 
+
+    def mini_cut_mode_toggle(self, event):
+        # load current mini-cut state for this sequence node
+        mini_data = MiniCutData.load_from_session()
+
+        if not mini_data:
+            return
+
+        if mini_data.active:
+            self.on_entire_cut()
+        else:
+            self.on_mini_cut()
+
     def scroller_moved(self, stuff):
         if self.tray_main_frame.mc_widget.isVisible():
             self.tray_list.repaint()
