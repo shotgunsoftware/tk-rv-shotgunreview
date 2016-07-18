@@ -577,7 +577,7 @@ class RvActivityMode(rvt.MinorMode):
     def view_state_tray(self):
         return rvc.CheckedMenuState if (self.tray_dock and self.tray_dock.isVisible()) else rvc.UncheckedMenuState
 
-    def launchSubmitTool(self, event):
+    def launch_submit_tool(self, event):
         if self.tray_dock:
             self.tray_dock.hide()
             
@@ -953,6 +953,7 @@ class RvActivityMode(rvt.MinorMode):
                 ('play-stop', self.on_play_state_change, ""),
                 ('view-size-changed', self.on_view_size_changed, ''),
                 ('per-render-event-processing', self.per_render_event, ''),
+                ('launch-submit-tool', self.launch_submit_tool, ''),
                 ('submit-tool-submission-complete', self.version_submitted, ''),
                 # Shortcuts:
                 ('key-down--alt--d', self.toggle_view_details, ''),
@@ -981,7 +982,7 @@ class RvActivityMode(rvt.MinorMode):
                     ("    Thumbnail Timeline", self.toggle_view_tray,    "alt t", self.view_state_tray),
 
                     ("_", None),
-                    ("Submit Tool", self.launchSubmitTool, None, lambda: rvc.UncheckedMenuState),
+                    ("Submit Tool", self.launch_submit_tool, None, lambda: rvc.UncheckedMenuState),
 
                     ("_", None),
                     ("Preferences", [
