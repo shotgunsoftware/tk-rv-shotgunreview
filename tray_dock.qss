@@ -20,6 +20,11 @@ QWidget {
     padding: 0px;
 }
 
+QMenu::right-arrow {
+    background: transparent;
+    image: url(:tk-rv-shotgunreview/right_arrow_large.png);
+}
+
 ShotgunMenu {
     padding: 2px;
     border-radius: 0px;
