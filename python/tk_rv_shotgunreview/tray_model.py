@@ -32,6 +32,8 @@ class TrayModel(ShotgunModel):
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         
         # this is actual pixmap data - XXX do we need it?
+        # this is still being used but could probably be replaced
+        # by _ORIGINAL_THUMBNAIL in practice.
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
 
         # these hold the URL of where you can get the thumbnail from

@@ -1167,7 +1167,6 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_model.data_refreshed.connect(self.on_data_refreshed)
         self.tray_model.cache_loaded.connect(self.on_cache_loaded)
         self.tray_list.clicked.connect(self.tray_clicked)        
-        self.tray_list.doubleClicked.connect(self.tray_double_clicked)
 
         self.tray_main_frame.mc_widget.widget.mini_right_spinner.valueChanged.connect(self.right_spinner_clicked)
         self.tray_main_frame.mc_widget.widget.mini_left_spinner.valueChanged.connect(self.left_spinner_clicked)
@@ -1182,7 +1181,8 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
         
         # async cached request for pipeline steps.
-        # XXX pipeline steps are 'global' to shotgun? so this only needs to happen once?
+        # pipeline steps are server-wide, so we only need to load this again if we point
+        # at another host.
         self._popup_utils.get_pipeline_steps_with_model()
 
         self.details_timer = QTimer(rvqt.sessionWindow())
@@ -1308,7 +1308,7 @@ class RvActivityMode(rvt.MinorMode):
             item = self.tray_proxyModel.index(index, 0)
             sg = shotgun_model.get_sg_data(item)
  
-            # sometimes the shot comes back as None XXX - sb
+            # sometimes the shot comes back as None
             if 'shot' in sg and sg['shot']:
                 if sg['shot']['id'] == v_data['entity']['id']:
                     self.tray_proxyModel.setData(item, path, self._PINNED_THUMBNAIL)
@@ -1316,7 +1316,6 @@ class RvActivityMode(rvt.MinorMode):
         self.refresh_tray_thumbnails()
 
     def replace_version_in_sequence(self, versions):
-        #XXX go over this in mini-cut case, etc
         self._app.engine.log_info('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
 
         if len(versions) != 1:
@@ -1370,7 +1369,9 @@ class RvActivityMode(rvt.MinorMode):
         # Details need to be updated
         self.set_details_dirty()
 
-        # XXX how does below pick up new thumbnail ?   Ans: it doesn't yet ..
+        # XXX how does below pick up new thumbnail ?
+        # the thumbnail was updated when the event came over from the details panel.
+        # the repaint forces the redraw with the updated pixmap data to occur.
         self.tray_list.repaint()
 
     def find_or_create_compare_node(self, num_sources):
@@ -1471,11 +1472,14 @@ class RvActivityMode(rvt.MinorMode):
         rve.displayFeedback("Loading " + type_string +  " ...", 60.0)
         self.main_query_active = True
 
-        # XXX assume entire-cut at this point, ok ?
+        # assume entire-cut at this point
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
 
         # XXX get rid of "id"
+        # this acts as backwards compatibility. in older versions we passed in a single id
+        # now a single id can still be ids: [6]. This also lets us represent a playlist anonymously
+        # that is, not a playlist entity in the DB, as an array of version ids.
         if "id" in target_entity and "ids" not in target_entity:
             target_entity["ids"] = [ target_entity["id"] ]
 
@@ -1551,6 +1555,11 @@ class RvActivityMode(rvt.MinorMode):
         self._app.engine.log_debug('load_tray_with_cut_id %r' % QtCore.QThread.currentThread() )
 
         # XXX we shouldn't be storing this here, come back to this
+        # what we're saying is that if you dont pass in a cutid we will
+        # use the one we saw last. 
+        # however, the only way i think cut_id would be none is if it
+        # got passed in that way via CLI. we should probably remove this
+        # and just return if cut_id is none.
         if cut_id:
             self.tray_cut_id = cut_id
         
@@ -2286,18 +2295,10 @@ class RvActivityMode(rvt.MinorMode):
             # keep track of total frames
             accumulated_frames += edit_data["out"] - edit_data["in"] + 1
 
-            # XXX - re-implement
-            ## if we had a version selected before the query we try to select it again when this cut is loaded
-            #if 'version.Version.id' in sg_item:
-            #    if sg_item['version.Version.id'] == v_id:
-            #        final_selection = item
-
 
         # XXX error if sequence_data is None
 
-        # needed for menus.
         # XXX may be problem later if we have to handle multiple Projects
-        # XXX build status menu ONCE per project. - sb
         if not self.project_entity:
             self.project_entity = sequence_data["project"]
 
@@ -2366,14 +2367,8 @@ class RvActivityMode(rvt.MinorMode):
 
 
         if mini_data.active:
-            # XXX f = rvc.frame()
             self.load_mini_cut(mini_data.focus_clip - mini_data.first_clip, seq_group=seq_group_node)
-            # XXX rvc.setFrame(f)
-
-            # XXX might not be needed
-            # self.configure_visibility()
         else:
-            # XXX 
             setProp(seq_node + ".edl.source", edl_source_nums)
             setProp(seq_node + ".edl.frame",  edl_frames)
             setProp(seq_node + ".edl.in",     edl_ins)
@@ -2521,37 +2516,6 @@ class RvActivityMode(rvt.MinorMode):
 
         return data
            
-    def tray_double_clicked(self, index):
-        # XXX go over
-        return
-        sg_item = shotgun_model.get_sg_data(index)
-        single_source = []
-        single_frames = []
-        single_ins = []
-        single_outs = []
-        t = 1
-        single_source.append(index.row())
-        single_ins.append(sg_item['cut_item_in'])
-        single_outs.append(sg_item['cut_item_out'])
-        single_frames.append(t)
-        t = sg_item['cut_item_out'] - sg_item['cut_item_in'] + 1 + t
-        single_frames.append(t)
-        single_source.append(0)
-        single_ins.append(0)
-        single_outs.append(0)
-        setProp('%s.edl.frame' % self.cut_seq_name, single_frames)
-        setProp('%s.edl.in' % self.cut_seq_name, single_ins)
-        setProp('%s.edl.out' % self.cut_seq_name, single_outs)
-        
-        setProp("%s.mode.autoEDL" % self.cut_seq_name, 0)
-        setProp("%s.mode.useCutInfo" % self.cut_seq_name, 0)
-
-        sources = rvc.nodesOfType("RVSourceGroup")
-        single = [ sources[index.row()] ]
-        rvc.setNodeInputs(self.cut_seq, single)
-        rvc.setViewNode(self.cut_seq)
-        rvc.setFrame(1)
-        rvc.play()
 
     def get_mini_values(self):
         self._prefs.mini_left_count  = self.tray_left_spinner.value() 
@@ -2678,10 +2642,6 @@ class RvActivityMode(rvt.MinorMode):
                 rvc.setFrame(frame[frame_index])
                 sm = self.tray_list.selectionModel()           
                 sm.select(index, sm.ClearAndSelect)
-                # self.tray_list.scrollTo(index, QtGui.QAbstractItemView.PositionAtCenter)
-
-                # XXX below should work according to docs
-                # self.tray_list.scrollTo(index, QtGui.QAbstractItemView.EnsureVisible)
 
         self.tray_list.repaint()
 

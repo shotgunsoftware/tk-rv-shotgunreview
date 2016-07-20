@@ -18,7 +18,6 @@ import rv.extra_commands as rve
 import pprint
 pp = pprint.PrettyPrinter(indent=4)
 
-# XXX not sure how to share this? copied from the mode
 required_version_fields = [
     "code",
     "id",
@@ -102,10 +101,6 @@ class PopupUtils(QtCore.QObject):
         self._filtered_versions_model.data_refreshed.connect(self.filter_tray)
 
     # related cuts menu menthods
-
-    # def mark_pipeline_selections(self):
-    #     self._preset_pipeline = True
-    #     self.check_pipeline_menu()
 
     def find_rel_cuts_with_model(self, entity_in, shot_entity=None):
         """
@@ -194,7 +189,9 @@ class PopupUtils(QtCore.QObject):
                     version_link = None
 
                 # XXX does this allow for cut_link == None ?
-                # XXX no it doesnt, what do we do with a cut with no entity link? - sb
+                # XXX i think it does the right thing. cut_link can be None
+                #     in which case we're just checking to see if it was the same as last time
+                #     sending a None into find_rel_cuts_with_model clears out that result set as well.
                 if cut_link != self._last_rel_cut_entity or version_link != self._last_rel_shot_entity:
                     self.find_rel_cuts_with_model(cut_link, version_link)
                     self._last_rel_cut_entity = cut_link
@@ -207,7 +204,9 @@ class PopupUtils(QtCore.QObject):
                     return
 
         # XXX don't get this ? -- alan
-        # XXX is this another impossible workflow? - sb.
+        # XXX i believe this another impossible workflow? or at least used to be
+        #     i remember adding this to get a particular cut to work. we need to do
+        #     more testing with known correct data to see if we still need this.
         if cut_link['type'] == "Scene":
             self._engine.log_warning("cant find relative cuts for a scene? using shot linked to version?")
             if version_link:
@@ -429,6 +428,8 @@ class PopupUtils(QtCore.QObject):
         We cache the last query in memory.
         """
         # XXX - cache all queries in a map for bouncing between projects?
+        #       i dont think this would be necessary, and we should be 
+        #       getting some of this already with toolkit.
         if not project_entity:
             project_entity = self._project_entity
 
@@ -624,11 +625,12 @@ class PopupUtils(QtCore.QObject):
         menu.clear()
 
         # XXX latest in pipeline means an empty steps list?
+        #     LIP is not a real 'state' in the Steps table, so
+        #     it's represented by an empty array []
         action = QtGui.QAction(self._tray_frame.pipeline_filter_button)
         action.setCheckable(True)
         action.setChecked(False)
         action.setText('Latest in Pipeline')
-        # XXX what object do we want here?
         action.setData( { 'cached_display_name' : 'Latest in Pipeline' } )
         self._steps_proxyModel.sort(0, QtCore.Qt.DescendingOrder)
         rows = self._steps_proxyModel.rowCount()
@@ -736,7 +738,6 @@ class PopupUtils(QtCore.QObject):
             if a.isChecked():
                 count = count + 1
                 name = a.data()['cached_display_name']
-                # XXX better way?
                 if name == 'Latest in Pipeline' and not want_latest:
                     a.setChecked(False)
                     count = count - 1
@@ -849,8 +850,7 @@ class PopupUtils(QtCore.QObject):
         
         if len(shot_list) < 1:
             self._engine.log_info('This cut has no related shots. Aborting query.')
-            # XXX this means we need to refresh the rel cuts memu ourselves, since
-            # the mode wont.
+            # XXX this means we need to refresh the rel cuts memu.
             self.request_related_cuts_from_models()
             return None
 
