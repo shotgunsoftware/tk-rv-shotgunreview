@@ -281,7 +281,7 @@ class PopupUtils(QtCore.QObject):
         for x in range(0, cut_rows):
             item = self._rel_cuts_model.index(x, 0)
             sg = shotgun_model.get_sg_data(item)  
-            print "SG: %r" % sg
+            # print "SG: %r" % sg
             seq_ids.append(sg['id'])
             seq_cuts.append(sg)
         for n in shot_ids:
