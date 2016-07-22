@@ -17,6 +17,7 @@ from tank.platform.qt import QtGui, QtCore
 import rv.qtutils
 import rv.commands
 
+
 class RVShotgunReviewApp(Application):
 
     """
@@ -40,7 +41,7 @@ class RVShotgunReviewApp(Application):
         notes_dock.setTitleBarWidget(QtGui.QWidget(parent_widget))
 
         tray_dock.setAllowedAreas(QtCore.Qt.BottomDockWidgetArea)
-        tray_dock.setTitleBarWidget(QtGui.QWidget(parent_widget))
+        tray_dock.setTitleBarWidget(tk_rv_shotgunreview.TrayTitleBar(None))
 
         self._rv_activity_stream = tk_rv_shotgunreview.RvActivityMode(app=self)
         self._rv_activity_stream.init_ui(notes_dock, tray_dock)

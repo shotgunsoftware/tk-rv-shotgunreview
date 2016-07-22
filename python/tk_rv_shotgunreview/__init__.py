@@ -9,3 +9,4 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 from .rv_activity_mode import RvActivityMode
+from .tray_title_bar import TrayTitleBar

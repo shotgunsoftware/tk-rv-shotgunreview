@@ -80,7 +80,9 @@ class TrayMainFrame(QtGui.QFrame):
         """
         #t = QtGui.QWidget(self.tray_dock.parent())
         # doesnt seem to matter what gets passed into here. so far session window and none both work.
-        t = None
+        t = TrayTitleBar(None)
+        t.setMinimumSize(QtCore.QSize(0,0))
+        t.setMaximumSize(QtCore.QSize(0,0))
         print "WHEN DOES THIS dock_location_changed HAPPEN? %r" % t
         sys.stdout.flush()
         self.tray_dock.setTitleBarWidget(t)
