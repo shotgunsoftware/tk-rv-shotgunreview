@@ -19,21 +19,24 @@ class TrayTitleBar(QtGui.QFrame):
         self._last_pos = self.pos()
 
     def mouseMoveEvent(self, event):
-        self.activateWindow()
+        # self.activateWindow()
         d = self._last_pos - event.pos()
+        print "D: %r %r" % (d, self.parent().parent())
+        sys.stdout.flush()
+
         # de-bouncing - sometimes we never get a press event.
-        if d.x() > -10 and d.x() < 10:
+        if d.x() > -50 and d.x() < 50:
             self.parent().move(self.parent().pos() - (d))
 
-        self._last_pos = event.pos()     
-        event.accept()
+        self._last_pos = event.pos() - d     
+        event.ignore()
 
     def mousePressEvent(self, event):
-        self._last_pos = event.pos()     
+        #self._last_pos = event.pos()     
         event.ignore()
 
     def mouseReleaseEvent(self, event):
-        self._last_pos = event.pos()  
+        #self._last_pos = event.pos()  
         event.ignore()
 
     def sizeHint(self):

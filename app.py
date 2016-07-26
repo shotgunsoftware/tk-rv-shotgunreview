@@ -31,6 +31,7 @@ class RVShotgunReviewApp(Application):
         tk_rv_shotgunreview = self.import_module("tk_rv_shotgunreview")
 
         parent_widget = self.engine.get_dialog_parent()
+        print "PARENT WIDGET SESSION %r" % parent_widget
 
         notes_dock = QtGui.QDockWidget("", parent_widget)
         tray_dock = QtGui.QDockWidget("", parent_widget)
