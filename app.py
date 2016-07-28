@@ -17,7 +17,6 @@ from tank.platform.qt import QtGui, QtCore
 import rv.qtutils
 import rv.commands
 
-
 class RVShotgunReviewApp(Application):
 
     """

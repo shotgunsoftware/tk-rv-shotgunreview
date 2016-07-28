@@ -7,8 +7,6 @@
 # By accessing, using, copying or modifying this work you indicate your 
 # agreement to the Shotgun Pipeline Toolkit Source Code License. All rights 
 # not expressly granted therein are reserved by Shotgun Software Inc.
-import sys
-
 from tank.platform.qt import QtCore, QtGui
 
 class TrayTitleBar(QtGui.QFrame):
@@ -27,9 +25,8 @@ class TrayTitleBar(QtGui.QFrame):
 
     def __init__(self, parent):
         QtGui.QFrame.__init__(self, parent)
-        self.setStyleSheet("QWidget { background: rgb(100,99,98); margin-bottom: 3px; }")
+        self.setStyleSheet("QFrame { background: rgb(100,99,98); margin-bottom: 3px; }")
         self._clicked_pos = None
-
 
     def mouseMoveEvent(self, event):
         # we often get here without a starting Press event, since that gets
@@ -41,17 +38,21 @@ class TrayTitleBar(QtGui.QFrame):
         self.parent().move(event.globalPos() - self._clicked_pos )  
         event.accept()
 
-
     def mousePressEvent(self, event):
         self._clicked_pos = event.pos()
         event.ignore()
 
     def mouseReleaseEvent(self, event):
+        # we can get a release without a pressed. so by setting to None
+        # here we can tell in mousemove if we never got a pressed and 
+        # clicked_pos is invalid.
         self._clicked_pos = None
         event.ignore()
 
     def sizeHint(self):
+        # seems to yield a decent starting place for now
         return QtCore.QSize(1280,14)
 
     def minimumSize(self):
+        # insures that we see something
         return QtCore.QSize(980,14)

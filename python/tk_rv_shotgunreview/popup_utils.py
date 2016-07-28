@@ -102,22 +102,6 @@ class PopupUtils(QtCore.QObject):
         self._filtered_versions_model.data_refreshed.connect(self.filter_tray)
 
 
-    # update parents for menus while floating
-    def set_menu_parents(self, parent):
-        print "SETTING PARENT TO %r" % parent
-        if not parent:
-            return
-
-        # self._tray_frame.tray_button_browse_cut
-        self._related_cuts_menu.setParent(parent.tray_button_browse_cut)
-        # for a in parent.tray_button_browse_cut.actions():
-        #     a.setParent(parent.tray_button_browse_cut)
-
-        # self._tray_frame.pipeline_filter_button
-        self._pipeline_steps_menu.setParent(parent.pipeline_filter_button)
-        # self._tray_frame.status_filter_button
-        self._status_menu.setParent(parent.status_filter_button)
-
     # related cuts menu methods
 
     def find_rel_cuts_with_model(self, entity_in, shot_entity=None):
@@ -281,7 +265,6 @@ class PopupUtils(QtCore.QObject):
         for x in range(0, cut_rows):
             item = self._rel_cuts_model.index(x, 0)
             sg = shotgun_model.get_sg_data(item)  
-            # print "SG: %r" % sg
             seq_ids.append(sg['id'])
             seq_cuts.append(sg)
         for n in shot_ids:

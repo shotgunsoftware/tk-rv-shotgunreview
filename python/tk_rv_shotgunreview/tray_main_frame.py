@@ -14,7 +14,6 @@ from .mini_cut_widget import MiniCutWidget
 from .tray_title_bar import TrayTitleBar
 
 import os
-import sys
 import tank
 task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
 
@@ -40,10 +39,6 @@ class TrayMainFrame(QtGui.QFrame):
         # set up the UI
         self.init_ui()
 
-    def such_a_drag(self):
-        print "SUCH A DRAG"
-        sys.stdout.flush()
-
     def show_steps_and_statuses(self, visible):
         self.pipeline_filter_button.setVisible( visible )
         self.status_filter_button.setVisible( visible )
@@ -64,7 +59,9 @@ class TrayMainFrame(QtGui.QFrame):
             self.dock_location_changed()
         else:
             # setting our custom title bar widget to fix #37137
-            self.tray_dock.setTitleBarWidget(TrayTitleBar(None))
+            # if we dont instantiate a new one, its invisible, 
+            # despite attempts to resize.
+            self.tray_dock.setTitleBarWidget(TrayTitleBar(None))   
             self.tray_dock.setFloating(True)
 
     def hide_dock(self):
@@ -78,14 +75,12 @@ class TrayMainFrame(QtGui.QFrame):
         Handles the dock being redocked in some location. This will
         trigger removing the default title bar.
         """
-        #t = QtGui.QWidget(self.tray_dock.parent())
-        # doesnt seem to matter what gets passed into here. so far session window and none both work.
-        t = TrayTitleBar(None)
-        t.setMinimumSize(QtCore.QSize(0,0))
-        t.setMaximumSize(QtCore.QSize(0,0))
-        print "WHEN DOES THIS dock_location_changed HAPPEN? %r" % t
-        sys.stdout.flush()
-        self.tray_dock.setTitleBarWidget(t)
+        t = self.tray_dock.titleBarWidget()
+        if t:
+            # make the bar invisible when docked, 
+            # have to set both to win.
+            t.setMinimumSize(QtCore.QSize(0,0))
+            t.setMaximumSize(QtCore.QSize(0,0))
 
     def init_ui(self):
         self.setObjectName('tray_frame')
