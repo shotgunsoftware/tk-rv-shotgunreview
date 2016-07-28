@@ -217,7 +217,7 @@ class PopupUtils(QtCore.QObject):
     def handle_related_menu(self, action=None):
         #self._engine.log_info("handle_related_menu called with action %r" % action)
         if action and action.data():
-            self._engine.log_info("Loading related cut: %r" % action.data()) 
+            self._engine.log_debug("Loading related cut: %r" % action.data()) 
             self._rv_mode.load_tray_with_something_new(
                 {"type":"Cut", "ids":[action.data()['id']]}, 
                 preserve_pinned=True,
@@ -334,7 +334,7 @@ class PopupUtils(QtCore.QObject):
         seq_data = self._rv_mode.sequence_data_from_session()
         cut_id = seq_data["target_entity"]["ids"][0] if seq_data else None
         
-        self._engine.log_info("create_related_cuts_from_models, cut_id: %r" % cut_id)
+        self._engine.log_debug("create_related_cuts_from_models, cut_id: %r" % cut_id)
 
         seq_cuts = self.merge_rel_models_for_menu()
  
@@ -356,7 +356,7 @@ class PopupUtils(QtCore.QObject):
                         if bd['id'] == cut_id:
                             b.setChecked(True)
                             a.setChecked(True)
-            self._engine.log_info("create_related_cuts_from_models, updating check marks only, %d" % len(seq_cuts) )
+            self._engine.log_debug("create_related_cuts_from_models, updating check marks only, %d" % len(seq_cuts) )
 
             return
 
@@ -848,7 +848,7 @@ class PopupUtils(QtCore.QObject):
                 shot_list.append(sg['shot'])
         
         if len(shot_list) < 1:
-            self._engine.log_info('This cut has no related shots. Aborting query.')
+            self._engine.log_debug('This cut has no related shots. Aborting query.')
             # XXX this means we need to refresh the rel cuts memu ourselves, since
             # the mode wont.
             self.request_related_cuts_from_models()

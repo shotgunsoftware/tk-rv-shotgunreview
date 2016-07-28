@@ -1078,7 +1078,7 @@ class RvActivityMode(rvt.MinorMode):
                 if version_data:
                     self.load_tray_with_something_new({"id":version_data["id"], "type":"Version"})
 
-            self._app.engine.log_info('Clapper disabled for Cut entities. Back to last non-cut target_entity.')
+            self._app.engine.log_debug('Clapper disabled for Cut entities. Back to last non-cut target_entity.')
             return
 
         # data is waiting for us:
@@ -1101,7 +1101,7 @@ class RvActivityMode(rvt.MinorMode):
         try:
             # self._app.engine.log_info( "loading details panel with %r" % entity )
             if self.details_panel_last_loaded != entity:
-                self._app.engine.log_info( "load_data with %r" % entity )
+                self._app.engine.log_debug( "load_data with %r" % entity )
                 self.details_panel.load_data(entity)
                 self.details_panel_last_loaded = entity
         except Exception as e:
@@ -1245,7 +1245,7 @@ class RvActivityMode(rvt.MinorMode):
         self.on_mini_cut(from_spinner=True)
 
     def on_compare_ids_from_gma(self, event):
-        self._app.engine.log_info("on_compare_ids_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
+        self._app.engine.log_debug("on_compare_ids_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
         self.compare_active = True
         target_entity = json.loads(event.contents())
 
@@ -1259,7 +1259,7 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_model.load_data(entity_type="Version", filters=vfilters, fields=vfields)
 
     def on_id_from_gma(self, event):
-        self._app.engine.log_info("on_id_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
+        self._app.engine.log_debug("on_id_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
         self.compare_active = False
         target_entity = json.loads(event.contents())
 
@@ -1317,7 +1317,7 @@ class RvActivityMode(rvt.MinorMode):
 
     def replace_version_in_sequence(self, versions):
         #XXX go over this in mini-cut case, etc
-        self._app.engine.log_info('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
+        self._app.engine.log_debug('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
 
         if len(versions) != 1:
             self._app.engine.log_error(
@@ -2566,7 +2566,7 @@ class RvActivityMode(rvt.MinorMode):
             self._prefs.mini_right_count)
 
     def load_mini_cut(self, focus_index, seq_group=None, offset=0, playhead_index=None, from_spinner=False):
-        self._app.log_info("load_mini_cut() focus %d seq_group %s offset %d" % (focus_index, seq_group, offset))
+        self._app.log_debug("load_mini_cut() focus %d seq_group %s offset %d" % (focus_index, seq_group, offset))
 
         seq_node = None
         if not seq_group:
