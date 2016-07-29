@@ -1592,7 +1592,7 @@ class RvActivityMode(rvt.MinorMode):
         mini_data = MiniCutData.load_from_session(seq_node)
 
         if not mini_data.active:
-            self._app.engine.log_error("Entire-cut load, but sequence is not mini-cut.")
+            self._app.engine.log_debug("Entire-cut load, but sequence is not mini-cut.")
             return
 
         # we rely on tray selection being synced with frame
