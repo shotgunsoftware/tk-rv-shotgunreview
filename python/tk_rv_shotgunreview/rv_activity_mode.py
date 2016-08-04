@@ -29,6 +29,7 @@ from .tray_delegate import RvTrayDelegate
 from .popup_utils import PopupUtils
 from .ui import resources_rc
 
+
 import sgtk
 
 import pprint
@@ -41,7 +42,8 @@ def groupMemberOfType(node, memberType):
     return None
 
 class Preferences:
-    def __init__(self):
+    def __init__(self, engine):
+        self._engine = engine
         self.group = "sg_review_mode"
         g = self.group
 
@@ -56,6 +58,25 @@ class Preferences:
         self.mini_left_count        = rvc.readSettings(g, "mini_left_count",        2)
         self.mini_right_count       = rvc.readSettings(g, "mini_right_count",       2)
 
+        # pipeline filter is odd because a valid input into the query preset is [] meaning 'latest in pipeline'
+        # so it has 3 states. a list with stuff, an empty list (latest in pipe) and None.
+        self.pipeline_filter_json   = rvc.readSettings(g, "pipeline_filter",        "null")
+        self.status_filter_json     = rvc.readSettings(g, "status_filter",          "[]")
+
+        self.pipeline_filter = None
+        try:
+            self.pipeline_filter = json.loads(self.pipeline_filter_json)
+        except Exception as e:
+            self._engine.log_error("self.pipeline_filter parsing: %r" % (e))
+            self.pipeline_filter = None
+
+        self.status_filter = []
+        try:
+            self.status_filter = json.loads(self.status_filter_json)
+        except Exception as e:
+            self._engine.log_error("self.status_filter parsing: %r" % (e))
+            self.status_filter = []
+
     def save(self):
         g = self.group
 
@@ -66,9 +87,12 @@ class Preferences:
         rvc.writeSettings(g, "auto_show_details",      self.auto_show_details)
         rvc.writeSettings(g, "auto_show_tray",         self.auto_show_tray)
         rvc.writeSettings(g, "pin_details",            self.pin_details)
-        rvc.writeSettings(g, "audo_play",              self.auto_play)
+        rvc.writeSettings(g, "auto_play",              self.auto_play)
         rvc.writeSettings(g, "mini_left_count",        self.mini_left_count)
         rvc.writeSettings(g, "mini_right_count",       self.mini_right_count)
+
+        rvc.writeSettings(g, "pipeline_filter",        json.dumps(self.pipeline_filter))
+        rvc.writeSettings(g, "status_filter",          json.dumps(self.status_filter))
 
 class MediaType:
     def __init__(self, name, path_field, slate_field, aspect_field):
@@ -94,6 +118,9 @@ class MiniCutData:
         setProp(node + ".mini_cut.focus_clip", self.focus_clip)
         setProp(node + ".mini_cut.first_clip", self.first_clip)
         setProp(node + ".mini_cut.last_clip",  self.last_clip)
+
+    def __repr__(self):
+        return "active: %r, focus_clip: %r, first_clip: %r, last_clip: %r" % ( self.active, self.focus_clip, self.first_clip, self.last_clip )
 
     @staticmethod
     def load_from_session(seq_node=None):
@@ -132,13 +159,19 @@ required_version_fields = [
 
 def setProp(prop, value):
     '''
-    Convenience function to set Int of String proprty, creating it first if
-    necessary.  In coming value can be scalar or list of the appropriate type.
+    Convenience function to set Int or Float or String proprty, creating it
+    first if necessary.  In coming value can be scalar or list of the
+    appropriate type.
     '''
-    if type(value) == int or (type(value) == list and len(value) and type(value[0]) == int):
+    if   type(value) == int or (type(value) == list and len(value) and type(value[0]) == int):
         if not rvc.propertyExists(prop):
             rvc.newProperty(prop, rvc.IntType, 1)
         rvc.setIntProperty(prop, value if (type(value) == list) else [value], True)
+
+    elif type(value) == float or (type(value) == list and len(value) and type(value[0]) == float):
+        if not rvc.propertyExists(prop):
+            rvc.newProperty(prop, rvc.FloatType, 1)
+        rvc.setFloatProperty(prop, value if (type(value) == list) else [value], True)
 
     elif ((type(value) == str     or (type(value) == list and len(value) and type(value[0]) == str)) or 
           (type(value) == unicode or (type(value) == list and len(value) and type(value[0]) == unicode))):
@@ -184,11 +217,12 @@ class RvActivityMode(rvt.MinorMode):
     
     def check_details(self):
         if self.details_dirty:
-            self.load_version_id_from_session()
-            if not rvc.isPlaying():
-                self.update_cuts_with()
+            version_id = self.load_version_id_from_session()
+            if version_id and not rvc.isPlaying():
+                if self.target_entity and self.target_entity['type'] != "Cut":
+                    self.update_cuts_with()
                 self._popup_utils.request_related_cuts_from_models()
- 
+
     def current_source(self):
         """
         The "current source" is the "first" RVSourceGroup used to render this
@@ -241,6 +275,8 @@ class RvActivityMode(rvt.MinorMode):
 
         self.details_dirty = False
 
+        return version_id
+
     # RV Events
 
     def replaceWithSelected(self, event):
@@ -253,8 +289,6 @@ class RvActivityMode(rvt.MinorMode):
             self.load_tray_with_something_new(data)
         except Exception as e:
             print "ERROR: replaceWithSelected %r" % e
-        finally:
-            event.reject()
 
     def swapIntoSequence(self, event):
         s = copy.copy(event.contents())
@@ -266,12 +300,8 @@ class RvActivityMode(rvt.MinorMode):
             self.replace_version_in_sequence(v)
         except Exception as e:
             print "ERROR: swapIntoSequence %r" % e
-        finally:
-            event.reject()
 
     def compare_with_current(self, event):
-        event.reject()
-
         vd      = json.loads(event.contents())[0]
         source1 = self.current_source()
         source2 = self.source_group_from_version_data(vd)
@@ -280,35 +310,31 @@ class RvActivityMode(rvt.MinorMode):
         self.compare_sources(sources)
             
     def compare_selected(self, event):
-        event.reject()
-
         vd      = json.loads(event.contents())
         sources = map(lambda x: self.source_group_from_version_data(x), vd)
 
         self.compare_sources(sources)
             
     def beforeSessionRead (self, event):
-        # print "################### beforeSessionRead"
         event.reject()
         self._readingSession = True
 
     def afterSessionRead (self, event):
-        # print "################### afterSessionRead"
         event.reject()
         self._readingSession = False
 
     def inputsChanged(self, event):
-        # print "################### inputsChanged %r" % event
-        # print event.contents()
         event.reject()
         self.set_details_dirty()
 
     def viewChange(self, event):
-        # print "################### viewChange %r" % event
-        # print "contents %r" % event.contents()
         event.reject()
         self.configure_visibility()
         self.set_details_dirty()
+ 
+        if not self._prefs.auto_play:
+            if self.target_entity and self.target_entity['type'] != "Cut":
+                self.update_cuts_with()
 
     def frameChanged(self, event):
         if event:
@@ -338,26 +364,13 @@ class RvActivityMode(rvt.MinorMode):
 
     def sourcePath(self, event):
         event.reject()
-        # print "################### sourcePath %r" % event
-        # print event.contents()
-
+ 
     def graphStateChange(self, event):
         event.reject()
         self.set_details_dirty()
 
     def sourceGroupComplete(self, event):
         event.reject()
-
-        """
-        args         = event.contents().split(";;")
-        # this source group was just created.
-        if args[1] == "new":
-            return
-        else:
-            print "################### sourceGroupComplete %r" % event
-            print args[1]
-            print event.contents()
-        """
 
     def on_play_state_change(self, event):
 
@@ -367,6 +380,8 @@ class RvActivityMode(rvt.MinorMode):
         # Ignore the event if no DetailsPanel built yet, or if we are
         # "buffering" (ie playback paused to fill cache) or in "turn-around"
         # (ie looping)
+
+        event.reject()
         cont = event.contents()
         if self.details_panel and cont != "buffering" and cont != "turn-around":
             # We only auto-pin the details if they are not already pinned
@@ -375,6 +390,13 @@ class RvActivityMode(rvt.MinorMode):
                     self._prefs.pin_details):
                 self.details_panel.set_pinned(True)
                 self.details_pinned_for_playback = True
+
+                # if the Cuts button is conditionally enabled (because we're
+                # looking at something other than a cut), then disable during
+                # playback.
+                if self.target_entity and self.target_entity.get("type") != "Cut":
+                    self.enable_cuts_action(False, 'Stop to enable.')
+
             # We only auto-unpin the details on stop if we auto-pinned them in
             # the first place.
             elif event.name() == "play-stop":
@@ -382,7 +404,13 @@ class RvActivityMode(rvt.MinorMode):
                     self.details_panel.set_pinned(False)
                     self.details_pinned_for_playback = False
 
-                self.update_cuts_with()
+                # if the Cuts button is conditionally enabled (because we're
+                # looking at something other than a cut), this is were we check
+                # to see if this clip has a default cut and update the button
+                # state accordingly.
+                if self.target_entity and self.target_entity.get("type") != "Cut":
+                    self.update_cuts_with()
+
                 self._popup_utils.request_related_cuts_from_models()
 
     def update_cuts_with(self):
@@ -437,11 +465,11 @@ class RvActivityMode(rvt.MinorMode):
         group_name = self.current_source()       
         setProp(group_name + ".sg_review.latest_cut_entity", json.dumps(cut_entity))
     
-
     def on_view_size_changed(self, event):
         event.reject()
         traysize = self.tray_dock.size().width()
-        self.tray_main_frame.resize(traysize - 10, self._tray_height)
+        self.tray_main_frame.resize(traysize, self._tray_height)
+        self.tray_main_frame.mc_widget.position_minicut()
 
     def version_submitted(self, event):
         event.reject()
@@ -550,7 +578,7 @@ class RvActivityMode(rvt.MinorMode):
     def view_state_tray(self):
         return rvc.CheckedMenuState if (self.tray_dock and self.tray_dock.isVisible()) else rvc.UncheckedMenuState
 
-    def launchSubmitTool(self, event):
+    def launch_submit_tool(self, event):
         if self.tray_dock:
             self.tray_dock.hide()
             
@@ -630,7 +658,7 @@ class RvActivityMode(rvt.MinorMode):
         # The keys are the frames with unsaved annotation
         return self.get_unstored_frame_props().keys()
 
-    def make_note_attachments(self, note_entity):
+    def make_note_attachments(self, note_input_widget):
         '''
         Find the annotated frames for the given version, export them through RVIO, then submit them
         '''
@@ -717,13 +745,17 @@ class RvActivityMode(rvt.MinorMode):
         os.remove(session)
 
         # Submit the frames
-        self.submit_note_attachments(attachments, note_entity)
+        note_input_widget.add_files_to_attachments(
+            attachments,
+            cleanup_after_upload=True,
+            apply_attachments=True,
+        )
 
         # Update the graph to reflect which strokes have been submitted
         for frame in saved:
             for prop in props[frame]:
                 rvc.newProperty(prop, rvc.IntType, 1)
-                rvc.setIntProperty(prop, [1234], True) # XXX should be note id
+                setProp(prop, 1234) # XXX should be note id
 
     def set_media_type_property(self, source_group, media_type):
         setProp(source_group + ".sg_review.media_type", media_type)
@@ -741,6 +773,9 @@ class RvActivityMode(rvt.MinorMode):
         file_source = groupMemberOfType(source_group, "RVFileSource")
 
         # Set up correct source frame mapping
+
+        if version_data["sg_uploaded_movie_frame_rate"]:
+            setProp(file_source + ".group.fps", version_data["sg_uploaded_movie_frame_rate"])
 
         range_start_prop = file_source + ".group.rangeStart"
         first_frame = version_data["sg_first_frame"]
@@ -830,6 +865,12 @@ class RvActivityMode(rvt.MinorMode):
 
         return swap_media
 
+    def launchMediaApp(self, event):
+        rvc.openUrl(self._app.tank.shotgun_url + "/page/media_center")
+
+    def getHelp(self, event):
+        rvc.openUrl("https://shotgunsoftware.zendesk.com/hc/en-us/articles/222840748")
+
     def __init__(self, app):
         rvt.MinorMode.__init__(self)
         
@@ -849,6 +890,11 @@ class RvActivityMode(rvt.MinorMode):
 
         self._tray_height = 96
         self.target_entity = None
+        self.playback_queued = False
+        
+        # keep track of where we just were to enable 'cuts off' mode
+        self.last_target_entity = None
+
         self.main_query_active = False
         self.details_panel_last_loaded = None
 
@@ -883,15 +929,16 @@ class RvActivityMode(rvt.MinorMode):
         self._app = app
         self._queued_frame_change = -1
 
-        self._prefs = Preferences()
+        self._prefs = Preferences(self._app.engine)
         self.incoming_pinned = {}
         self.incoming_mini_cut_focus = None
 
+
         self.init("RvActivityMode", None,
-                [ 
+                [
                 ("after-session-read", self.afterSessionRead, ""),
                 ("before-session-read", self.beforeSessionRead, ""),
-                # ("source-group-complete", self.sourceSetup, ""),
+                #   ("pointer-1--drag", self.pointer_drag, ""),
                 ("after-graph-view-change", self.viewChange, ""),
                 ("frame-changed", self.frameChanged, ""),
                 ("graph-node-inputs-changed", self.inputsChanged, ""),
@@ -907,9 +954,21 @@ class RvActivityMode(rvt.MinorMode):
                 ('play-stop', self.on_play_state_change, ""),
                 ('view-size-changed', self.on_view_size_changed, ''),
                 ('per-render-event-processing', self.per_render_event, ''),
+                ('launch-submit-tool', self.launch_submit_tool, ''),
                 ('submit-tool-submission-complete', self.version_submitted, ''),
+                # Shortcuts:
+                ('key-down--alt--d', self.toggle_view_details, ''),
+                ('key-down--alt--t', self.toggle_view_tray, ''),
+                ('key-down--alt--c', self.cuts_button_pushed_event, ''),
+                ('key-down--alt--m', self.mini_cut_mode_toggle, ''),
                 ],
                 [("SG Review", [
+                    ("Get Help ...", self.getHelp, None, lambda: rvc.UncheckedMenuState),
+                    ("_", None),
+
+                    ("Launch Media App", self.launchMediaApp, None, lambda: rvc.UncheckedMenuState),
+                    ("_", None),
+                    
                     ("Swap Media - Current Clip", None, None, lambda: rvc.DisabledMenuState),
                     ("    Movie",  self.swap_media_factory("Movie", "one"),  None, lambda: rvc.UncheckedMenuState),
                     ("    Frames", self.swap_media_factory("Frames", "one"), None, lambda: rvc.UncheckedMenuState),
@@ -920,11 +979,11 @@ class RvActivityMode(rvt.MinorMode):
 
                     ("_", None),
                     ("View", None, None, lambda: rvc.DisabledMenuState),
-                    ("    Details Pane",       self.toggle_view_details, None, self.view_state_details),
-                    ("    Thumbnail Timeline", self.toggle_view_tray,    None, self.view_state_tray),
+                    ("    Details Pane",       self.toggle_view_details, "alt d", self.view_state_details),
+                    ("    Thumbnail Timeline", self.toggle_view_tray,    "alt t", self.view_state_tray),
 
                     ("_", None),
-                    ("Submit Tool", self.launchSubmitTool, None, lambda: rvc.UncheckedMenuState),
+                    ("Submit Tool", self.launch_submit_tool, None, lambda: rvc.UncheckedMenuState),
 
                     ("_", None),
                     ("Preferences", [
@@ -953,7 +1012,7 @@ class RvActivityMode(rvt.MinorMode):
                     ("_", None)]
                 )],
                 None)
-       
+    
     def activate(self):
         rvt.MinorMode.activate(self)
 
@@ -987,10 +1046,10 @@ class RvActivityMode(rvt.MinorMode):
 
     def enable_cuts_action(self, enable=True, tooltip=None, enable_blue=False):
         '''
-        Enables cuts toolbar button. If enable is false the button
-        is disabled.
+        Enables cuts toolbar button; when enabled it may be blue. If enable is
+        false the button is disabled (and not blue).
         '''
-        if (enable_blue or not enable):
+        if (enable and enable_blue):
             cicon = QtGui.QIcon(":/tk-rv-shotgunreview/icon_player_cut_action_small_active.png")
             self.cuts_action.setIcon(cicon)
         else:
@@ -999,10 +1058,30 @@ class RvActivityMode(rvt.MinorMode):
         self.cuts_action.setEnabled(enable)
         self.cuts_action.setToolTip(tooltip)
 
+
+    def cuts_button_pushed_event(self, event):
+        if not self.cuts_action.isEnabled():
+            return
+
+        self.cuts_button_pushed()
+
     def cuts_button_pushed(self):
         '''
         cuts toolbar button listener
         '''
+        if self.target_entity and self.target_entity['type'] == "Cut":
+            if self.last_target_entity:
+                # we're loading a non-cut, so no mini-cut state, pinned state, etc.
+                self.load_tray_with_something_new(self.last_target_entity)
+            else:
+                # load the version we are on
+                version_data = self.version_data_from_source()
+                if version_data:
+                    self.load_tray_with_something_new({"id":version_data["id"], "type":"Version"})
+
+            self._app.engine.log_debug('Clapper disabled for Cut entities. Back to last non-cut target_entity.')
+            return
+
         # data is waiting for us:
         cut = self.get_cuts_with()
         if not cut:
@@ -1013,27 +1092,17 @@ class RvActivityMode(rvt.MinorMode):
             shot_id = self.shot_id_str_from_version_data(version_data)
             pinned = { shot_id:version_data } if shot_id else {}          
 
-            self.load_tray_with_something_new(cut, False, 
+            self.load_tray_with_something_new(cut,
                     incoming_pinned=pinned, 
                     incoming_mini_focus=version_data)
 
             self.tray_list.repaint()
 
-    def submit_note_attachments(self, attachments, note_entity):
-        """
-        Send the created and collected annotation exports off for saving.
-
-        :param attachments: A list of file paths to attach.
-        :param note_entity: A Note entity in the form of a dictionary as returned
-                            by the Shotgun Python API.
-        """
-        self.details_panel.add_note_attachments(attachments, note_entity)
-
     def load_data(self, entity):
         try:
             # self._app.engine.log_info( "loading details panel with %r" % entity )
             if self.details_panel_last_loaded != entity:
-                self._app.engine.log_info( "load_data with %r" % entity )
+                self._app.engine.log_debug( "load_data with %r" % entity )
                 self.details_panel.load_data(entity)
                 self.details_panel_last_loaded = entity
         except Exception as e:
@@ -1042,13 +1111,12 @@ class RvActivityMode(rvt.MinorMode):
         # saw False even if we fail? endless loop? delay?
         self.details_dirty = False
  
-    def init_ui(self, note_dock, tray_dock, version_id):
+    def init_ui(self, note_dock, tray_dock):
         self.note_dock = note_dock
         self.tray_dock = tray_dock
 
         self.related_cuts_menu = None
         self.pipeline_steps_menu = None
-        # self.status_menu = None
         
         # Add a cuts button to the bottom toolbar
         self.show_cuts_action(True)
@@ -1058,6 +1126,7 @@ class RvActivityMode(rvt.MinorMode):
             parent=self.note_dock,
             bg_task_manager=self._app.engine.bg_task_manager,
         )
+<<<<<<< HEAD
 
         # We need to add these fields to the query list so that when
         # entities are passed back to us from Version list context
@@ -1116,14 +1185,21 @@ class RvActivityMode(rvt.MinorMode):
             )
         )
 
+=======
+        self.details_panel.pre_submit_callback = self.make_note_attachments
+>>>>>>> master
         self.note_dock.setWidget(self.details_panel)
         self._app.engine._apply_external_styleshet(self._app, self.details_panel)
+<<<<<<< HEAD
         self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 60))
+=======
+
+        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 30))
+>>>>>>> master
         
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame
         self.tray_main_frame = TrayMainFrame(self.tray_dock, self)
-        #self.tray_main_frame.set_rv_mode(self)
 
         self.tray_hidden_this_session = False
         self.details_hidden_this_session = False
@@ -1140,14 +1216,17 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_button_mini_cut = self.tray_main_frame.tray_button_mini_cut
         self.tray_button_browse_cut = self.tray_main_frame.tray_button_browse_cut
         self.tray_bar_button = self.tray_main_frame.tray_bar_button
-        self.tray_left_spinner = self.tray_main_frame.mini_left_spinner
-        self.tray_right_spinner = self.tray_main_frame.mini_right_spinner
-        self.tray_left_label = self.tray_main_frame.tray_left_label
-        self.tray_right_label = self.tray_main_frame.tray_right_label
+        self.tray_left_spinner = self.tray_main_frame.mc_widget.widget.mini_left_spinner
+        self.tray_right_spinner = self.tray_main_frame.mc_widget.widget.mini_right_spinner
+        self.tray_left_label = self.tray_main_frame.mc_widget.widget.left_label
+        self.tray_right_label = self.tray_main_frame.mc_widget.widget.right_label
 
         # init spinner values
         self.tray_left_spinner.setValue (self._prefs.mini_left_count)
         self.tray_right_spinner.setValue(self._prefs.mini_right_count)
+        # update mini UI
+        self.tray_main_frame.tray_mini_label.setText("-%d+%d" % (self.tray_left_spinner.value(), self.tray_right_spinner.value()))
+
 
         # CONNECTIONS
         self.tray_model.data_refreshed.connect(self.on_data_refreshed)
@@ -1155,18 +1234,18 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_list.clicked.connect(self.tray_clicked)        
         self.tray_list.doubleClicked.connect(self.tray_double_clicked)
 
-        self.tray_main_frame.mini_right_spinner.valueChanged.connect(self.right_spinner_clicked)
-        self.tray_main_frame.mini_left_spinner.valueChanged.connect(self.left_spinner_clicked)
+        self.tray_main_frame.mc_widget.widget.mini_right_spinner.valueChanged.connect(self.right_spinner_clicked)
+        self.tray_main_frame.mc_widget.widget.mini_left_spinner.valueChanged.connect(self.left_spinner_clicked)
 
         self.tray_button_entire_cut.clicked.connect(self.on_entire_cut)
         self.tray_button_mini_cut.clicked.connect(self.on_mini_cut)
+
+        # mini cut popup menu
+        self.tray_main_frame.tray_mini_label.clicked.connect(self.show_mini_cut)
+        self.tray_list.horizontalScrollBar().valueChanged.connect(self.scroller_moved)
         
         self.tray_model.filter_data_refreshed.connect(self.on_filter_refreshed)
-
-        self.details_panel.entity_created.connect(self.make_note_attachments)
         
-        # self._popup_utils.related_cuts_ready.connect(self.create_related_cuts_from_models)
-
         # async cached request for pipeline steps.
         # XXX pipeline steps are 'global' to shotgun? so this only needs to happen once?
         self._popup_utils.get_pipeline_steps_with_model()
@@ -1187,7 +1266,30 @@ class RvActivityMode(rvt.MinorMode):
         # so add a no-op
         self.tray_dock.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tray_dock.customContextMenuRequested.connect( self.dont_show_tray_context_menu)
- 
+
+    def mini_cut_mode_toggle(self, event):
+        # load current mini-cut state for this sequence node
+        mini_data = MiniCutData.load_from_session()
+
+        if not mini_data:
+            return
+
+        if mini_data.active:
+            self.on_entire_cut()
+        else:
+            self.on_mini_cut()
+
+    def scroller_moved(self, stuff):
+        if self.tray_main_frame.mc_widget.isVisible():
+            self.tray_list.repaint()
+            self.tray_main_frame.mc_widget.repaint()
+
+    def show_mini_cut(self):
+        self.tray_main_frame.mc_widget.setParent(self.tray_dock)
+        v = self.tray_main_frame.mc_widget.isVisible()
+        self.tray_main_frame.mc_widget.setVisible( not v )
+        self.tray_main_frame.mc_widget.position_minicut()
+
     def dont_show_tray_context_menu(self):
         pass
 
@@ -1202,13 +1304,13 @@ class RvActivityMode(rvt.MinorMode):
             self.on_data_refreshed_internal(True, incremental_update=True)
 
     def right_spinner_clicked(self, event):
-        self.on_mini_cut()
+        self.on_mini_cut(from_spinner=True)
 
     def left_spinner_clicked(self, event):
-        self.on_mini_cut()
+        self.on_mini_cut(from_spinner=True)
 
     def on_compare_ids_from_gma(self, event):
-        self._app.engine.log_info("on_compare_ids_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
+        self._app.engine.log_debug("on_compare_ids_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
         self.compare_active = True
         target_entity = json.loads(event.contents())
 
@@ -1222,7 +1324,7 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_model.load_data(entity_type="Version", filters=vfilters, fields=vfields)
 
     def on_id_from_gma(self, event):
-        self._app.engine.log_info("on_id_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
+        self._app.engine.log_debug("on_id_from_gma  %r %r" % (event.contents(), QtCore.QThread.currentThread() ) )
         self.compare_active = False
         target_entity = json.loads(event.contents())
 
@@ -1230,12 +1332,7 @@ class RvActivityMode(rvt.MinorMode):
         # which we are currently authenticated
         target_entity["server"] = self._app.tank.shotgun_url
 
-        self.load_tray_with_something_new(target_entity)
-
-        """
-        except Exception as e:
-            print "ERROR: on_id_from_gma %r" % e
-            """
+        self.load_tray_with_something_new(target_entity, load_from_gma=True)
 
     def set_details_dirty(self):
         self.details_dirty = True
@@ -1262,7 +1359,6 @@ class RvActivityMode(rvt.MinorMode):
 
         self.tray_list.repaint()
 
-
     def update_pinned_thumbnail(self, v_data):
         # version_data['__image_path'] holds the local cache path thumbnail for the pinned icon
         # version_data['entity'] has our shot.
@@ -1284,10 +1380,9 @@ class RvActivityMode(rvt.MinorMode):
              
         self.refresh_tray_thumbnails()
 
-
     def replace_version_in_sequence(self, versions):
         #XXX go over this in mini-cut case, etc
-        self._app.engine.log_info('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
+        self._app.engine.log_debug('replace_version_in_sequence %r' % QtCore.QThread.currentThread() )
 
         if len(versions) != 1:
             self._app.engine.log_error(
@@ -1417,7 +1512,12 @@ class RvActivityMode(rvt.MinorMode):
 
         return self.version_data_from_source(source_group)
 
-    def load_tray_with_something_new(self, target_entity, preserve_pinned=False, preserve_mini=False, incoming_pinned={}, incoming_mini_focus=None):
+    def load_tray_with_something_new(self, target_entity, 
+        load_from_gma       = False, 
+        preserve_pinned     = False, 
+        preserve_mini       = False, 
+        incoming_pinned     = {}, 
+        incoming_mini_focus = None):
 
         self.incoming_pinned         = {}
         self.incoming_mini_cut_focus = None
@@ -1443,21 +1543,26 @@ class RvActivityMode(rvt.MinorMode):
         # XXX get rid of "id"
         if "id" in target_entity and "ids" not in target_entity:
             target_entity["ids"] = [ target_entity["id"] ]
+
         self.target_entity = target_entity
 
         t_type = target_entity["type"]
 
         if   t_type == "Version":
+            self._popup_utils.clear_rel_cuts_menu(remove_menu=True, target_entity=target_entity)
+            self.last_target_entity = target_entity
             self.load_tray_with_version_ids(target_entity["ids"])
-            self.tray_main_frame.show_steps_and_statuses(False)
-
+            self.tray_main_frame.show_steps_and_statuses(False)    
         elif t_type == "Playlist":
+            self._popup_utils.clear_rel_cuts_menu(remove_menu=True, target_entity=target_entity)
+            self.last_target_entity = target_entity
             self.load_tray_with_playlist_id(target_entity["ids"][0])
             self.tray_main_frame.show_steps_and_statuses(False)
-
         elif t_type == "CutItem":
             cut = target_entity.get("cut")
             if cut:
+                if load_from_gma:
+                    self.last_target_entity = None
                 self.target_entity = cut
                 self.target_entity["ids"] = [cut["id"]]
 
@@ -1469,6 +1574,9 @@ class RvActivityMode(rvt.MinorMode):
                 self.tray_main_frame.show_steps_and_statuses(True)
 
         elif t_type == "Cut":
+            if load_from_gma:
+                self.last_target_entity = None
+
             # We only care about "pinned" shots/versions if we are loading a
             # Cut.  If caller asks that pinned state be preserved (we are
             # "switching cuts"), get current state for sequence and set in mode
@@ -1528,12 +1636,13 @@ class RvActivityMode(rvt.MinorMode):
         orders = [{'field_name':'cut_order','direction':'asc'}]
         self.tray_model.load_data(entity_type="CutItem", filters=tray_filters, fields=tray_fields, order=orders)
         
-
     def save_mini_cut_data(self, mini_data, node):
         mini_data.store_in_session(node)
         self.cached_mini_cut_data = mini_data
 
     def on_entire_cut(self):
+        # hide minicut UI
+        self.tray_main_frame.mc_widget.setVisible(False)
 
         seq_node = None
         seq_group = rvc.viewNode()
@@ -1548,7 +1657,7 @@ class RvActivityMode(rvt.MinorMode):
         mini_data = MiniCutData.load_from_session(seq_node)
 
         if not mini_data.active:
-            self._app.engine.log_error("Entire-cut load, but sequence is not mini-cut.")
+            self._app.engine.log_debug("Entire-cut load, but sequence is not mini-cut.")
             return
 
         # we rely on tray selection being synced with frame
@@ -1584,17 +1693,52 @@ class RvActivityMode(rvt.MinorMode):
 
         self.tray_list.repaint()
 
-    def on_mini_cut(self):
+    def on_mini_cut(self, from_spinner=False):
         # XXX handle non-Cut situations
         # XXX are we looking at the right node ?
 
-        # we rely on tray selection being synced with frame
+        mini_data = self.cached_mini_cut_data 
         (index, offset) = self.clip_index_and_offset_from_frame()
+        
+        if mini_data.active:
+            # show mini cut popup like in web
+            if not from_spinner:
+                self.show_mini_cut()
+                return
+
+            (left_num, right_num) = self.get_mini_values()
+ 
+            seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
+            mini_frame = rvc.getIntProperty(seq_node + ".edl.frame")
+ 
+            # mini_data stores indexes in entire timeline space
+            # get relative position of focus clip
+            focus_index = mini_data.focus_clip - mini_data.first_clip
+            # determine new first clip in 'entire' space
+            new_first_clip = (mini_data.focus_clip - left_num)
+            # clamp negatives
+            if new_first_clip < 0:
+                new_first_clip = 0
+            # now find the 'entire' index for the clip we are parked on
+            tl_index = index + mini_data.first_clip
+            # and then the relative index 
+            ph_index = tl_index - new_first_clip
+
+            self.load_mini_cut( focus_index, offset=offset, playhead_index=ph_index, from_spinner=True )
+                                
+            mini_frame = rvc.getIntProperty(seq_node + ".edl.frame")
+            
+            if from_spinner:
+                self._queued_frame_change = mini_frame[ph_index] + offset
+            else:
+                self._queued_frame_change = mini_frame[index] + offset
+            return
 
         self.load_mini_cut(index, offset=offset)
 
         self.tray_list.repaint()
 
+ 
     def on_cache_loaded(self):
         pass
         #print "CACHE LOADED."
@@ -1611,15 +1755,15 @@ class RvActivityMode(rvt.MinorMode):
         rvc.newProperty("%s.text" % node, rvc.StringType, 1)
         rvc.newProperty('%s.debug' % node, rvc.IntType, 1)
 
-        rvc.setFloatProperty('%s.position' % node, [ float(hpos), float(vpos) ], True)
-        rvc.setFloatProperty('%s.color' % node, [ 1.0, 1.0, 1.0, 1.0 ], True)
-        rvc.setFloatProperty('%s.spacing' % node, [ 1.0 ], True)
-        rvc.setFloatProperty('%s.size' % node, [ 0.004 ], True)
-        rvc.setFloatProperty('%s.scale' % node, [ 1.0 ], True)
-        rvc.setFloatProperty('%s.rotation' % node, [ 0.0 ], True)
-        rvc.setStringProperty("%s.font" % node, [""], True)
-        rvc.setStringProperty("%s.text" % node, [text], True)
-        rvc.setIntProperty('%s.debug' % node, [ 0 ], True)
+        setProp('%s.position' % node, [ float(hpos), float(vpos) ])
+        setProp('%s.color' % node, [ 1.0, 1.0, 1.0, 1.0 ])
+        setProp('%s.spacing' % node, [ 1.0 ])
+        setProp('%s.size' % node, [ 0.004 ])
+        setProp('%s.scale' % node, [ 1.0 ])
+        setProp('%s.rotation' % node, [ 0.0 ])
+        setProp("%s.font" % node, [""])
+        setProp("%s.text" % node, [text])
+        setProp('%s.debug' % node, [ 0 ])
 
     def find_latest_cut_for_version(self, shot_entity, version_data, project_entity):
         
@@ -1783,7 +1927,10 @@ class RvActivityMode(rvt.MinorMode):
 
         if not path:
             self._app.engine.log_error("Version '%s' has no local media" % version_data["code"])
-            path = "black,start=1,end=24.movieproc"
+            fps = 24.0
+            if version_data["sg_uploaded_movie_frame_rate"]:
+                fps = float(version_data["sg_uploaded_movie_frame_rate"])
+            path = "black,start=1,end=24,fps=%f.movieproc" % fps
             m_type = "Movie"
             no_media = True
 
@@ -1819,11 +1966,13 @@ class RvActivityMode(rvt.MinorMode):
         data["ui_name"]       = target_entity["type"]
         data["entity"]        = None
         data["project"]       = None
+        data["fps"]           = 0.0
 
         if   target_entity["type"] == "Cut":
             if sg_item:
                 data["ui_name"] = sg_item["cut.Cut.cached_display_name"]
                 data["entity"]  = sg_item["cut.Cut.entity"]
+                data["fps"]     = sg_item["cut.Cut.fps"] if sg_item["cut.Cut.fps"] else 0.0
 
         elif target_entity["type"] == "Playlist":
             data["ui_name"]     = "Playlist %d" % target_entity["ids"][0]
@@ -1910,13 +2059,17 @@ class RvActivityMode(rvt.MinorMode):
         return (version_data, edit_data)
 
     def data_from_version(self, sg):
-
         version_data = sg
         edit_data = {}
-        edit_data["in"]  = sg.get("sg_first_frame", 1)
-        edit_data["out"] = sg.get("sg_last_frame",  100)
+        edit_data["in"]  = sg.get("sg_first_frame", None)
+        edit_data["out"] = sg.get("sg_last_frame",  None)
         edit_data["shot"] = None
-        
+
+        if edit_data["in"]  is None:
+            edit_data["in"]  = 1;
+        if edit_data["out"] is None:
+            edit_data["out"] = 100;
+
         if sg.get("entity"):
             if sg.get("entity").get("type") == "Shot":
                 edit_data["shot"] = sg.get("entity")
@@ -2047,6 +2200,7 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_list.repaint()
 
         self.compare_active = False
+        self.set_details_dirty()
         
     # the way data from shotgun gets into the tray
     def on_data_refreshed_internal(self, was_refreshed, incremental_update=False):
@@ -2211,16 +2365,19 @@ class RvActivityMode(rvt.MinorMode):
         # XXX build status menu ONCE per project. - sb
         if not self.project_entity:
             self.project_entity = sequence_data["project"]
-            # self._popup_utils.set_project(self.project_entity)
+
         self._popup_utils.build_status_menu(self.project_entity)
+        self._popup_utils.check_pipeline_menu()
+         # write the current state if filters and statues to prefs
+        self._prefs.save()
 
         # Set or reset the UI Name of the sequence node
         rve.setUIName(seq_group_node, sequence_data["ui_name"])
         self.tray_main_frame.tray_button_browse_cut.setText(sequence_data["ui_name"])
 
         # make sure RV doesn't automatically create the EDL
-        rvc.setIntProperty(seq_node + ".mode.autoEDL",    [0])
-        rvc.setIntProperty(seq_node + ".mode.useCutInfo", [0])
+        setProp(seq_node + ".mode.autoEDL",    0)
+        setProp(seq_node + ".mode.useCutInfo", 0)
 
         setProp(seq_node + ".shadow_edl.inputs", seq_inputs)
 
@@ -2236,6 +2393,8 @@ class RvActivityMode(rvt.MinorMode):
         setProp(seq_node + ".shadow_edl.frame",  edl_frames)
         setProp(seq_node + ".shadow_edl.in",     edl_ins)
         setProp(seq_node + ".shadow_edl.out",    edl_outs)
+
+        setProp(seq_node + ".output.fps", float(sequence_data["fps"]))
 
         setProp(seq_group_node + ".sg_review.sequence_data", json.dumps(sequence_data))
         setProp(seq_group_node + ".sg_review.edit_data", edit_data_list)
@@ -2291,15 +2450,25 @@ class RvActivityMode(rvt.MinorMode):
 
         # filter query logic
         # 
-        # Test here if we need to run filtering query automatically. IE if we
-        # have non-trivial filtering parameters and incremental_update is
-        # false (because we are not _responding_ to a filter update).  If so,
-        # initiate that query.  If not, display completion feedback 
+        # Test here if we need to run filtering query automatically. IE if
+        # we're loading a Cut and we have non-trivial filtering parameters and
+        # incremental_update is false (because we are not _responding_ to a
+        # filter update).  If so, initiate that query.  If not, display
+        # completion feedback 
 
-        filter_query_required = self._popup_utils.filters_exist()
+        filter_query_required = self._popup_utils.filters_exist() and self.target_entity["type"] == "Cut"
+
+        # If we want to auto play in general, we can deduce that we want to in
+        # this case from playback_queued, or from the fact that this is a
+        # "first load" and no filter_query is scheduled.
+
+        trigger_playback = self._prefs.auto_play and (self.playback_queued or (
+                not incremental_update and not filter_query_required))
+
         if not incremental_update and filter_query_required:
             # trigger filter query
             self._popup_utils.request_versions_for_statuses_and_steps(True)
+            self.playback_queued = self._prefs.auto_play
         else :
             rve.displayFeedback("Loading complete", 2.0)
 
@@ -2308,8 +2477,10 @@ class RvActivityMode(rvt.MinorMode):
 
         self.load_version_id_from_session()
         rvc.redraw()
-        if not incremental_update and self._prefs.auto_play:
+        
+        if trigger_playback:
             rvc.play()
+            self.playback_queued = False
 
         if self.target_entity["type"] == "Cut":
             # self.create_related_cuts_menu(sequence_data["entity"], None)
@@ -2317,12 +2488,11 @@ class RvActivityMode(rvt.MinorMode):
             # we want this to happen now, so that the menu will be ready
             # self._popup_utils.request_related_cuts_from_models()
             # creating just the menu alone leads to in progress refresh
-            self._popup_utils.create_related_cuts_from_models()
-
+            # self._popup_utils.create_related_cuts_from_models()
+            pass
         else:
             if self.related_cuts_menu:
                 self.related_cuts_menu.clear()
-
 
     def set_cut_control_visibility(self, vis):
         self.tray_button_mini_cut.setVisible(vis)
@@ -2332,6 +2502,7 @@ class RvActivityMode(rvt.MinorMode):
         self.tray_right_spinner.setVisible(vis)
         self.tray_left_label.setVisible(vis)
         self.tray_right_label.setVisible(vis)
+        self.tray_main_frame.tray_mini_label.setVisible(vis)
 
     def configure_visibility(self):
         """
@@ -2361,9 +2532,19 @@ class RvActivityMode(rvt.MinorMode):
             if not self.details_hidden_this_session and self._prefs.auto_show_details: 
                 self.note_dock.show()
 
-            # it's a sequence of some kind, but maybe not a Cut; set menu etc
+            # it's a sequence of some kind, but maybe not a Cut; set menu and
             # control visibility accordingly
-            self.set_cut_control_visibility(query_target_entity.get("type") == "Cut")
+            its_a_cut = query_target_entity.get("type") == "Cut"
+            self.set_cut_control_visibility(its_a_cut)
+
+            # preliminary configuration of cut mode button: if we disable here
+            # we may enable later once we are stopped on a clip that has a
+            # default cut.
+            if its_a_cut:
+                self.enable_cuts_action(enable=True, tooltip='Turn off cuts mode', enable_blue=True)
+            else:
+                self.enable_cuts_action(enable=False, tooltip='', enable_blue=False)
+
 
         else:
             # it's not a Cut or a Playlist or a Version sequence.  But maybe
@@ -2404,7 +2585,6 @@ class RvActivityMode(rvt.MinorMode):
                     data = json.loads(edit_data_list[clip_index])
 
         return data
-
            
     def tray_double_clicked(self, index):
         # XXX go over
@@ -2424,12 +2604,12 @@ class RvActivityMode(rvt.MinorMode):
         single_source.append(0)
         single_ins.append(0)
         single_outs.append(0)
-        rvc.setIntProperty('%s.edl.frame' % self.cut_seq_name, single_frames, True)
-        rvc.setIntProperty('%s.edl.in' % self.cut_seq_name, single_ins, True)
-        rvc.setIntProperty('%s.edl.out' % self.cut_seq_name, single_outs, True)
+        setProp('%s.edl.frame' % self.cut_seq_name, single_frames)
+        setProp('%s.edl.in' % self.cut_seq_name, single_ins)
+        setProp('%s.edl.out' % self.cut_seq_name, single_outs)
         
-        rvc.setIntProperty("%s.mode.autoEDL" % self.cut_seq_name, [0])
-        rvc.setIntProperty("%s.mode.useCutInfo" % self.cut_seq_name, [0])
+        setProp("%s.mode.autoEDL" % self.cut_seq_name, 0)
+        setProp("%s.mode.useCutInfo" % self.cut_seq_name, 0)
 
         sources = rvc.nodesOfType("RVSourceGroup")
         single = [ sources[index.row()] ]
@@ -2439,16 +2619,19 @@ class RvActivityMode(rvt.MinorMode):
         rvc.play()
 
     def get_mini_values(self):
-        self._prefs.mini_left_count  = self.tray_main_frame.mini_left_spinner.value() 
-        self._prefs.mini_right_count = self.tray_main_frame.mini_right_spinner.value() 
+        self._prefs.mini_left_count  = self.tray_left_spinner.value() 
+        self._prefs.mini_right_count = self.tray_right_spinner.value() 
         self._prefs.save()
+
+        # update UI
+        self.tray_main_frame.tray_mini_label.setText("-%d+%d" % (self.tray_left_spinner.value(), self.tray_right_spinner.value()))
 
         return (
             self._prefs.mini_left_count,
             self._prefs.mini_right_count)
 
-    def load_mini_cut(self, focus_index, seq_group=None, offset=0):
-        self._app.log_info("load_mini_cut() focus %d seq_group %s offset %d" % (focus_index, seq_group, offset))
+    def load_mini_cut(self, focus_index, seq_group=None, offset=0, playhead_index=None, from_spinner=False):
+        self._app.log_debug("load_mini_cut() focus %d seq_group %s offset %d" % (focus_index, seq_group, offset))
 
         seq_node = None
         if not seq_group:
@@ -2532,7 +2715,10 @@ class RvActivityMode(rvt.MinorMode):
         self.save_mini_cut_data(MiniCutData(True, focus_index, first_index, last_index), seq_node)
 
         # restore frame location
-        rvc.setFrame(mini_frame[focus_index - first_index] + offset)
+        if from_spinner:
+            rvc.setFrame(mini_frame[playhead_index] + offset)
+        else:
+            rvc.setFrame(mini_frame[focus_index - first_index] + offset)
 
         self.tray_button_mini_cut.setStyleSheet('QPushButton { color: rgb(255,255,255); }')
         self.tray_button_entire_cut.setStyleSheet('QPushButton { color: rgb(125,126,127); }')

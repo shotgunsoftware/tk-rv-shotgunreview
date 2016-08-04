@@ -35,6 +35,11 @@ required_version_fields = [
     "sg_uploaded_movie_frame_rate"
     ]
 
+shotgun_menus = tank.platform.import_framework(
+    "tk-framework-qtwidgets",
+    "shotgun_menus",
+)
+
 
 class PopupUtils(QtCore.QObject):
 
@@ -43,7 +48,6 @@ class PopupUtils(QtCore.QObject):
     def __init__(self, rv_mode):
         QtCore.QObject.__init__(self)
         self._engine = rv_mode._app.engine
-        self._shotgun = rv_mode._bundle.shotgun
         self._project_entity = rv_mode.project_entity
         self._sequence_cuts = []
         self._sequence_entity = None
@@ -51,10 +55,10 @@ class PopupUtils(QtCore.QObject):
         self._status_schema = None
         self._tray_frame = rv_mode.tray_main_frame
         self._status_menu = None
-        self._status_list = []
+
         self._rv_mode = rv_mode
+
         self._pipeline_steps_menu = None
-        self._pipeline_steps = None
         self._related_cuts_menu = None
         self._last_related_cuts = None
         self._last_rel_shot_entity = None
@@ -62,40 +66,30 @@ class PopupUtils(QtCore.QObject):
         self._last_rel_version_id = -1
         self._last_rel_cut_id = -1
 
+        self._query_ip = False
+
+        # sequence data IS UPDATED too late for us, so this tells us intent for related 
+        # cuts menu loading or clearing.
+        self._target_entity = None
+       
+        # used to update menu checks on preset filter load ONCE.
+        self._preset_pipeline = True
+
         self._RV_DATA_ROLE = QtCore.Qt.UserRole + 1138
         self._CUT_THUMB_ROLE = QtCore.Qt.UserRole + 1701
-
+        self._ORIGINAL_THUMBNAIL = QtCore.Qt.UserRole + 1702
+        self._FILTER_THUMBNAIL = QtCore.Qt.UserRole + 1703
+        self._PINNED_THUMBNAIL = QtCore.Qt.UserRole + 1704
 
         # models
-
-        self._steps_task_manager = task_manager.BackgroundTaskManager(parent=None,
-                                                                    start_processing=True,
-                                                                    max_threads=2)
-
-        self._steps_model = FilterStepsModel(None, self._steps_task_manager)
-
+        self._steps_model = FilterStepsModel(None, self._rv_mode._app.engine.bg_task_manager)
         self._steps_proxyModel =  StepsSortFilter(None)
         self._steps_proxyModel.setSourceModel(self._steps_model)
 
-
-        # self._rel_cuts_task_manager = task_manager.BackgroundTaskManager(parent=None,
-        #                                                             start_processing=True,
-        #                                                             max_threads=2)
-
-        self._rel_cuts_model = RelCutsModel(None, self._steps_task_manager)
-
-        # self._rel_shots_task_manager = task_manager.BackgroundTaskManager(parent=None,
-        #                                                             start_processing=True,
-        #                                                             max_threads=2)
-
-        self._rel_shots_model = RelShotsModel(None, self._steps_task_manager)
-
+        self._rel_cuts_model = RelCutsModel(None, self._rv_mode._app.engine.bg_task_manager)
+        self._rel_shots_model = RelShotsModel(None, self._rv_mode._app.engine.bg_task_manager)
         
-        # self._filtered_versions_task_manager = task_manager.BackgroundTaskManager(parent=None,
-        #                                                             start_processing=True,
-        #                                                             max_threads=2)
-
-        self._filtered_versions_model = FilteredVersionsModel(None, self._steps_task_manager, self._tray_frame.tray_model)
+        self._filtered_versions_model = FilteredVersionsModel(None, self._rv_mode._app.engine.bg_task_manager, self._tray_frame.tray_model)
 
         # connections
         
@@ -109,6 +103,10 @@ class PopupUtils(QtCore.QObject):
 
     # related cuts menu menthods
 
+    # def mark_pipeline_selections(self):
+    #     self._preset_pipeline = True
+    #     self.check_pipeline_menu()
+
     def find_rel_cuts_with_model(self, entity_in, shot_entity=None):
         """
         This initiates two queries, one for all related cuts, and the other
@@ -120,9 +118,9 @@ class PopupUtils(QtCore.QObject):
         # [ <field>, 'is', dict ]
         # ['entity', 'is', {'type': 'Sequence', 'id': 31, 'name': '08_a-team'}]
         # ['cut_items.CutItem.shot', 'is', {'type': 'Shot', 'id': 1237}]
-        # print "find_rel_cuts_with_model %r %r %r" % (entity_in, shot_entity, self._project_entity['id'])
         self._rel_cuts_done = False
         self._rel_shots_done = False
+        self._query_ip = True
 
         conditions = ['entity', 'is', entity_in]
         if self._project_entity and self._project_entity['id']:
@@ -143,12 +141,16 @@ class PopupUtils(QtCore.QObject):
             return
 
         shot_conditions = ['cut_items.CutItem.shot', 'is', { 'id': shot_entity['id'], 'type': 'Shot' }]
-        shot_filters = [ shot_conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]]
+        if self._project_entity and self._project_entity['id']:
+            shot_filters = [ shot_conditions, ['project', 'is', { 'id': self._project_entity['id'], 'type': 'Project' } ]]
+        else:
+            shot_filters = [ shot_conditions ]
         shot_fields = ['id', 'entity', 'code', 'cached_display_name']
         shot_orders = [
             {'field_name': 'code', 'direction': 'asc'}, 
             {'field_name': 'cached_display_name', 'direction': 'asc'}
             ]
+
         self._rel_shots_model.load_data(entity_type="Cut", filters=shot_filters, fields=shot_fields, order=shot_orders)        
         #self._related_timer.start(20)
 
@@ -156,11 +158,12 @@ class PopupUtils(QtCore.QObject):
         """
         this method is called at aboutToShow time by the menu button
         """
-        
+
         seq_data = self._rv_mode.sequence_data_from_session()
 
-        if (not seq_data or seq_data["target_entity"]["type"] != "Cut"):
-            self._engine.log_info('request_related_cuts_from_models: No cut info available')
+        if not seq_data or seq_data["target_entity"]["type"] != "Cut":
+            self._engine.log_debug('request_related_cuts_from_models: No cut info available')
+            self.clear_rel_cuts_menu(remove_menu=True)
             return
 
         cut_link = seq_data['entity']
@@ -169,14 +172,14 @@ class PopupUtils(QtCore.QObject):
         version_data = self._rv_mode.version_data_from_source()
         # this probably shouldnt happen but seeing it when erroring on robustness tests
         if not version_data:
-            self._engine.log_info("request_related_cuts_from_models - No version data found in session.")
+            self._engine.log_warning("request_related_cuts_from_models - No version data found in session.")
+            self.clear_rel_cuts_menu(remove_menu=True)
             return
 
         # if this is the same as last time, then we can bail, its already rebuilt.
-        # pp.pprint(version_data)
-        if self._last_rel_version_id == version_data['id'] and self._last_rel_cut_id == cut_id:
-            self._engine.log_info('still on version %d, not rebuilding rel cuts menu' % version_data['id'])
-            return
+        if self._last_rel_version_id == version_data['id'] and self._last_rel_cut_id == cut_id and self._related_cuts_menu and len(self._related_cuts_menu.actions()) > 0:
+           # self._engine.log_warning('still on version %d, not rebuilding rel cuts menu' % version_data['id'])
+           return
         
         self._last_rel_version_id = version_data['id']
         self._last_rel_cut_id = cut_id
@@ -199,19 +202,22 @@ class PopupUtils(QtCore.QObject):
                     return
                 else:
                     # we already have it cached.
-                    self.related_cuts_ready.emit()
+                    if not self._query_ip:
+                        self.related_cuts_ready.emit()
+                    return
 
         # XXX don't get this ? -- alan
-        # XXX there was a cut based on a Scene and the query returned the entity we want in a different column - sb.
+        # XXX is this another impossible workflow? - sb.
         if cut_link['type'] == "Scene":
+            self._engine.log_warning("cant find relative cuts for a scene? using shot linked to version?")
             if version_link:
                 self.find_rel_cuts_with_model(cut_link, version_link['shot'])
             return
 
     def handle_related_menu(self, action=None):
-        self._engine.log_info("handle_related_menu called with action %r" % action)
-        if action.data():
-            self._engine.log_info("action.data: %r" % action.data()) 
+        #self._engine.log_info("handle_related_menu called with action %r" % action)
+        if action and action.data():
+            self._engine.log_debug("Loading related cut: %r" % action.data()) 
             self._rv_mode.load_tray_with_something_new(
                 {"type":"Cut", "ids":[action.data()['id']]}, 
                 preserve_pinned=True,
@@ -222,6 +228,7 @@ class PopupUtils(QtCore.QObject):
         if self._rel_cuts_done and self._rel_shots_done:
             self._rel_shots_done = False
             self._rel_cuts_done = False
+            self._query_ip = False
             self.related_cuts_ready.emit()
 
     def on_rel_shots_refreshed(self):
@@ -229,13 +236,9 @@ class PopupUtils(QtCore.QObject):
         if self._rel_cuts_done and self._rel_shots_done:
             self._rel_shots_done = False
             self._rel_cuts_done = False
+            self._query_ip = False
             self.related_cuts_ready.emit()
         
-    # def set_project(self, entity):
-    #     # XXX invalidate queries? auto-load status? 
-    #     self._project_entity = entity
-
-
     def merge_rel_models_for_menu(self):
         """
         - examine the contents of the shot model and build a map keyed on related shot cut id,
@@ -284,12 +287,28 @@ class PopupUtils(QtCore.QObject):
 
         return sorted_cuts
  
-    def create_related_cuts_from_models(self):
-        if not self._related_cuts_menu:
-            self._related_cuts_menu = QtGui.QMenu(self._tray_frame.tray_button_browse_cut)
-            self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu)        
-            # self._related_cuts_menu.aboutToShow.connect(self.request_related_cuts_from_models)
+    def clear_rel_cuts_menu(self, remove_menu=False, target_entity=None):
+        
+        if target_entity and (target_entity['type'] == "Version" or target_entity['type'] == "Playlist"):
+            self._target_entity = target_entity
+        else:
+            self._target_entity = None
 
+        if self._related_cuts_menu:
+            self._related_cuts_menu.clear()
+            self._last_related_cuts = None
+        if remove_menu:
+            self._related_cuts_menu = None
+            self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu) 
+
+    def create_related_cuts_from_models(self):
+        if not self._related_cuts_menu and not self._target_entity:
+            self._related_cuts_menu = shotgun_menus.ShotgunMenu(
+                self._tray_frame.tray_button_browse_cut,
+            )
+            self._related_cuts_menu.setObjectName("related_cuts_menu")
+            self._tray_frame.tray_button_browse_cut.setMenu(self._related_cuts_menu)        
+ 
             # Sadly, because this button didn't have a menu at the time that
             # the app-level styling was applied, it won't inherit menu-indicator
             # styling there. We have to set it here as a result.
@@ -305,13 +324,20 @@ class PopupUtils(QtCore.QObject):
                 """
             )
             self._related_cuts_menu.triggered.connect(self.handle_related_menu)
+        else:
+            # if we have a menu, and target_entity is None, then we are moving from
+            # cut to cut. if no menu and there is a target, then its a version or
+            # playlist so we can bail.
+            if not self._related_cuts_menu:
+                return
 
         seq_data = self._rv_mode.sequence_data_from_session()
         cut_id = seq_data["target_entity"]["ids"][0] if seq_data else None
-        self._engine.log_info("create_related_cuts_from_models, cut_id: %r" % cut_id)
+        
+        self._engine.log_debug("create_related_cuts_from_models, cut_id: %r" % cut_id)
 
         seq_cuts = self.merge_rel_models_for_menu()
-        #  pp.pprint(seq_cuts)
+ 
         if seq_cuts == self._last_related_cuts:
             actions = self._related_cuts_menu.actions()
             for a in actions:
@@ -330,6 +356,7 @@ class PopupUtils(QtCore.QObject):
                         if bd['id'] == cut_id:
                             b.setChecked(True)
                             a.setChecked(True)
+            self._engine.log_debug("create_related_cuts_from_models, updating check marks only, %d" % len(seq_cuts) )
 
             return
 
@@ -337,15 +364,16 @@ class PopupUtils(QtCore.QObject):
         self._related_cuts_menu.clear()
 
         menu = self._related_cuts_menu
-        action = QtGui.QAction(self._tray_frame.tray_button_browse_cut)
-        action.setText('Related Cuts')
-        menu.addAction(action)
-        menu.addSeparator()
+        # action = QtGui.QAction(self._tray_frame.tray_button_browse_cut)
+        # action.setText('Related Cuts')
+        # menu.addAction(action)
+        # menu.addSeparator()
 
         last_menu = menu
         parent_menu = None
         last_code = None
         en = {}
+        actions = []
 
         for x in seq_cuts:
             action = QtGui.QAction(self._tray_frame.tray_button_browse_cut)
@@ -356,7 +384,11 @@ class PopupUtils(QtCore.QObject):
 
             if last_code != x['code']: # this is the first time weve seen this code
                 if x['count'] > 1: # make a submenu
-                    last_menu = last_menu.addMenu(x['code'])
+                    if last_menu is menu:
+                        last_menu = shotgun_menus.ShotgunMenu(x['code'])
+                        actions.append(last_menu)
+                    else:
+                        last_menu = last_menu.addMenu(x['code'])
                     a = last_menu.menuAction()
                     a.setCheckable(True)
                     a.setChecked(False)
@@ -381,8 +413,13 @@ class PopupUtils(QtCore.QObject):
 
             action.setData(en)
  
-            last_menu.addAction(action)
+            if last_menu is menu:
+                actions.append(action)
+            else:
+                last_menu.addAction(action)
             last_code = x['code']
+
+        menu.add_group(actions, title="Related Cuts")
 
     # approval status menu methods
 
@@ -401,9 +438,12 @@ class PopupUtils(QtCore.QObject):
 
         if not self._status_schema or project_entity['id'] != self._project_entity['id']:
             self._project_entity = project_entity
-            # print "PROJECT  %r" % project_entity
             project_id = self._project_entity['id']
-            self._status_schema = self._shotgun.schema_field_read('Version', field_name='sg_status_list', project_entity={ 'id': project_id, 'type': 'Project' } )
+            self._status_schema = self._engine.shotgun.schema_field_read(
+                'Version',
+                field_name='sg_status_list',
+                project_entity={'id': project_id, 'type': 'Project'}
+            )
                 
         return self._status_schema
 
@@ -438,7 +478,10 @@ class PopupUtils(QtCore.QObject):
 
         # might as well make the menu if its not there yet.
         if not self._status_menu:
-            self._status_menu = QtGui.QMenu(self._tray_frame.status_filter_button)
+            self._status_menu = shotgun_menus.ShotgunMenu(
+                self._tray_frame.status_filter_button,
+            )
+            self._status_menu.setObjectName("status_menu")
             self._tray_frame.status_filter_button.setMenu(self._status_menu)
 
             # Sadly, because this button didn't have a menu at the time that
@@ -476,29 +519,47 @@ class PopupUtils(QtCore.QObject):
         action.setChecked(False)
         action.setText('Any Status')
         action.setData(None)
-        menu.addAction(action)
-        menu.addSeparator()
+        menu.add_group([action])
         self._status_reload = False
 
         statii = self.get_status_menu(self._project_entity)
+        count = 0
+        name = None
+        actions = []
+
         for status in statii:
             action = QtGui.QAction(self._tray_frame.status_filter_button)
             action.setCheckable(True)
             for x in status:
                 action.setText(status[x])
+                if x in self._rv_mode._prefs.status_filter:
+                    action.setChecked(True)
+                    count = count + 1
+                    name = status[x]
             action.setData(status)
-            menu.addAction(action)
+            actions.append(action)
 
+        menu.add_group(actions)
+
+        if count == 0:
+            self._tray_frame.status_filter_button.setText("Filter by Status")
+        if count == 1:
+            self._tray_frame.status_filter_button.setText(name)
+        if count > 1:
+            self._tray_frame.status_filter_button.setText("%d Statuses" % count)
+       
     def handle_status_menu(self, event):
         # if 'any status' is picked, then the other
         # choices are zeroed out. event.data will be None for any status
 
-        self._status_list = []
+        if not self._rv_mode._prefs.status_filter:
+            self._rv_mode._prefs.status_filter = []
+        
         actions = self._status_menu.actions()
         if not event.data():
             for a in actions:
-                # print "%r" % a.text()
                 a.setChecked(False)
+            self._rv_mode._prefs.status_filter = []
             self._tray_frame.status_filter_button.setText("Filter by Status")
             self.request_versions_for_statuses_and_steps()
             return
@@ -510,12 +571,13 @@ class PopupUtils(QtCore.QObject):
             if a.isChecked():
                 e = a.data()
                 for k in e:
-                    self._status_list.append(k)
+                    self._rv_mode._prefs.status_filter.append(k)
                     name = e[k]
                     count = count + 1
  
         if count == 0:
             self._tray_frame.status_filter_button.setText("Filter by Status")
+            self._rv_mode._prefs.status_filter = []
         if count == 1:
             self._tray_frame.status_filter_button.setText(name)
         if count > 1:
@@ -536,7 +598,10 @@ class PopupUtils(QtCore.QObject):
         This loads the menu with values returned when the _steps_model returns data_refreshed
         """
         if not self._pipeline_steps_menu:
-            self._pipeline_steps_menu = QtGui.QMenu(self._tray_frame.pipeline_filter_button)
+            self._pipeline_steps_menu = shotgun_menus.ShotgunMenu(
+                self._tray_frame.pipeline_filter_button,
+            )
+            self._pipeline_steps_menu.setObjectName("pipeline_steps_menu")
             self._tray_frame.pipeline_filter_button.setMenu(self._pipeline_steps_menu)
 
             # Sadly, because this button didn't have a menu at the time that
@@ -554,17 +619,9 @@ class PopupUtils(QtCore.QObject):
                 """
             )      
             self._pipeline_steps_menu.triggered.connect(self.handle_pipeline_menu)
+        
         menu = self._pipeline_steps_menu
         menu.clear()
-
-        action = QtGui.QAction(self._tray_frame.pipeline_filter_button)
-        action.setCheckable(False)
-        action.setChecked(False)
-        action.setText('Pipeline Steps Priority')
-        # XXX what object do we want here?
-        action.setData( None )
-        menu.addAction(action)
-        menu.addSeparator()
 
         # XXX latest in pipeline means an empty steps list?
         action = QtGui.QAction(self._tray_frame.pipeline_filter_button)
@@ -573,9 +630,9 @@ class PopupUtils(QtCore.QObject):
         action.setText('Latest in Pipeline')
         # XXX what object do we want here?
         action.setData( { 'cached_display_name' : 'Latest in Pipeline' } )
-        menu.addAction(action)
         self._steps_proxyModel.sort(0, QtCore.Qt.DescendingOrder)
         rows = self._steps_proxyModel.rowCount()
+        actions = [action]
 
         for x in range(0, rows):
             item = self._steps_proxyModel.index(x, 0)
@@ -585,7 +642,68 @@ class PopupUtils(QtCore.QObject):
             action.setChecked(False)
             action.setText(sg['cached_display_name'])
             action.setData(sg)
-            menu.addAction(action)
+            actions.append(action)
+
+        menu.add_group(actions, title="Pipeline Steps Priority")
+        self.check_pipeline_menu()
+
+
+    def check_pipeline_menu(self):
+        """
+        pipeline menus are updated with checkmarks after the user
+        selects something automatically by Qt.
+        when we startup and have to load a prefs pipeline filter,
+        we need to manually mark the menu.
+        This is tricky to do on mode init since the menus arent built
+        yet. We only want to run this once, so we use self._preset_pipeline 
+        to tell if we've done this before.
+        """
+
+        # the menu gets built dynamically from the database asyncronously,
+        # so it may not be here when called from the mode.
+        if not self._pipeline_steps_menu:
+            return
+        # once we get here we only want to run this once
+        if not self._preset_pipeline:
+            return
+        else:
+            if self._rv_mode._prefs.pipeline_filter == None:
+                return
+            # chcek the incoming values
+            actions = self._pipeline_steps_menu.actions()
+            count = 0
+            name = None
+            tmp_incoming = []
+            if self._rv_mode._prefs.pipeline_filter == []:
+                e = {}
+                # we dont need the other values 'real' steps have
+                # since they are only used in sorting, and this
+                # option lives by itself on the menu, and doesnt exist
+                # in the database.
+                e['cached_display_name'] = "Latest in Pipeline"
+                tmp_incoming.append(e)
+            else:
+                tmp_incoming = self._rv_mode._prefs.pipeline_filter
+                if tmp_incoming == "None":
+                    tmp_incoming = None
+
+
+            for a in actions:
+                if a.data() and 'cached_display_name' in a.data():
+                    for x in tmp_incoming:
+                        if a.data()['cached_display_name'] == x['cached_display_name']:
+                            a.setChecked(True)
+                            name = a.data()['cached_display_name']
+                            count = count + 1
+            if count == 0:
+                self._tray_frame.pipeline_filter_button.setText("Filter by Pipeline")
+            if count == 1:
+                self._tray_frame.pipeline_filter_button.setText(name)
+            if count > 1:
+                self._tray_frame.pipeline_filter_button.setText("%d steps" % count)
+
+        self._preset_pipeline = False
+    
 
     def handle_pipeline_menu(self, event):
         """
@@ -595,12 +713,13 @@ class PopupUtils(QtCore.QObject):
         # you might also get a roll off event that you dont want.
         # so check the widget and then update the button text
 
+        self._rv_mode._prefs.pipeline_filter = None
+
         want_latest = False
         if event.data():
             e = event.data()
             if e['cached_display_name'] == 'Latest in Pipeline':
                 want_latest = True
-                print "want latest %r" % event.isChecked()
                 if not event.isChecked():
                     want_latest = False
         
@@ -608,7 +727,10 @@ class PopupUtils(QtCore.QObject):
         count = 0
         name = 'Error'
         # for later filtering, None tells us no step is selected vs [] which means latest in pipeline
-        self._pipeline_steps = None
+        if self._rv_mode._prefs.pipeline_filter != None:
+            if self._rv_mode._prefs.pipeline_filter == []:
+                want_latest = True
+        
         last_name = None
         for a in actions:
             if a.isChecked():
@@ -620,15 +742,15 @@ class PopupUtils(QtCore.QObject):
                     count = count - 1
                     name = last_name
                 if a.data()['cached_display_name'] != 'Latest in Pipeline':
-                    if self._pipeline_steps == None:
-                        self._pipeline_steps = []
-                    self._pipeline_steps.append(a.data())
+                    if self._rv_mode._prefs.pipeline_filter == None:
+                        self._rv_mode._prefs.pipeline_filter = []
+                    self._rv_mode._prefs.pipeline_filter.append(a.data())
                     if want_latest:
                         a.setChecked(False)
                 last_name = name
         if want_latest:
             # an empty list is what the query wants for 'latest in pipeline'
-            self._pipeline_steps = []
+            self._rv_mode._prefs.pipeline_filter = []
             name = 'Latest in Pipeline'
             count = 1
 
@@ -638,12 +760,13 @@ class PopupUtils(QtCore.QObject):
             self._tray_frame.pipeline_filter_button.setText(name)
         if count > 1:
             self._tray_frame.pipeline_filter_button.setText("%d steps" % count)
+
         self.request_versions_for_statuses_and_steps()
 
     # methods for 'the crazy query', find versions that match criteria in steps and statuses
 
     def filters_exist(self):
-        if self._status_list or self._pipeline_steps != None:
+        if self._rv_mode._prefs.status_filter or self._rv_mode._prefs.pipeline_filter != None:
             return True
         return False
 
@@ -654,17 +777,31 @@ class PopupUtils(QtCore.QObject):
             index = self._tray_frame.tray_model.index(x, 0)
             self._tray_frame.tray_delegate.update_rv_role(index, None)
 
-            thumb = index.data(self._CUT_THUMB_ROLE)
-            item = self._tray_frame.tray_model.itemFromIndex(index)
-            item.setIcon(thumb)
+            # _CUT_THUMB_ROLE is the icon from the original query
+            # _ORIGINAL_THUMBNAIL is a path to the cache.
+            #thumb = index.data(self._CUT_THUMB_ROLE)
+            orig_tn = index.data(self._ORIGINAL_THUMBNAIL)
+            filtered_tn = index.data(self._FILTER_THUMBNAIL)
+            
+            if filtered_tn:
+                self._tray_frame.tray_model.setData(index, None, self._FILTER_THUMBNAIL)
+
+            if orig_tn:
+                thumb = QtGui.QIcon(orig_tn)
+                self._tray_frame.tray_model.setData(index, thumb, self._CUT_THUMB_ROLE)
+
+                item = self._tray_frame.tray_model.itemFromIndex(index)
+                item.setIcon(thumb)
                 
         self._tray_frame.tray_model.notify_filter_data_refreshed(True)
+        self._tray_frame.tray_list.repaint()
 
 
-    def filter_tray(self):
+    def filter_tray(self, msg):
         rows = self._filtered_versions_model.rowCount()
         if rows < 1:
             self.clear_out_rv_roles()
+            self._tray_frame.tray_model.notify_filter_data_refreshed(True)
             return None
 
         shot_map = {}
@@ -677,6 +814,7 @@ class PopupUtils(QtCore.QObject):
         rows = self._tray_frame.tray_proxyModel.rowCount()
         if rows < 1:
              self._engine.log_warning( "Tray is empty." )
+             self._tray_frame.tray_model.notify_filter_data_refreshed(True)
              return None
 
         for x in range(0,rows):
@@ -692,9 +830,15 @@ class PopupUtils(QtCore.QObject):
         self._tray_frame.tray_model.notify_filter_data_refreshed(True)
 
     def get_tray_filters(self):
+ 
+        if self._rv_mode._prefs.pipeline_filter == "None":
+            self._rv_mode._prefs.pipeline_filter = None
+ 
         rows = self._tray_frame.tray_proxyModel.rowCount()
         if rows < 1:
-            return []
+            # this was [] but i think it should be None
+            return None
+        
         shot_list = []
         for x in range(0,rows):
             item = self._tray_frame.tray_proxyModel.index(x, 0)
@@ -702,22 +846,30 @@ class PopupUtils(QtCore.QObject):
             if sg.get('shot'):
                 # cut item may not be linked to shot
                 shot_list.append(sg['shot'])
+        
+        if len(shot_list) < 1:
+            self._engine.log_debug('This cut has no related shots. Aborting query.')
+            # XXX this means we need to refresh the rel cuts memu ourselves, since
+            # the mode wont.
+            self.request_related_cuts_from_models()
+            return None
+
         entity_list = [ 'entity', 'in', shot_list ]
-        if self._status_list and self._pipeline_steps != None:
-            status_list = ['sg_status_list', 'in', self._status_list ]
-            step_list = ['sg_task.Task.step', 'in', self._pipeline_steps]
-            if self._pipeline_steps == []:
+        if self._rv_mode._prefs.status_filter and self._rv_mode._prefs.pipeline_filter != None:
+            status_list = ['sg_status_list', 'in', self._rv_mode._prefs.status_filter ]
+            step_list = ['sg_task.Task.step', 'in', self._rv_mode._prefs.pipeline_filter]
+            if self._rv_mode._prefs.pipeline_filter == []:
                 return [ status_list, entity_list ] 
             filters = [ step_list, status_list, entity_list ]
             return filters
-        if self._status_list:
-            status_list = ['sg_status_list', 'in', self._status_list ]
+        if self._rv_mode._prefs.status_filter:
+            status_list = ['sg_status_list', 'in', self._rv_mode._prefs.status_filter ]
             filters = [ status_list, entity_list ]
             return filters
-        if self._pipeline_steps != None:
-            if self._pipeline_steps == []:
+        if self._rv_mode._prefs.pipeline_filter != None:
+            if self._rv_mode._prefs.pipeline_filter == []:
                 return [ entity_list ]
-            step_list = ['sg_task.Task.step', 'in', self._pipeline_steps]
+            step_list = ['sg_task.Task.step', 'in', self._rv_mode._prefs.pipeline_filter]
             filters = [ step_list, entity_list ]
             return filters
         return None

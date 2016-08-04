@@ -10,6 +10,9 @@
 
 from tank.platform.qt import QtCore, QtGui
 from .tray_delegate import RvTrayDelegate
+from .mini_cut_widget import MiniCutWidget
+
+import os
 import tank
 task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
 
@@ -89,6 +92,7 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_bar.setSizePolicy(sizePolicy)
 
         self.tray_button_bar_hlayout = QtGui.QHBoxLayout()
+        self.tray_button_bar_hlayout.setSpacing(16)
         self.tray_button_bar_grid.addLayout(self.tray_button_bar_hlayout, 0, 0)
         self.tray_button_bar_hlayout.setContentsMargins(0, 0, 0, 0)
         
@@ -101,7 +105,6 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_entire_cut = QtGui.QPushButton()
         self.tray_button_entire_cut.setText('Entire Cut')
         self.tray_button_bar_hlayout.addWidget(self.tray_button_entire_cut)
-        
 
         self.tray_bar_button = QtGui.QPushButton()
         self.tray_bar_button.setText('|')
@@ -111,24 +114,15 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_button_mini_cut.setText('Mini Cut')
         self.tray_button_bar_hlayout.addWidget(self.tray_button_mini_cut)
 
-        self.mini_left_spinner = QtGui.QSpinBox()
-        self.mini_left_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.mini_left_spinner.setValue(2)
-        self.tray_button_bar_hlayout.addWidget(self.mini_left_spinner)
+        self.tray_mini_label = QtGui.QPushButton()
+        self.tray_mini_label.setLayoutDirection(QtCore.Qt.RightToLeft)
+        self.tray_mini_label.setText('-2+2')
 
-        self.tray_left_label = QtGui.QLabel()
-        self.tray_left_label.setText('Before')
-        self.tray_button_bar_hlayout.addWidget(self.tray_left_label)
+        f = os.path.join(os.path.dirname(os.path.abspath(__file__)), "arrow_smaller.png")
+        icon = QtGui.QIcon(f)
+        self.tray_mini_label.setIcon(icon)
 
-        self.mini_right_spinner = QtGui.QSpinBox()
-        self.mini_right_spinner.setFocusPolicy(QtCore.Qt.NoFocus)
-        self.mini_right_spinner.setValue(2)
-        self.tray_button_bar_hlayout.addWidget(self.mini_right_spinner)
-
-        self.tray_right_label = QtGui.QLabel()
-        self.tray_right_label.setText('After')
-        self.tray_button_bar_hlayout.addWidget(self.tray_right_label)
-
+        self.tray_button_bar_hlayout.addWidget(self.tray_mini_label) 
         self.tray_button_bar_hlayout.addStretch(1)
 
         self.pipeline_filter_button = QtGui.QPushButton()
@@ -219,8 +213,12 @@ class TrayMainFrame(QtGui.QFrame):
         # The buttons will be stacked vertically, with the close button
         # even with the button bar at the top of the tray, and the float
         # button immediately below it.
-        self.tray_button_bar_grid.addWidget(self.close_button, 0, 1)
-        self.tray_button_bar_grid.addWidget(self.float_button, 1, 1)
+        self.tray_dock_control_layout = QtGui.QHBoxLayout()
+        self.tray_dock_control_layout.setSpacing(0)
+        self.tray_dock_control_layout.setContentsMargins(8, 0, 0, 0)
+        self.tray_dock_control_layout.addWidget(self.float_button)
+        self.tray_dock_control_layout.addWidget(self.close_button)
+        self.tray_button_bar_grid.addLayout(self.tray_dock_control_layout, 0, 1)
 
         self.tray_frame_vlayout.addWidget(self.tray_button_bar)
         self.tray_frame_vlayout.setStretchFactor(self.tray_button_bar, 1)
@@ -251,6 +249,13 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_list.setUniformItemSizes(True)
                 
         self.tray_list.setObjectName("tray_list")
+
+        self.mc_widget = MiniCutWidget(self)
+        self.mc_widget.setVisible(False)
+        self.tray_dock.mc_widget = self.mc_widget
+        # mc_widget can change its parent when undocked, so we need to store a reference to 
+        # tray_dock so we dont have to rely on parent exclusively.
+        self.mc_widget.tray_dock = self.tray_dock
        
 
 

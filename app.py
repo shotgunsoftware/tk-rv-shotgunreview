@@ -18,6 +18,7 @@ import rv.qtutils
 import rv.commands
 
 class RVShotgunReviewApp(Application):
+
     """
     The app entry point. This class is responsible for intializing and tearing down
     the application, handle menu registration etc.
@@ -29,16 +30,20 @@ class RVShotgunReviewApp(Application):
         tk_rv_shotgunreview = self.import_module("tk_rv_shotgunreview")
 
         parent_widget = self.engine.get_dialog_parent()
+
         notes_dock = QtGui.QDockWidget("", parent_widget)
         tray_dock = QtGui.QDockWidget("", parent_widget)
+        notes_dock.setFocusPolicy(QtCore.Qt.NoFocus)
+        tray_dock.setFocusPolicy(QtCore.Qt.NoFocus)
 
         notes_dock.setAllowedAreas(QtCore.Qt.LeftDockWidgetArea | QtCore.Qt.RightDockWidgetArea)
         notes_dock.setTitleBarWidget(QtGui.QWidget(parent_widget))
+
         tray_dock.setAllowedAreas(QtCore.Qt.BottomDockWidgetArea)
         tray_dock.setTitleBarWidget(QtGui.QWidget(parent_widget))
 
         self._rv_activity_stream = tk_rv_shotgunreview.RvActivityMode(app=self)
-        self._rv_activity_stream.init_ui(notes_dock, tray_dock, 8)
+        self._rv_activity_stream.init_ui(notes_dock, tray_dock)
         self._rv_activity_stream.toggle()
 
         parent_widget.addDockWidget(QtCore.Qt.RightDockWidgetArea, notes_dock)
