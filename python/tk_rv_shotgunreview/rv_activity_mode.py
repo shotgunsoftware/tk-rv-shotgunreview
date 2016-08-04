@@ -1126,7 +1126,6 @@ class RvActivityMode(rvt.MinorMode):
             parent=self.note_dock,
             bg_task_manager=self._app.engine.bg_task_manager,
         )
-<<<<<<< HEAD
 
         # We need to add these fields to the query list so that when
         # entities are passed back to us from Version list context
@@ -1185,17 +1184,10 @@ class RvActivityMode(rvt.MinorMode):
             )
         )
 
-=======
         self.details_panel.pre_submit_callback = self.make_note_attachments
->>>>>>> master
         self.note_dock.setWidget(self.details_panel)
         self._app.engine._apply_external_styleshet(self._app, self.details_panel)
-<<<<<<< HEAD
-        self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 60))
-=======
-
         self.tray_dock.setMinimumSize(QtCore.QSize(720,self._tray_height + 30))
->>>>>>> master
         
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame
