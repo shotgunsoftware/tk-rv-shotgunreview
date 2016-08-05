@@ -1800,7 +1800,7 @@ class RvActivityMode(rvt.MinorMode):
         if not path:
             return False
 
-        return (True if self.no_media_check else bool(rvc.existingFilesInSequence(path)))
+        return (True if self.no_media_check else bool(rvc.existingFilesInSequence(rvc.undoPathSwapVars(path))))
 
     def swap_in_home_dir(self, path):
 
