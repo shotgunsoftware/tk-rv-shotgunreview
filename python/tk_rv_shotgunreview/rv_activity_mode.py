@@ -1127,6 +1127,9 @@ class RvActivityMode(rvt.MinorMode):
             bg_task_manager=self._app.engine.bg_task_manager,
         )
 
+        self.details_panel.notes_are_selectable = False
+        self.details_panel.use_styled_title_bar(self.note_dock)
+
         # We need to add these fields to the query list so that when
         # entities are passed back to us from Version list context
         # menu actions we have all of this data available to us.
@@ -1192,6 +1195,7 @@ class RvActivityMode(rvt.MinorMode):
         # ug, for now till i can clean up the methods
         from .tray_main_frame import TrayMainFrame
         self.tray_main_frame = TrayMainFrame(self.tray_dock, self)
+        self.tray_main_frame.setStyleSheet("QScrollBar::horizontal { background: rgb(50,50,50) }")
 
         self.tray_hidden_this_session = False
         self.details_hidden_this_session = False
