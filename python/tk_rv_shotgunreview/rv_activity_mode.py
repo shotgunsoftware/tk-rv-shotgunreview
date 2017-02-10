@@ -103,6 +103,7 @@ class MediaType:
 
 standard_media_types = dict(
         Movie=MediaType ("Movie",  "sg_path_to_movie",  "sg_movie_has_slate",   "sg_movie_aspect_ratio"),
+        Streaming=MediaType ("Streaming",  "sg_path_to_movie",  "sg_movie_has_slate",   "sg_movie_aspect_ratio"),
         Frames=MediaType("Frames", "sg_path_to_frames", "sg_frames_have_slate", "sg_frames_aspect_ratio")
     )
 
@@ -498,6 +499,10 @@ class RvActivityMode(rvt.MinorMode):
 
         return state_func
 
+    def set_default_media_type_streaming(self, event):
+        self._prefs.preferred_media_type = "Streaming"
+        self._prefs.save()
+
     def set_default_media_type_movie(self, event):
         self._prefs.preferred_media_type = "Movie"
         self._prefs.save()
@@ -511,6 +516,9 @@ class RvActivityMode(rvt.MinorMode):
 
     def default_media_type_state_frames(self):
         return rvc.CheckedMenuState if self._prefs.preferred_media_type == "Frames" else rvc.UncheckedMenuState
+
+    def default_media_type_state_streaming(self):
+        return rvc.CheckedMenuState if self._prefs.preferred_media_type == "Streaming" else rvc.UncheckedMenuState
 
     def toggle_startup_view_details(self, event):
         self._prefs.startup_view_details = not self._prefs.startup_view_details
@@ -770,6 +778,7 @@ class RvActivityMode(rvt.MinorMode):
             version_data = self.version_data_from_source(source_group)
 
         media_type = self.get_media_type_of_source(source_group)
+
         file_source = groupMemberOfType(source_group, "RVFileSource")
 
         # Set up correct source frame mapping
@@ -784,13 +793,14 @@ class RvActivityMode(rvt.MinorMode):
         if first_frame is not None:
             # If this is not a Movie assume the default frame mapping works (as
             # it should for Frames)
-            if   media_type != "Movie" and rvc.propertyExists(range_start_prop):
+            if   media_type == "Frames" and rvc.propertyExists(range_start_prop):
                 rvc.deleteProperty(range_start_prop)
 
             # If it _is_ a movie, compensate for lack of timecode or wrong
             # timecode.
-            elif media_type == "Movie" and has_slate is not None:
+            elif media_type != "Frames" and has_slate is not None:
                 setProp(range_start_prop, first_frame - int(has_slate))
+
 
     def set_media_of_source(self, source_group, media_type_name, version_data=None):
         """
@@ -799,6 +809,7 @@ class RvActivityMode(rvt.MinorMode):
         Set the "sg_review.media_type" property of the source to
         match the current media type.
         """
+
         self._app.engine.log_debug("set_media_of_source '%s' to '%s'" % 
             (source_group, media_type_name))
 
@@ -808,17 +819,26 @@ class RvActivityMode(rvt.MinorMode):
             version_data = self.version_data_from_source(source_group)
 
         m_type = self.media_type_fallback(version_data, media_type_name)
+
         # XXX warn if falling back
 
         if m_type and m_type != current_media_type: 
             path = version_data[standard_media_types[m_type].path_field]
             path = self.swap_in_home_dir(path)
+
+            if m_type == "Streaming":
+                path = self.get_url_from_version(version_data['id'])
+ 
+            rve.displayFeedback2(path, 2.0)
             file_source = groupMemberOfType(source_group, "RVFileSource")
             rvc.setSourceMedia(file_source, [path], "shotgun")
             self.set_media_type_property(source_group, m_type)
             self.configure_source_media(source_group, version_data)
 
         #self._app.engine.log_warning("Version '%s' has no local media" % version_data["code"])
+
+    def get_url_from_version(self, v_id):
+        return "%s/file_serve/version/%r/mp4" % (self._app.engine.sgtk.shotgun_url, v_id)
 
 
     def swap_media_of_source(self, source_node, media_type_name):
@@ -834,14 +854,14 @@ class RvActivityMode(rvt.MinorMode):
             (source_node, media_type_name))
 
         old_media_type = self.get_media_type_of_source(source_node)
-
+        
         if old_media_type and (old_media_type != media_type_name):
             self.set_media_of_source(source_node, media_type_name)
 
+
     def swap_media_factory(self, media_type_name, one_or_all):
-
-        def swap_media(event):
-
+ 
+        def swap_media(event):            
             if one_or_all == "one":
                 sources = [ self.current_source() ]
             else:
@@ -933,6 +953,8 @@ class RvActivityMode(rvt.MinorMode):
         self.incoming_pinned = {}
         self.incoming_mini_cut_focus = None
 
+        
+
 
         self.init("RvActivityMode", None,
                 [
@@ -972,10 +994,12 @@ class RvActivityMode(rvt.MinorMode):
                     ("Swap Media - Current Clip", None, None, lambda: rvc.DisabledMenuState),
                     ("    Movie",  self.swap_media_factory("Movie", "one"),  None, lambda: rvc.UncheckedMenuState),
                     ("    Frames", self.swap_media_factory("Frames", "one"), None, lambda: rvc.UncheckedMenuState),
+                    ("    Streaming", self.swap_media_factory("Streaming", "one"), None, lambda: rvc.UncheckedMenuState),
 
                     ("Swap Media - All Clips", None, None, lambda: rvc.DisabledMenuState),
                     ("    Movie",  self.swap_media_factory("Movie", "all"),  None, lambda: rvc.UncheckedMenuState),
                     ("    Frames", self.swap_media_factory("Frames", "all"), None, lambda: rvc.UncheckedMenuState),
+                    ("    Streaming", self.swap_media_factory("Streaming", "all"), None, lambda: rvc.UncheckedMenuState),
 
                     ("_", None),
                     ("View", None, None, lambda: rvc.DisabledMenuState),
@@ -990,6 +1014,7 @@ class RvActivityMode(rvt.MinorMode):
                         ("Default Media Type", None, None, lambda: rvc.DisabledMenuState),
                         ("    Movie",  self.set_default_media_type_movie,  None, self.default_media_type_state_movie),
                         ("    Frames", self.set_default_media_type_frames, None, self.default_media_type_state_frames),
+                        ("    Streaming", self.set_default_media_type_streaming, None, self.default_media_type_state_streaming),
 
                         ("Default Compare Mode", None, None, lambda: rvc.DisabledMenuState),
                         ("    Grid",             self.set_preferred_compare_mode_factory("Grid"),  None, self.preferred_compare_mode_state_factory("Grid")),
@@ -1529,7 +1554,7 @@ class RvActivityMode(rvt.MinorMode):
         type_string = target_entity["type"]
         if "ids" in target_entity and len(target_entity["ids"]) > 1:
             type_string += "s"
-        rve.displayFeedback("Loading " + type_string +  " ...", 60.0)
+        rve.displayFeedback2("Loading " + type_string +  " ...", 60.0)
         self.main_query_active = True
 
         # XXX assume entire-cut at this point, ok ?
@@ -1861,6 +1886,10 @@ class RvActivityMode(rvt.MinorMode):
         if not path:
             return False
 
+        if path.startswith('http'):
+            # XXX do we have a way to test this URL?
+            return True
+
         return (True if self.no_media_check else bool(rvc.existingFilesInSequence(rvc.undoPathSwapVars(path))))
 
     def swap_in_home_dir(self, path):
@@ -1871,17 +1900,28 @@ class RvActivityMode(rvt.MinorMode):
         return path
 
     def media_type_fallback(self, version_data, media_type):
+        if media_type == "Streaming":
+            path = self.get_url_from_version(version_data['id'])
+        else:
+            path = version_data.get(standard_media_types[media_type].path_field)
+            path = self.swap_in_home_dir(path)
         
-        path = version_data.get(standard_media_types[media_type].path_field)
-        path = self.swap_in_home_dir(path)
+            if not bool(rvc.existingFilesInSequence(rvc.undoPathSwapVars(path))):
+                path = self.get_url_from_version(version_data['id']) 
+     
+        rve.displayFeedback(path, 2.0)   
 
         if self.check_media_contents(path):
             return media_type
 
+        # this section makes you a default if the above check fails
         other = "Movie" if (media_type == "Frames") else "Frames"
         path = version_data.get(standard_media_types[other].path_field)
         path = self.swap_in_home_dir(path)
 
+        if not bool(rvc.existingFilesInSequence(rvc.undoPathSwapVars(path))):
+            path = self.get_url_from_version(version_data['id'])
+        
         if self.check_media_contents(path):
             return other
 
@@ -1902,7 +1942,6 @@ class RvActivityMode(rvt.MinorMode):
     def source_group_from_version_data(self, version_data, media_type=None):
 
         if False:
-            print "source_group_from_version_data() data:"
             pp.pprint(version_data)
 
         source_group = self.find_group_from_version_id(version_data["id"])
@@ -1910,30 +1949,48 @@ class RvActivityMode(rvt.MinorMode):
             return source_group
 
         # We failed to find our RVSourceGroup, so make one.
-
         if media_type is None:
             media_type = self._prefs.preferred_media_type
 
         path = None
         no_media = False
+
         m_type = self.media_type_fallback(version_data, media_type)
-        if m_type: 
-            path = version_data[standard_media_types[m_type].path_field]
-            path = self.swap_in_home_dir(path)
+        if m_type:
+            if m_type == "Streaming":
+                path = self.get_url_from_version(version_data['id'])
+            else: 
+                path = version_data[standard_media_types[m_type].path_field]
+                path = self.swap_in_home_dir(path)
 
         if not path:
             self._app.engine.log_error("Version '%s' has no local media" % version_data["code"])
             fps = 24.0
             if version_data["sg_uploaded_movie_frame_rate"]:
                 fps = float(version_data["sg_uploaded_movie_frame_rate"])
-            path = "black,start=1,end=24,fps=%f.movieproc" % fps
+
+            path = self.get_url_from_version(version_data['id'])
+            if not path:
+                path = "black,start=1,end=24,fps=%f.movieproc" % fps
+            
             m_type = "Movie"
             no_media = True
 
+        if not bool(rvc.existingFilesInSequence(rvc.undoPathSwapVars(path))):
+            if not path.startswith('http'):
+                print "%r does not exist. Trying %r" % ( path, self.get_url_from_version(version_data['id']) )
+            
+            path = self.get_url_from_version(version_data['id'])
+
+        rve.displayFeedback(path, 5.0)
+        
         try:
+            self._app.engine.log_debug("Adding source %r" % path)
             source_node = rvc.addSourceVerbose([path])
         except:
             # XXX
+            # this never happens on file not found...!
+            print "ERROR: EXCEPTION ADDING SOURCE %r" % path
             return
 
         source_group = rvc.nodeGroup(source_node)
