@@ -1905,9 +1905,6 @@ class RvActivityMode(rvt.MinorMode):
         else:
             path = version_data.get(standard_media_types[media_type].path_field)
             path = self.swap_in_home_dir(path)
-        
-            if not bool(rvc.existingFilesInSequence(rvc.undoPathSwapVars(path))):
-                path = self.get_url_from_version(version_data['id']) 
      
         rve.displayFeedback(path, 2.0)   
 
