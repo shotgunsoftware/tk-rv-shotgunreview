@@ -1912,12 +1912,16 @@ class RvActivityMode(rvt.MinorMode):
             return media_type
 
         # this section makes you a default if the above check fails
+        # if path is empty then we default to streaming
         other = "Movie" if (media_type == "Frames") else "Frames"
         path = version_data.get(standard_media_types[other].path_field)
-        path = self.swap_in_home_dir(path)
-
-        if not bool(rvc.existingFilesInSequence(rvc.undoPathSwapVars(path))):
-            path = self.get_url_from_version(version_data['id'])
+        if not path:
+            print "INFO: shotgun path field empty, trying streaming..."
+            return "Streaming"
+        else:
+            path = self.swap_in_home_dir(path)
+            if not bool(rvc.existingFilesInSequence(rvc.undoPathSwapVars(path))):
+                path = self.get_url_from_version(version_data['id'])
         
         if self.check_media_contents(path):
             return other
