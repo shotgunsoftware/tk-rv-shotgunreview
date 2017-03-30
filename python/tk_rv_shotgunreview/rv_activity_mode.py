@@ -55,6 +55,7 @@ class Preferences:
         self.auto_show_details      = rvc.readSettings(g, "auto_show_details",      True)
         self.pin_details            = rvc.readSettings(g, "pin_details",            True)
         self.auto_play              = rvc.readSettings(g, "auto_play",              True)
+        self.auto_streaming         = rvc.readSettings(g, "auto_streaming",         True)
         self.mini_left_count        = rvc.readSettings(g, "mini_left_count",        2)
         self.mini_right_count       = rvc.readSettings(g, "mini_right_count",       2)
 
@@ -88,6 +89,7 @@ class Preferences:
         rvc.writeSettings(g, "auto_show_tray",         self.auto_show_tray)
         rvc.writeSettings(g, "pin_details",            self.pin_details)
         rvc.writeSettings(g, "auto_play",              self.auto_play)
+        rvc.writeSettings(g, "auto_streaming",         self.auto_streaming)
         rvc.writeSettings(g, "mini_left_count",        self.mini_left_count)
         rvc.writeSettings(g, "mini_right_count",       self.mini_right_count)
 
@@ -559,6 +561,13 @@ class RvActivityMode(rvt.MinorMode):
         self._prefs.auto_play = not self._prefs.auto_play
         self._prefs.save()
 
+    def toggle_streaming(self, event):
+        self._prefs.auto_streaming = not self._prefs.auto_streaming
+        self._prefs.save()
+
+    def auto_streaming_state(self):
+        return rvc.CheckedMenuState if self._prefs.auto_streaming else rvc.UncheckedMenuState
+
     def auto_play_state(self):
         return rvc.CheckedMenuState if self._prefs.auto_play else rvc.UncheckedMenuState
 
@@ -819,7 +828,6 @@ class RvActivityMode(rvt.MinorMode):
             version_data = self.version_data_from_source(source_group)
 
         m_type = self.media_type_fallback(version_data, media_type_name)
-
         # XXX warn if falling back
 
         if m_type and m_type != current_media_type: 
@@ -828,6 +836,21 @@ class RvActivityMode(rvt.MinorMode):
 
             if m_type == "Streaming":
                 path = self.get_url_from_version(version_data['id'])
+ 
+            rve.displayFeedback2(path, 2.0)
+            file_source = groupMemberOfType(source_group, "RVFileSource")
+            rvc.setSourceMedia(file_source, [path], "shotgun")
+            self.set_media_type_property(source_group, m_type)
+            self.configure_source_media(source_group, version_data)
+
+            # erase overlay when swapping in?
+            overlay_node = groupMemberOfType(source_group, "RVOverlay")
+            if overlay_node:
+                self.createText(overlay_node + '.text:sg_review_error', ' ', -0.5, 0.0)
+        if m_type == current_media_type and m_type == "Streaming":
+            # we should be able to do nothing, as in not change anything, however this causes a crash
+            # setting the source media again seems to make it happy again
+            path = self.get_url_from_version(version_data['id'])
  
             rve.displayFeedback2(path, 2.0)
             file_source = groupMemberOfType(source_group, "RVFileSource")
@@ -857,6 +880,7 @@ class RvActivityMode(rvt.MinorMode):
         
         if old_media_type and (old_media_type != media_type_name):
             self.set_media_of_source(source_node, media_type_name)
+
 
 
     def swap_media_factory(self, media_type_name, one_or_all):
@@ -1032,6 +1056,7 @@ class RvActivityMode(rvt.MinorMode):
                         ("_", None),
                         ("Pin Details Pane During Playback", self.toggle_pin_details, None, self.pin_details_state),
                         ("Auto-Play After Each Load",        self.toggle_auto_play,   None, self.auto_play_state),
+                        ("Enable Streaming",        self.toggle_streaming,   None, self.auto_streaming_state),
 
                         ]),
                     ("_", None)]
@@ -1921,7 +1946,8 @@ class RvActivityMode(rvt.MinorMode):
         else:
             path = self.swap_in_home_dir(path)
             if not bool(rvc.existingFilesInSequence(rvc.undoPathSwapVars(path))):
-                path = self.get_url_from_version(version_data['id'])
+                if self._prefs.auto_streaming:
+                    path = self.get_url_from_version(version_data['id'])
         
         if self.check_media_contents(path):
             return other
@@ -1970,7 +1996,9 @@ class RvActivityMode(rvt.MinorMode):
             if version_data["sg_uploaded_movie_frame_rate"]:
                 fps = float(version_data["sg_uploaded_movie_frame_rate"])
 
-            path = self.get_url_from_version(version_data['id'])
+            if self._prefs.auto_streaming:
+                path = self.get_url_from_version(version_data['id'])
+
             if not path:
                 path = "black,start=1,end=24,fps=%f.movieproc" % fps
             
@@ -1978,10 +2006,10 @@ class RvActivityMode(rvt.MinorMode):
             no_media = True
 
         if not bool(rvc.existingFilesInSequence(rvc.undoPathSwapVars(path))):
-            if not path.startswith('http'):
-                print "%r does not exist. Trying %r" % ( path, self.get_url_from_version(version_data['id']) )
-            
-            path = self.get_url_from_version(version_data['id'])
+            if self._prefs.auto_streaming:
+                if not path.startswith('http'):
+                    print "%r does not exist. Trying %r" % ( path, self.get_url_from_version(version_data['id']) )
+                path = self.get_url_from_version(version_data['id'])
 
         rve.displayFeedback(path, 5.0)
         
