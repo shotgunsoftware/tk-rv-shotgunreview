@@ -852,7 +852,10 @@ class RvActivityMode(rvt.MinorMode):
             # setting the source media again seems to make it happy again
             path = self.get_url_from_version(version_data['id'])
  
-            rve.displayFeedback2(path, 2.0)
+            # displayFeedback doesnt work due to threading issues
+            # however removing it causes a crash for some reason 
+            rve.displayFeedback2(path, 2.0) 
+            print "INFO: swapping to Streaming. No local media present."
             file_source = groupMemberOfType(source_group, "RVFileSource")
             rvc.setSourceMedia(file_source, [path], "shotgun")
             self.set_media_type_property(source_group, m_type)
