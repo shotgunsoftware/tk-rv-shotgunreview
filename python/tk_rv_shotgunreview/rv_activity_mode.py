@@ -29,7 +29,6 @@ from .tray_delegate import RvTrayDelegate
 from .popup_utils import PopupUtils
 from .ui import resources_rc
 
-
 import sgtk
 
 import pprint
@@ -343,16 +342,16 @@ class RvActivityMode(rvt.MinorMode):
         if event:
             event.reject()
         try:
+            self.set_details_dirty()
+
+            if not self.tray_dock.isVisible():
+                return
+
             idx = self.clip_index_from_frame()
             mini_data = MiniCutData.load_from_session()
 
             if mini_data and mini_data.active:
                 idx = idx + mini_data.first_clip
-
-            self.set_details_dirty()
-
-            if not self.tray_dock.isVisible():
-                return
 
             sel_index = self.tray_model.index(idx, 0)
             sels = self.tray_list.selectionModel().selectedIndexes()
@@ -365,15 +364,9 @@ class RvActivityMode(rvt.MinorMode):
         except Exception as e:
             print "ERROR: RV frameChanged EXCEPTION %r" % e
 
-    def sourcePath(self, event):
-        event.reject()
- 
     def graphStateChange(self, event):
         event.reject()
         self.set_details_dirty()
-
-    def sourceGroupComplete(self, event):
-        event.reject()
 
     def on_play_state_change(self, event):
 
@@ -560,6 +553,25 @@ class RvActivityMode(rvt.MinorMode):
     def toggle_auto_play(self, event):
         self._prefs.auto_play = not self._prefs.auto_play
         self._prefs.save()
+
+    def current_is(self, kind):
+        def F():
+            source = self.current_source()
+            if source and self.get_media_type_of_source(source) == kind:
+                return rvc.CheckedMenuState
+            return rvc.UncheckedMenuState
+        return F
+
+    def allow_streaming(self, one_or_all):
+        def F():
+            if not self._prefs.auto_streaming:
+                return rvc.DisabledMenuState
+            if one_or_all == "one":
+                source = self.current_source()
+                if self.get_media_type_of_source(source) == "Streaming":
+                    return rvc.CheckedMenuState
+            return rvc.UncheckedMenuState
+        return F
 
     def toggle_streaming(self, event):
         self._prefs.auto_streaming = not self._prefs.auto_streaming
@@ -811,7 +823,7 @@ class RvActivityMode(rvt.MinorMode):
                 setProp(range_start_prop, first_frame - int(has_slate))
 
 
-    def set_media_of_source(self, source_group, media_type_name, version_data=None):
+    def set_media_of_source(self, source_group, media_type_name, report=False):
         """
         Given the name of an RVSourceGroup node, set the media held by that node to
         be of the given "media type". (IE at the moment "Movie" or "Frames").
@@ -823,12 +835,12 @@ class RvActivityMode(rvt.MinorMode):
             (source_group, media_type_name))
 
         current_media_type = self.get_media_type_of_source(source_group)
+        version_data = self.version_data_from_source(source_group)
+        m_type = self.media_type_fallback(version_data, media_type_name, report)
 
-        if not version_data:
-            version_data = self.version_data_from_source(source_group)
-
-        m_type = self.media_type_fallback(version_data, media_type_name)
-        # XXX warn if falling back
+        if media_type_name != m_type:
+            self._app.engine.log_warning("Unable to locate desired media type " + 
+                "'%s'. Falling back to '%s'" % (media_type_name,m_type))
 
         if m_type and m_type != current_media_type: 
             path = version_data[standard_media_types[m_type].path_field]
@@ -836,8 +848,7 @@ class RvActivityMode(rvt.MinorMode):
 
             if m_type == "Streaming":
                 path = self.get_url_from_version(version_data['id'])
- 
-            rve.displayFeedback2(path, 2.0)
+
             file_source = groupMemberOfType(source_group, "RVFileSource")
             rvc.setSourceMedia(file_source, [path], "shotgun")
             self.set_media_type_property(source_group, m_type)
@@ -845,29 +856,13 @@ class RvActivityMode(rvt.MinorMode):
 
             # erase overlay when swapping in?
             overlay_node = groupMemberOfType(source_group, "RVOverlay")
-            if overlay_node:
-                self.createText(overlay_node + '.text:sg_review_error', ' ', -0.5, 0.0)
-        if m_type == current_media_type and m_type == "Streaming":
-            # we should be able to do nothing, as in not change anything, however this causes a crash
-            # setting the source media again seems to make it happy again
-            path = self.get_url_from_version(version_data['id'])
- 
-            # displayFeedback doesnt work due to threading issues
-            # however removing it causes a crash for some reason 
-            rve.displayFeedback2(path, 2.0) 
-            print "INFO: swapping to Streaming. No local media present."
-            file_source = groupMemberOfType(source_group, "RVFileSource")
-            rvc.setSourceMedia(file_source, [path], "shotgun")
-            self.set_media_type_property(source_group, m_type)
-            self.configure_source_media(source_group, version_data)
-
-        #self._app.engine.log_warning("Version '%s' has no local media" % version_data["code"])
+            self.createText(overlay_node + '.text:sg_review_error', ' ', -0.5, 0.0)
 
     def get_url_from_version(self, v_id):
         return "%s/file_serve/version/%r/mp4" % (self._app.engine.sgtk.shotgun_url, v_id)
 
 
-    def swap_media_of_source(self, source_node, media_type_name):
+    def swap_media_of_source(self, source_node, media_type_name, report=False):
         """
         Given the name of an RVSourceGroup node, swap the media held by that node to
         be of the given "media type".  Silently ignore sources with no Shotgun
@@ -882,7 +877,7 @@ class RvActivityMode(rvt.MinorMode):
         old_media_type = self.get_media_type_of_source(source_node)
         
         if old_media_type and (old_media_type != media_type_name):
-            self.set_media_of_source(source_node, media_type_name)
+            self.set_media_of_source(source_node, media_type_name, report)
 
 
 
@@ -892,23 +887,9 @@ class RvActivityMode(rvt.MinorMode):
             if one_or_all == "one":
                 sources = [ self.current_source() ]
             else:
-                # Collect all RVSourceGroup nodes that could be input to the
-                # current view node.  In the common case, this will be all the
-                # Versions that appear in the current RVSequence.
-                view = rvc.viewNode()
-                if rvc.nodeType(view) == "RVSourceGroup":
-                    sources = [ view ]
-                else:
-                    # XXX Since the view is not an RVSourceGroup, assuming the
-                    # _inputs_ of the view are ...
-                    inputs = rvc.nodeConnections(view, False)[0]
-                    sources = filter(lambda x: rvc.nodeType(x) == "RVSourceGroup", inputs)
-
-                    # remove duplicates
-                    sources = sorted(set(sources))
-
+                sources = rvc.nodesOfType("RVSourceGroup")
             for source in sources:
-                self.swap_media_of_source(source, media_type_name)
+                self.swap_media_of_source(source, media_type_name, (one_or_all == "one"))
 
         return swap_media
 
@@ -987,14 +968,12 @@ class RvActivityMode(rvt.MinorMode):
                 [
                 ("after-session-read", self.afterSessionRead, ""),
                 ("before-session-read", self.beforeSessionRead, ""),
-                #   ("pointer-1--drag", self.pointer_drag, ""),
                 ("after-graph-view-change", self.viewChange, ""),
                 ("frame-changed", self.frameChanged, ""),
                 ("graph-node-inputs-changed", self.inputsChanged, ""),
                 ("compare_with_current", self.compare_with_current, ""),
                 ("compare_selected", self.compare_selected, ""),
                 ("swap_into_sequence", self.swapIntoSequence, ""),
-                ("source-group-complete", self.sourceGroupComplete, ""),
                 ("replace_with_selected", self.replaceWithSelected, ""),
                 ("graph-state-change", self.graphStateChange, ""),
                 ('id_from_gma', self.on_id_from_gma, ""),
@@ -1019,14 +998,14 @@ class RvActivityMode(rvt.MinorMode):
                     ("_", None),
                     
                     ("Swap Media - Current Clip", None, None, lambda: rvc.DisabledMenuState),
-                    ("    Movie",  self.swap_media_factory("Movie", "one"),  None, lambda: rvc.UncheckedMenuState),
-                    ("    Frames", self.swap_media_factory("Frames", "one"), None, lambda: rvc.UncheckedMenuState),
-                    ("    Streaming", self.swap_media_factory("Streaming", "one"), None, lambda: rvc.UncheckedMenuState),
+                    ("    Movie",  self.swap_media_factory("Movie", "one"),  None, self.current_is("Movie")),
+                    ("    Frames", self.swap_media_factory("Frames", "one"), None, self.current_is("Frames")),
+                    ("    Streaming", self.swap_media_factory("Streaming", "one"), None, self.allow_streaming("one")),
 
                     ("Swap Media - All Clips", None, None, lambda: rvc.DisabledMenuState),
                     ("    Movie",  self.swap_media_factory("Movie", "all"),  None, lambda: rvc.UncheckedMenuState),
                     ("    Frames", self.swap_media_factory("Frames", "all"), None, lambda: rvc.UncheckedMenuState),
-                    ("    Streaming", self.swap_media_factory("Streaming", "all"), None, lambda: rvc.UncheckedMenuState),
+                    ("    Streaming", self.swap_media_factory("Streaming", "all"), None, self.allow_streaming("all")),
 
                     ("_", None),
                     ("View", None, None, lambda: rvc.DisabledMenuState),
@@ -1927,47 +1906,51 @@ class RvActivityMode(rvt.MinorMode):
 
         return path
 
-    def media_type_fallback(self, version_data, media_type):
+    def media_type_fallback(self, version_data, media_type, report=False):
         if media_type == "Streaming":
             path = self.get_url_from_version(version_data['id'])
         else:
             path = version_data.get(standard_media_types[media_type].path_field)
             path = self.swap_in_home_dir(path)
-     
-        rve.displayFeedback(path, 2.0)   
-
-        if self.check_media_contents(path):
-            return media_type
+        
+        if not path:
+            if report:
+                rve.displayFeedback2("No Shotgun entry found for '%s'" % media_type, 2.0)
+        else:
+            if self.check_media_contents(path):
+                rve.displayFeedback2(path, 2.0)
+                return media_type
+            elif report:
+                rve.displayFeedback2("No media located for '%s'" % media_type, 2.0)
 
         # this section makes you a default if the above check fails
         # if path is empty then we default to streaming
         other = "Movie" if (media_type == "Frames") else "Frames"
         path = version_data.get(standard_media_types[other].path_field)
         if not path:
-            print "INFO: shotgun path field empty, trying streaming..."
-            return "Streaming"
+            if self._prefs.auto_streaming:
+                rve.displayFeedback2("Shotgun path field empty for '%s', trying streaming" % media_type, 2.0)
+                return "Streaming"
+            else:
+                return None
         else:
             path = self.swap_in_home_dir(path)
-            if not bool(rvc.existingFilesInSequence(rvc.undoPathSwapVars(path))):
-                if self._prefs.auto_streaming:
-                    path = self.get_url_from_version(version_data['id'])
-        
+
         if self.check_media_contents(path):
             return other
 
-        return None
+        return "Streaming" if self._prefs.auto_streaming else None
             
     def find_group_from_version_id(self, version_id):
 
-        group = None
         for s in rvc.nodesOfType("RVSourceGroup"):
             if getIntProp(s + ".sg_review.version_id", -1) == version_id:
                 # XXX we should be storing/checking url too
                 # XXX possibly this version data is stale, think about when we
                 # might refresh ?
-                group =  s
+                return s
 
-        return group
+        return None
 
     def source_group_from_version_data(self, version_data, media_type=None):
 
@@ -2014,8 +1997,6 @@ class RvActivityMode(rvt.MinorMode):
                     print "%r does not exist. Trying %r" % ( path, self.get_url_from_version(version_data['id']) )
                 path = self.get_url_from_version(version_data['id'])
 
-        rve.displayFeedback(path, 5.0)
-        
         try:
             self._app.engine.log_debug("Adding source %r" % path)
             source_node = rvc.addSourceVerbose([path])
