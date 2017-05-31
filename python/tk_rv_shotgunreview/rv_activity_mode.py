@@ -2628,7 +2628,7 @@ class RvActivityMode(rvt.MinorMode):
             if found_version:
                 # we're looking at a source representing a Version, so
                 # maybe make details visible, but always hide tray
-                if not self.details_hidden_this_session:
+                if not self.details_hidden_this_session and self._prefs.auto_show_details:
                     self.note_dock.show()
                 self.tray_dock.hide()
 
