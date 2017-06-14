@@ -11,6 +11,7 @@ shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "sho
 SimpleShotgunModel = shotgun_model.SimpleShotgunModel
 ShotgunModel = shotgun_model.ShotgunModel
 
+
 class TrayModel(ShotgunModel):
 
     # signal which gets emitted whenever the model has been updated with fresh FILTERED data.
@@ -209,70 +210,35 @@ class TrayModel(ShotgunModel):
 
     def _set_tooltip(self, item, sg_item):
         """
-        Called when an item is created.
-
-        .. note:: You can subclass this if you want to set your own tooltip for the model item. By
-            default, the SG_ASSOCIATED_FIELD_ROLE data is retrieved and the field name is used to
-            determine which field to pick tooltip information from.
-
-            For example,
-
-            .. code-block:: python
-
-               {
-                   "type": "Task",
-                   "entity": {                       # (1) Tooltip becomes "Asset 'Alice'"
-                       "sg_asset_type": "Character", # (2) Tooltip becomes "Asset Type 'Character'"
-                       "type": "Asset",
-                       "code": "Alice"
-                   },
-                   "content": "Art"                  # (3) Tooltip becomes "Task 'Art'"
-               }
-
-            1) If the field is an entity (e.g. entity), then the display name of that entity's type
-            will be used.
-
-            2) If the field is part of a sub-entity (e.g entity.Asset.sg_asset_type), the display
-            name of the sub-entity's type followed by a space and the sub-entity's field display name
-            will be used.
-
-            3) If the field is part of an entity and not an entity field(e.g. content), the display
-            name of the entity's type will be used.
-
-            In all cases, the string ends with the quoted name of the ShotgunStandardItem.
+        Called when an item is created to set its tooltip. The given Cut entity
+        provides information used to construct the item's tooltip such that it
+        matches that shown in Shotgun's Media app, and includes the version name,
+        version status, linked entity type, and linked entity name.
 
         :param item: Shotgun model item that requires a tooltip.
         :param sg_item: Dictionary of the entity associated with the Shotgun model item.
         """
+        import pprint
 
-        data = item.data(self.SG_ASSOCIATED_FIELD_ROLE)
-        field = data["name"]
-        if isinstance(sg_item[field], dict) and "type" in sg_item[field]:
-            # This is scenario 1 described above.
-            item.setToolTip(
-                "%s '%s'" % (
-                    self._shotgun_globals.get_type_display_name(sg_item[field]["type"]),
-                    item.text()
-                )
-            )
-        elif "." in field:
-            # This is scenario 2 described above.
-            _, sub_entity_type, sub_entity_field_name = field.split(".")
-            item.setToolTip(
-                "%s %s '%s'" % (
-                    self._shotgun_globals.get_type_display_name(sub_entity_type),
-                    self._shotgun_globals.get_field_display_name(sub_entity_type, sub_entity_field_name),
-                    item.text()
-                )
-            )
+        version_name = sg_item.get("version.Version.code", "[Unknown Version Name]")
+        version_status = sg_item.get("version.Version.sg_status_list", None)
+        linked_entity = sg_item.get("version.Version.entity", dict())
+        linked_entity_type = linked_entity.get("type", "[Unknown Linked Entity Type]")
+        linked_entity_name = linked_entity.get("name", "[Unknown Linked Entity Name]")
+
+        if version_status is None:
+            version_status = "[Unknown Version Status]"
         else:
-            # This is scenario 3 described above.
-            item.setToolTip(
-                "%s '%s'" % (
-                    self._shotgun_globals.get_type_display_name(sg_item["type"]),
-                    item.text()
-                )
+            version_status = self._shotgun_globals.get_status_display_name(version_status)
+
+        item.setToolTip(
+            "Version %s with status \"%s\" on %s %s" % (
+                version_name,
+                version_status,
+                linked_entity_type,
+                linked_entity_name
             )
+        )
 
     def _request_thumbnail_download(self, item, field, url, entity_type, entity_id):
         """
