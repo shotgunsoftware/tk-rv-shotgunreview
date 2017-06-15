@@ -218,8 +218,6 @@ class TrayModel(ShotgunModel):
         :param item: Shotgun model item that requires a tooltip.
         :param sg_item: Dictionary of the entity associated with the Shotgun model item.
         """
-        import pprint
-
         version_name = sg_item.get("version.Version.code", "[Unknown Version Name]")
         version_status = sg_item.get("version.Version.sg_status_list", None)
         linked_entity = sg_item.get("version.Version.entity", dict())
