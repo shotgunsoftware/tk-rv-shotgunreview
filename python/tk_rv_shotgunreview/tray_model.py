@@ -1,6 +1,13 @@
+# Copyright (c) 2017 Shotgun Software Inc.
+#
+# CONFIDENTIAL AND PROPRIETARY
+#
+# This work is provided "AS IS" and subject to the Shotgun Pipeline Toolkit
+# Source Code License included in this distribution package. See LICENSE.
+# By accessing, using, copying or modifying this work you indicate your
+# agreement to the Shotgun Pipeline Toolkit Source Code License. All rights
+# not expressly granted therein are reserved by Shotgun Software Inc.
 
-
-# import the shotgun_model module from the shotgun utils framework
 import tank
 from PySide import QtCore, QtGui
 
@@ -45,6 +52,25 @@ class TrayModel(ShotgunModel):
         self._PINNED_THUMBNAIL = QtCore.Qt.UserRole + 1704
 
         self._pinned_items = {}
+        self._version_order = []
+
+    @property
+    def version_order(self):
+        """
+        Used to store a list of version ids in the order that the Versions
+        should be presented in the tray. This property is only used when
+        Version entities are loaded into SG Review directly -- if cuts or
+        playlists are loaded up, the orders defined in those entities are
+        used instead.
+
+        :returns: A list of integer Version entity ids.
+        :rtype: list
+        """
+        return self._version_order
+
+    @version_order.setter
+    def version_order(self, version_ids):
+        self._version_order = version_ids
 
     def clear_pinned_items(self):
         self._pinned_items = {}        
