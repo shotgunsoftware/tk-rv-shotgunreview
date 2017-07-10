@@ -1632,6 +1632,13 @@ class RvActivityMode(rvt.MinorMode):
     def load_tray_with_version_ids(self, ids):
         vfilters = [["id", "in", ids]]
         vfields =  [ "playlists", "image" ] + required_version_fields
+
+        # Since we're dealing with Version entities, which themselves have no
+        # built-in ordering (like Playlists and Cuts do), we need to keep track
+        # of the order as it was given to RV on launch. We store the list of
+        # Version ids on the tray_model, and the tray_sort_filter makes use of
+        # that when it is informing Qt of the ordering of the items in the tray.
+        self.tray_model.version_order = ids
         self.tray_model.load_data(entity_type="Version", filters=vfilters, fields=vfields)
 
     def load_tray_with_playlist_id(self, playlist_id=None):
