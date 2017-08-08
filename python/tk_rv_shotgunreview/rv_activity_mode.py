@@ -568,7 +568,7 @@ class RvActivityMode(rvt.MinorMode):
                 return rvc.DisabledMenuState
             if one_or_all == "one":
                 source = self.current_source()
-                if self.get_media_type_of_source(source) == "Streaming":
+                if source and self.get_media_type_of_source(source) == "Streaming":
                     return rvc.CheckedMenuState
             return rvc.UncheckedMenuState
         return F
