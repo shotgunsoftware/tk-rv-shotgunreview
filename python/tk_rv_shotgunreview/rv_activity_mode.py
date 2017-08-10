@@ -2191,10 +2191,9 @@ class RvActivityMode(rvt.MinorMode):
         edit_data["out"] = sg.get("sg_last_frame",  None)
         edit_data["shot"] = None
 
-        if edit_data["in"]  is None:
-            edit_data["in"]  = 1;
-        if edit_data["out"] is None:
-            edit_data["out"] = 100;
+        # Note, we used to fallback to assuming range = 1-100 for sources
+        # that do not have first/last frame fields set, now we allow those
+        # "None"s to flow through here and we'll adjust later.
 
         if sg.get("entity"):
             if sg.get("entity").get("type") == "Shot":
@@ -2207,13 +2206,6 @@ class RvActivityMode(rvt.MinorMode):
             (version_data, edit_data) = self.data_from_cut_item(sg_item, rv_item)
         else:
             (version_data, edit_data) = self.data_from_version(sg_item)
-
-        #  Try to recover from cases with missing data
-        #
-        if edit_data["in"] is None:
-            edit_data["in"] = 1
-        if edit_data["out"] is None:
-            edit_data["out"] = edit_data["in"] + 24
 
         return (version_data, edit_data)
 
@@ -2424,9 +2416,6 @@ class RvActivityMode(rvt.MinorMode):
             (version_data, edit_data) = self.data_from_query_item(
                     sg_item, rv_item, self.target_entity)
 
-            # store edit_data
-            edit_data_list.append(json.dumps(edit_data))
-
             # If displaying a Cut and the shot of this CutItem corresponds to a
             # pinned version, use that instead.
             if self.target_entity.get("type") == "Cut":
@@ -2441,6 +2430,27 @@ class RvActivityMode(rvt.MinorMode):
             # Now we have version data, find or create the corresponding
             # RVSourceGroup
             src_group_or_proxy = self.find_source_group_or_proxy_from_version_data(version_data)
+
+            # We now have edit_data and version_data and corresponding
+            # (possibly proxy) source group.  If we are showing Versions (not
+            # Cut) and DB did not contain proper first/last frame data for this
+            # Version, we'll have "None" in place if "in" and "out" in
+            # edit_data.  In that case, de-proxy source if necessary, then use
+            # actual range of source node as in/out in EDL.
+
+            if edit_data["in"] == None or edit_data["out"] == None:
+                # de-proxy source group if necessary
+                src_group_or_proxy = self.unproxied_source_group(src_group_or_proxy)
+                # get range_info from media
+                ri = rv.commands.nodeRangeInfo(src_group_or_proxy)
+                # use range_info in EDL
+                if edit_data["in"] == None:
+                    edit_data["in"] = ri["start"]
+                if edit_data["out"] == None:
+                    edit_data["out"] = ri["end"]
+                
+            # store edit_data
+            edit_data_list.append(json.dumps(edit_data))
 
             # If looking for mini-cut focus, check all possible methods of
             # matching the clip.
