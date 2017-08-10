@@ -1723,8 +1723,7 @@ class RvActivityMode(rvt.MinorMode):
         shadow_inputs = getStringProp(seq_node + ".shadow_edl.inputs", [])
 
         # all shadow_inputs will be used, so de-proxify any proxy sources
-        for i in range(len(shadow_inputs)):
-            shadow_inputs[i] = self.unproxied_source_group(shadow_inputs[i])
+        shadow_inputs = map(self.unproxied_source_group, shadow_inputs)
 
         setProp(seq_node + ".shadow_edl.inputs", shadow_inputs)
 
@@ -2003,11 +2002,13 @@ class RvActivityMode(rvt.MinorMode):
         if (source_name.isdigit()):
             id = int(source_name)
             source_name = self.find_group_from_version_id(id)
-            if (not source_name and id in self.proxy_sources):
-                source_name = self.source_group_from_version_data(self.proxy_sources[id])
-                del self.proxy_sources[id]
-            else :
-                self._app.engine.log_error("Proxy Version '%s' not in proxy map!" % source_name)
+            if (not source_name):
+                try:
+                    source_name = self.source_group_from_version_data(self.proxy_sources[id])
+                    del self.proxy_sources[id]
+                except KeyError:
+                    self._app.engine.log_error("Proxy Version '%d' not in proxy map!" % id)
+                    source_name = str(id)
 
         return source_name
 
@@ -2574,8 +2575,7 @@ class RvActivityMode(rvt.MinorMode):
             setProp(seq_node + ".edl.out",    edl_outs)
 
             # we are using all shadow inputs, so de-proxify any proxy sources
-            for i in range(len(seq_inputs)):
-                seq_inputs[i] = self.unproxied_source_group(seq_inputs[i])
+            seq_inputs = map(self.unproxied_source_group, seq_inputs)
 
             setProp(seq_node + ".shadow_edl.inputs", seq_inputs)
 
