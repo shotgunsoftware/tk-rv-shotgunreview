@@ -810,6 +810,15 @@ class RvActivityMode(rvt.MinorMode):
 
         file_source = groupMemberOfType(source_group, "RVFileSource")
 
+        # Get valid (float) pixelAspectRatio -- Note that 0.0 means "determine from media metadata"
+        aspect = version_data.get(standard_media_types[media_type].aspect_field, 0.0)
+        aspect = 0.0 if aspect == None else float(aspect);
+
+        # Set pixel aspect ratio
+        pipe_group = groupMemberOfType(source_group, "RVLinearizePipelineGroup")
+        warp_node  = groupMemberOfType(pipe_group, "RVLensWarp")
+        setProp(warp_node + ".warp.pixelAspectRatio", aspect)
+
         # Set up correct source frame mapping
 
         if version_data["sg_uploaded_movie_frame_rate"]:
