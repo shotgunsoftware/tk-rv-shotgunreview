@@ -255,8 +255,16 @@ class RvActivityMode(rvt.MinorMode):
         
         if not group_name:
             group_name = self.current_source()
-                
+
         if group_name:
+            # This source name may be a "proxy" IE waiting to be created at a later
+            # date.  If so, we have the corresponding version_data in the
+            # proxy_sources map, so return that.
+            if (group_name.isdigit()):
+                id = int(group_name)
+                if (id in self.proxy_sources):
+                    return self.proxy_sources[id]
+                    
             version_data_str = getStringProp(group_name + ".sg_review.version_data", None)
             if version_data_str:
                 try:
@@ -961,7 +969,10 @@ class RvActivityMode(rvt.MinorMode):
         self.incoming_pinned = {}
         self.incoming_mini_cut_focus = None
 
-        
+        # Dict of "sources" that we haven't created yet (to speed up start-up
+        # when starting with mini-cut).  Contents are "version_data" from SG,
+        # indexed by version ID.
+        self.proxy_sources = {}
 
 
         self.init("RvActivityMode", None,
@@ -1448,6 +1459,9 @@ class RvActivityMode(rvt.MinorMode):
         if mini_data.active:
             clip_index += mini_data.first_clip
 
+        # Note: we're not worried about "proxied" sources here because we're
+        # replacing the input that corresponds to the frame the playhead is on,
+        # and that input is therefor not a proxy (cause we're looking at it).
         shadow_source = getIntProp(seq_node + ".shadow_edl.source", [])
         shadow_inputs = getStringProp(seq_node + ".shadow_edl.inputs", [])
         shadow_inputs[shadow_source[clip_index]] = src_group
@@ -1708,6 +1722,11 @@ class RvActivityMode(rvt.MinorMode):
         shadow_out    = getIntProp   (seq_node + ".shadow_edl.out",    [])
         shadow_inputs = getStringProp(seq_node + ".shadow_edl.inputs", [])
 
+        # all shadow_inputs will be used, so de-proxify any proxy sources
+        shadow_inputs = map(self.unproxied_source_group, shadow_inputs)
+
+        setProp(seq_node + ".shadow_edl.inputs", shadow_inputs)
+
         # configure sequence node
         setProp(seq_node + ".edl.source", shadow_source)
         setProp(seq_node + ".edl.frame",  shadow_frame)
@@ -1948,6 +1967,23 @@ class RvActivityMode(rvt.MinorMode):
 
         return "Streaming" if self._prefs.auto_streaming else None
             
+    # Look for sourceGroup corresponding to version_data.  If not found, store
+    # version_data in proxy_sources map, indexed by version ID and return ID as
+    # sourceGroup "name" (proxy) - we'll later use the id to "de-proxy" the sourceGroup..
+    #
+    def find_source_group_or_proxy_from_version_data(self, version_data):
+
+        source_group = self.find_group_from_version_id(version_data["id"])
+        if source_group:
+            return source_group
+
+        # We don't have "real" sourceGroup for this source yet, so squirrel
+        # away version_data and use Version ID as proxy source name for now.
+
+        self.proxy_sources[version_data["id"]] = version_data
+
+        return str(version_data["id"])
+
     def find_group_from_version_id(self, version_id):
 
         for s in rvc.nodesOfType("RVSourceGroup"):
@@ -1958,6 +1994,23 @@ class RvActivityMode(rvt.MinorMode):
                 return s
 
         return None
+
+    def unproxied_source_group(self, source_name):
+
+        # SourceGroup names that are all digits are proxies.  Name is version ID.
+        #
+        if (source_name.isdigit()):
+            id = int(source_name)
+            source_name = self.find_group_from_version_id(id)
+            if (not source_name):
+                try:
+                    source_name = self.source_group_from_version_data(self.proxy_sources[id])
+                    del self.proxy_sources[id]
+                except KeyError:
+                    self._app.engine.log_error("Proxy Version '%d' not in proxy map!" % id)
+                    source_name = str(id)
+
+        return source_name
 
     def source_group_from_version_data(self, version_data, media_type=None):
 
@@ -2218,7 +2271,6 @@ class RvActivityMode(rvt.MinorMode):
         # get source of this index
 
         seq_node      = groupMemberOfType(seq_group, "RVSequence")
-        inputs        = rvc.nodeConnections(seq_group, False)[0]
         shadow_source = getIntProp(seq_node + ".shadow_edl.source", [])
         shadow_inputs = getStringProp(seq_node + ".shadow_edl.inputs", [])
 
@@ -2232,7 +2284,9 @@ class RvActivityMode(rvt.MinorMode):
 
         source_group = shadow_inputs[shadow_source[index]]
 
-        # get shot from version_data of this source and look up in pinned
+        # get shot from version_data of this source and look up in pinned 
+        # Note: "source_group" at this point may be a proxy source (IE a
+        # Version ID), version_data_from_source() will handle this case
 
         version_data = self.version_data_from_source(source_group)
 
@@ -2261,6 +2315,7 @@ class RvActivityMode(rvt.MinorMode):
                 sg_item = shotgun_model.get_sg_data(item)
                 (version_data, edit_data) = self.data_from_version(sg_item)
                 if version_data:
+                    # making source here without reference to edit_data since we are in compare mode.
                     sources.append(self.source_group_from_version_data(version_data))
 
             self.compare_sources(sources)
@@ -2385,7 +2440,7 @@ class RvActivityMode(rvt.MinorMode):
 
             # Now we have version data, find or create the corresponding
             # RVSourceGroup
-            src_group = self.source_group_from_version_data(version_data)
+            src_group_or_proxy = self.find_source_group_or_proxy_from_version_data(version_data)
 
             # If looking for mini-cut focus, check all possible methods of
             # matching the clip.
@@ -2409,12 +2464,12 @@ class RvActivityMode(rvt.MinorMode):
                     mini_focus_clip_from_item = len(edl_frames)
 
             # input_num for this clip is just the nth input, unless we already have it.
-            if src_group in input_map:
-                input_num = input_map[src_group]
+            if src_group_or_proxy in input_map:
+                input_num = input_map[src_group_or_proxy]
             else:
                 input_num = len(seq_inputs)
-                input_map[src_group] = input_num
-                seq_inputs.append(src_group)
+                input_map[src_group_or_proxy] = input_num
+                seq_inputs.append(src_group_or_proxy)
 
             edl_source_nums.append(input_num)
             edl_ins.        append(edit_data["in"])
@@ -2451,8 +2506,6 @@ class RvActivityMode(rvt.MinorMode):
         # make sure RV doesn't automatically create the EDL
         setProp(seq_node + ".mode.autoEDL",    0)
         setProp(seq_node + ".mode.useCutInfo", 0)
-
-        setProp(seq_node + ".shadow_edl.inputs", seq_inputs)
 
         edl_source_nums.append(0)
         edl_ins.append(0)
@@ -2504,6 +2557,10 @@ class RvActivityMode(rvt.MinorMode):
 
 
         if mini_data.active:
+            # Store shadow inputs.  If some of these are proxies, load_mini_cut
+            # will make them "real".
+            setProp(seq_node + ".shadow_edl.inputs", seq_inputs)
+
             # XXX f = rvc.frame()
             self.load_mini_cut(mini_data.focus_clip - mini_data.first_clip, seq_group=seq_group_node)
             # XXX rvc.setFrame(f)
@@ -2516,6 +2573,11 @@ class RvActivityMode(rvt.MinorMode):
             setProp(seq_node + ".edl.frame",  edl_frames)
             setProp(seq_node + ".edl.in",     edl_ins)
             setProp(seq_node + ".edl.out",    edl_outs)
+
+            # we are using all shadow inputs, so de-proxify any proxy sources
+            seq_inputs = map(self.unproxied_source_group, seq_inputs)
+
+            setProp(seq_node + ".shadow_edl.inputs", seq_inputs)
 
             rvc.setNodeInputs(seq_group_node, seq_inputs)
 
@@ -2749,6 +2811,9 @@ class RvActivityMode(rvt.MinorMode):
 
         for i in range(first_index, last_index + 1):
 
+            # We know what we're loading now, so make sure there are real sources to show.
+            shadow_inputs[shadow_source[i]] = self.unproxied_source_group(shadow_inputs[shadow_source[i]])
+
             # input_num for this clip is just the nth input, unless we already
             # have it.  Either way it is already in the shadow_inputs list at
             # the source index for this clip
@@ -2775,6 +2840,10 @@ class RvActivityMode(rvt.MinorMode):
         mini_in.append(0)
         mini_out.append(0)
         mini_frame.append(accumulated_frames + 1)
+
+        # In case we adjusted (de-proxied) source groups above, be sure we
+        # store the correct shadow inputs  in graph.
+        setProp(seq_node + ".shadow_edl.inputs", shadow_inputs)
 
         # configure sequence node
         setProp(seq_node + ".edl.source", mini_source)
