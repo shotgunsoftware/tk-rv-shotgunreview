@@ -254,8 +254,12 @@ class TrayModel(ShotgunModel):
         version_name = sg_item.get(prefix + "code", "[Unknown Version Name]")
         version_status = sg_item.get(prefix + "sg_status_list", None)
         linked_entity = sg_item.get(prefix + "entity", dict())
-        linked_entity_type = linked_entity.get("type", "[Unknown Linked Entity Type]")
-        linked_entity_name = linked_entity.get("name", "[Unknown Linked Entity Name]")
+        if linked_entity:
+                linked_entity_type = linked_entity.get("type", "[Unknown Linked Entity Type]")
+                linked_entity_name = linked_entity.get("name", "[Unknown Linked Entity Name]")
+        else:
+                linked_entity_type = "[No Linked Entity]"
+                linked_entity_name = "[No Linked Entity]"
 
         if version_status is None:
             version_status = "[Unknown Version Status]"
