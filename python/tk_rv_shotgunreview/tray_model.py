@@ -9,7 +9,7 @@
 # not expressly granted therein are reserved by Shotgun Software Inc.
 
 import tank
-from PySide import QtCore, QtGui
+from sgtk.platform.qt import QtCore, QtGui
 
 import pprint
 pp = pprint.PrettyPrinter(indent=4)

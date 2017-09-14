@@ -1,6 +1,6 @@
 # import the shotgun_model module from the shotgun utils framework
 import tank
-from PySide import QtCore, QtGui
+from sgtk.platform.qt import QtCore, QtGui
 
 shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
 SimpleShotgunModel = shotgun_model.SimpleShotgunModel

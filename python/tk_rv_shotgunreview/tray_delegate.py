@@ -1,5 +1,3 @@
-from PySide import QtGui, QtCore
-
 import types
 import os
 import math
@@ -7,6 +5,7 @@ import rv
 import rv.qtutils
 import sys
 import tank
+from sgtk.platform.qt import QtGui, QtCore
 
 from .tray_widget import TrayWidget
 

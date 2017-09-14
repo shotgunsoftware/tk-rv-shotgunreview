@@ -1,6 +1,3 @@
-from PySide.QtCore import QTimer, SIGNAL
-from PySide import QtGui, QtCore
-
 import copy
 import types
 import os
@@ -14,6 +11,7 @@ import tempfile
 import json
 import urllib
 import time
+from sgtk.platform.qt import QtGui, QtCore
 
 import rv.rvtypes as rvt
 import rv.commands as rvc
@@ -1298,8 +1296,8 @@ class RvActivityMode(rvt.MinorMode):
         # XXX pipeline steps are 'global' to shotgun? so this only needs to happen once?
         self._popup_utils.get_pipeline_steps_with_model()
 
-        self.details_timer = QTimer(rvqt.sessionWindow())
-        self.note_dock.connect(self.details_timer, SIGNAL("timeout()"), self.check_details)
+        self.details_timer = QtCore.QTimer(rvqt.sessionWindow())
+        self.note_dock.connect(self.details_timer, QtCore.SIGNAL("timeout()"), self.check_details)
         self.details_timer.setSingleShot(True)
         self.details_timer.setInterval(100)
 
