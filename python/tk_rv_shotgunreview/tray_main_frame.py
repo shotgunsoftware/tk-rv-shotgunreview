@@ -326,3 +326,19 @@ class TrayMainFrame(QtGui.QFrame):
         action = menu.exec_(self.tray_list.mapToGlobal(point))
         menu.execute_callback(action)
 
+    def _selected_version_entities(self):
+        """
+        Returns a list of Version entities that are currently selected.
+
+        I have a hunch this already exists somewhere, but I can't find it.
+            -- @jburnell
+        """
+        selection_model = self.tray_list.selectionModel()
+        indexes = selection_model.selectedIndexes()
+        entities = []
+
+        for i in indexes:
+            entity = shotgun_model.get_sg_data(i)
+            entities.append(entity)
+
+        return entities
