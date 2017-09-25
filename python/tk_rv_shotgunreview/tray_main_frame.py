@@ -15,6 +15,13 @@ from .mini_cut_widget import MiniCutWidget
 import os
 import tank
 task_manager = tank.platform.import_framework("tk-framework-shotgunutils", "task_manager")
+shotgun_model = tank.platform.import_framework("tk-framework-shotgunutils", "shotgun_model")
+shotgun_view = tank.platform.import_framework("tk-framework-qtwidgets", "views")
+shotgun_version_details = tank.platform.import_framework("tk-framework-qtwidgets", "version_details")
+
+from .version_context_menu import VersionContextMenu
+
+import pprint
 
 class TrayMainFrame(QtGui.QFrame):
 
@@ -31,6 +38,8 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_list = None
         self.tray_delegate = None
         self.tray_proxyModel = None
+
+        self._version_context_menu_actions = []
 
         self._rv_mode = rv_mode
         # using the new singleton bg manager
@@ -226,16 +235,19 @@ class TrayMainFrame(QtGui.QFrame):
         # QListView ##########################
         #####################################################################
         self.tray_list = QtGui.QListView()
+        self.tray_list.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
         self.tray_list.rv_mode = self._rv_mode
         self.tray_list.setFocusPolicy(QtCore.Qt.NoFocus)
                 
         self.tray_frame_vlayout.addWidget(self.tray_list)
         
         from .tray_model import TrayModel
-        self.tray_model = TrayModel(self.tray_list, bg_task_manager=self._task_manager, engine=self._rv_mode._app.engine)
+        self.tray_model = TrayModel(self.tray_list,
+                                    bg_task_manager=self._task_manager,
+                                    engine=self._rv_mode._app.engine)
 
         from .tray_sort_filter import TraySortFilter
-        self.tray_proxyModel =  TraySortFilter(self.tray_list)
+        self.tray_proxyModel = TraySortFilter(self.tray_list)
         self.tray_proxyModel.setSourceModel(self.tray_model)
 
         self.tray_list.setModel(self.tray_proxyModel)
@@ -244,6 +256,8 @@ class TrayMainFrame(QtGui.QFrame):
         self.tray_delegate = RvTrayDelegate(self.tray_list)
         self.tray_list.setItemDelegate(self.tray_delegate)
 
+        self.tray_list.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.tray_list.setSelectionMode(QtGui.QAbstractItemView.ExtendedSelection)
         self.tray_list.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.tray_list.setFlow(QtGui.QListView.LeftToRight)
         self.tray_list.setUniformItemSizes(True)
@@ -258,4 +272,57 @@ class TrayMainFrame(QtGui.QFrame):
         self.mc_widget.tray_dock = self.tray_dock
        
 
+        # Create context menu
+        self.tray_list.customContextMenuRequested.connect(
+            self._show_version_context_menu
+        )
+
+    def add_version_context_menu_action(self, action_definition):
+        """
+        Adds an action to the version tab's context menu.
+
+        Action definitions passed in must take the following form:
+
+            dict(
+                callback=callable,
+                text=str,
+                required_selection="single"
+            )
+
+        Where the callback is a callable object that expects to receive
+        a list of Version entity dictionaries as returned by the Shotgun
+        Python API. The text key contains the string labels of the action
+        in the QMenu, and the required_selection is one of "single", "multi",
+        or "either". Any action requiring a "single" selection will be enabled
+        only if there is a single item selected in the Version list view,
+        those requiring "multi" selection require 2 or more selected items,
+        and the "either" requirement results in the action being enabled if
+        one or more items are selected.
+
+        :param action_definition:   The action defition to add to the menu.
+                                    This takes the form of a dictionary of
+                                    a structure described in the method docs
+                                    above.
+        :type action_definition:    dict
+        """
+        self._version_context_menu_actions.append(action_definition)
+
+    def _show_version_context_menu(self, point):
+        """
+        Shows the version list context menu containing all available
+        actions. Which actions are enabled is determined by how many
+        items in the list are selected.
+
+        :param point:   The QPoint location to show the context menu at.
+        """
+        versions = self._selected_version_entities()
+        menu = VersionContextMenu(versions)
+
+        for menu_action in self._version_context_menu_actions:
+            menu.addAction(action_definition=menu_action)
+
+        # Show the menu at the mouse cursor. Whatever action is
+        # chosen from the menu will have its callback executed.
+        action = menu.exec_(self.tray_list.mapToGlobal(point))
+        menu.execute_callback(action)
 
