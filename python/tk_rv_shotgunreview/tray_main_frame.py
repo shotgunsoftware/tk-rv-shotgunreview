@@ -20,6 +20,7 @@ shotgun_view = tank.platform.import_framework("tk-framework-qtwidgets", "views")
 shotgun_version_details = tank.platform.import_framework("tk-framework-qtwidgets", "version_details")
 
 from .version_context_menu import VersionContextMenu
+from .nested_version_qmenu import NestedVersionQMenu
 
 import pprint
 
@@ -270,7 +271,6 @@ class TrayMainFrame(QtGui.QFrame):
         # mc_widget can change its parent when undocked, so we need to store a reference to 
         # tray_dock so we dont have to rely on parent exclusively.
         self.mc_widget.tray_dock = self.tray_dock
-       
 
         # Create context menu
         self.tray_list.customContextMenuRequested.connect(
@@ -330,89 +330,6 @@ class TrayMainFrame(QtGui.QFrame):
         action = menu.exec_(self.tray_list.mapToGlobal(point))
         menu.execute_callback(action)
 
-    def __create_nested_menu(self, menu_name, menu_items, parent):
-        """
-        This goal here is to take a nested dict of structure:
-            Level 1 -> Level 2 -> [Version (, Version...)]
-
-        And translate it into a list of nested QMenus that we can use
-        as a Context Menu.
-
-        :param menu_name: `str`
-        :param menu_items: `list`, list of Version dicts
-        :param parent: `QMenu`
-        :return:
-        """
-
-        def create_menu(name, items):
-            # Recursive method to work down the nested dict
-            menu = QtGui.QMenu(name)
-            for item in items:
-                item_name, item_value = item
-
-                # item_value should either be a tuple of (name, list) or a list
-                if isinstance(item_value[0], tuple):
-                    item_name, item_value = item
-                    submenu = create_menu(item_name, item_value)
-                    if len(item_value) > 1:
-                        submenu_items = []
-                        for subitem_name, subitem_value in item_value:
-                            submenu_items.extend(subitem_value)
-
-
-                        # NOTE: Continuing to use action_definition structure in case
-                        #   we pull this into a library at some point.
-                        #   -- @JoshBurnell
-                        action_definition = {
-                            "callback": self._rv_mode._compare_with_versions,
-                            "text": "(Compare All)",
-                            "versions": submenu_items
-                        }
-
-                        action = QtGui.QAction(action_definition.get("text"),
-                                               menu)
-                        action._versions = action_definition.get("versions")
-                        parent._actions[action] = action_definition
-                        submenu.addAction(action)
-
-                    menu.addMenu(submenu)
-                else:
-                    if len(item_value) == 1:
-                        # If item_value has one value, make it an Action
-                        action_definition = {
-                            "callback": self._rv_mode._compare_with_versions,
-                            "text": item_name,
-                            "version": item_value[0]
-                        }
-
-                        action = QtGui.QAction(action_definition.get("text"), menu)
-                        action._version = action_definition.get("version")
-                        parent._actions[action] = action_definition
-                        menu.addAction(action)
-                    else:
-                        # If item_value has multiple values, make them all Actions
-                        submenu_versions = [(v["code"], [v]) for v in item_value]
-                        submenu = create_menu(item_name,
-                                              submenu_versions)
-
-                        menu.addMenu(submenu)
-
-                        action_definition = {
-                            "callback": self._rv_mode._compare_with_versions,
-                            "text": "(Compare All)",
-                            "versions": item_value
-                        }
-
-                        action = QtGui.QAction(action_definition.get("text"),
-                                               menu)
-                        action._versions = action_definition.get("versions")
-                        parent._actions[action] = action_definition
-                        submenu.addAction(action)
-
-            return menu
-
-        return create_menu(menu_name, menu_items)
-
     def _add_compare_with_asset_menu(self, menu, versions):
         """
         Create context menu for Asset Versions related to given Version(s)
@@ -422,12 +339,16 @@ class TrayMainFrame(QtGui.QFrame):
         :return: `QMenu`
         """
         if len(versions) == 1:
-            versions_dict = self._rv_mode._get_asset_versions_dict(versions[0])
-            submenu = self.__create_nested_menu("Compare with Asset",
-                                                versions_dict,
-                                                menu)
+            versions = self._rv_mode._get_asset_versions(versions[0])
+            submenu = NestedVersionQMenu(
+                self._rv_mode,
+                menu,
+                "Compare with Asset",
+                versions,
+                ["entity.Asset.sg_asset_type", "entity.Asset.code"])
+
             menu.addMenu(submenu)
-            if not versions_dict:
+            if not versions:
                 submenu.setEnabled(False)
         else:
             submenu = menu.addMenu("Compare with Asset")
@@ -442,12 +363,18 @@ class TrayMainFrame(QtGui.QFrame):
         :return: `QMenu`
         """
         if len(versions) == 1:
-            versions_dict =self._rv_mode._get_approved_versions_dict(versions[0])
-            submenu = self.__create_nested_menu("Compare with Approved",
-                                                versions_dict,
-                                                menu)
+            versions =self._rv_mode._get_approved_versions(versions[0])
+            submenu = NestedVersionQMenu(
+                self._rv_mode,
+                menu,
+                "Compare with Approved",
+                versions,
+                ["sg_task.Task.step.Step.code", "sg_task.Task.content"],
+                truncate=True
+            )
+
             menu.addMenu(submenu)
-            if not versions_dict:
+            if not versions:
                 submenu.setEnabled(False)
         else:
             submenu = menu.addMenu("Compare with Approved")
@@ -462,12 +389,18 @@ class TrayMainFrame(QtGui.QFrame):
         :return: `QMenu`
         """
         if len(versions) == 1:
-            versions_dict =self._rv_mode._get_latest_versions_dict(versions[0])
-            submenu = self.__create_nested_menu("Compare with Latest",
-                                                versions_dict,
-                                                menu)
+            versions = self._rv_mode._get_latest_versions(versions[0])
+            submenu = NestedVersionQMenu(
+                self._rv_mode,
+                menu,
+                "Compare with Latest",
+                versions,
+                ["sg_task.Task.step.Step.code", "sg_task.Task.content"],
+                truncate=True
+            )
+
             menu.addMenu(submenu)
-            if not versions_dict:
+            if not versions:
                 submenu.setEnabled(False)
         else:
             submenu = menu.addMenu("Compare with Latest")
