@@ -83,6 +83,14 @@ class TrayMainFrame(QtGui.QFrame):
         """
         self.tray_dock.setTitleBarWidget(QtGui.QWidget(self.tray_dock.parent()))
 
+    def refresh_tray_dock(self):
+        """
+        Refresh the content of the tray dock (i.e. parent)
+        """
+        self._rv_mode.load_tray_with_something_new(
+            self._rv_mode.last_target_entity
+        )
+
     def init_ui(self):
         self.setObjectName('tray_frame')
         self.tray_frame_vlayout = QtGui.QVBoxLayout(self)
@@ -145,19 +153,25 @@ class TrayMainFrame(QtGui.QFrame):
 
         self.close_button = QtGui.QToolButton()
         self.float_button = QtGui.QToolButton()
+        self.refresh_button = QtGui.QToolButton()
         self.close_button.setObjectName("tray_close_button")
         self.float_button.setObjectName("tray_float_button")
+        self.refresh_button.setObjectName("tray_refresh_button")
+
         self.close_button.setAutoRaise(True)
         self.float_button.setAutoRaise(True)
         self.float_button.setCheckable(True)
+        self.refresh_button.setAutoRaise(True)
 
         # For whatever reason, defining this style in the tray_dock.qss
         # file doesn't work here. Doing it directly onto the buttons as
         # a result.
         self.close_button.setStyleSheet("min-width: 8px; min-height: 8px")
         self.float_button.setStyleSheet("min-width: 8px; min-height: 8px")
+        self.refresh_button.setStyleSheet("min-width: 8px; min-height: 8px")
         self.close_button.setIconSize(QtCore.QSize(8,8))
         self.float_button.setIconSize(QtCore.QSize(8,8))
+        self.refresh_button.setIconSize(QtCore.QSize(8,8))
 
         # We're taking over the responsibility of handling the title bar's
         # typical responsibilities of closing the dock and managing float
@@ -167,6 +181,8 @@ class TrayMainFrame(QtGui.QFrame):
         self.float_button.clicked.connect(self.toggle_floating)
         self.close_button.clicked.connect(self.hide_dock)
         self.tray_dock.dockLocationChanged.connect(self.dock_location_changed)
+
+        self.refresh_button.clicked.connect(self.refresh_tray_dock)
 
         self.close_icon = QtGui.QIcon()
         self.float_icon = QtGui.QIcon()
@@ -220,12 +236,33 @@ class TrayMainFrame(QtGui.QFrame):
         self.close_button.setIcon(self.close_icon)
         self.float_button.setIcon(self.float_icon)
 
+        # Path hack to display our own images
+        rpath = os.environ.get("RV_TK_SHOTGUNREVIEW")
+        self.refresh_icon = QtGui.QIcon()
+        self.refresh_icon.addPixmap(
+            QtGui.QPixmap(os.path.join(rpath, "resources/refresh_hover.png")),
+            QtGui.QIcon.Active,
+            QtGui.QIcon.On,
+        )
+        self.refresh_icon.addPixmap(
+            QtGui.QPixmap(os.path.join(rpath, "resources/refresh.png")),
+            QtGui.QIcon.Normal,
+            QtGui.QIcon.On,
+        )
+        self.refresh_icon.addPixmap(
+            QtGui.QPixmap(os.path.join(rpath, "resources/refresh_hover.png")),
+            QtGui.QIcon.Selected,
+            QtGui.QIcon.On,
+        )
+        self.refresh_button.setIcon(self.refresh_icon)
+
         # The buttons will be stacked vertically, with the close button
         # even with the button bar at the top of the tray, and the float
         # button immediately below it.
         self.tray_dock_control_layout = QtGui.QHBoxLayout()
         self.tray_dock_control_layout.setSpacing(0)
         self.tray_dock_control_layout.setContentsMargins(8, 0, 0, 0)
+        self.tray_dock_control_layout.addWidget(self.refresh_button)
         self.tray_dock_control_layout.addWidget(self.float_button)
         self.tray_dock_control_layout.addWidget(self.close_button)
         self.tray_button_bar_grid.addLayout(self.tray_dock_control_layout, 0, 1)
