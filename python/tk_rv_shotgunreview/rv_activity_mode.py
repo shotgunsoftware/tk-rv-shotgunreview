@@ -1322,6 +1322,13 @@ class RvActivityMode(rvt.MinorMode):
                 text="Play In Sequence",
             )
         )
+        self.tray_main_frame.add_version_context_menu_action(
+            action_definition=dict(
+                callback=self._compare_selected,
+                required_selection="multi",
+                text="Compare Selected",
+            )
+        )
 
     def mini_cut_mode_toggle(self, event):
         # load current mini-cut state for this sequence node
@@ -2988,7 +2995,7 @@ class RvActivityMode(rvt.MinorMode):
             json.dumps(versions),
         )
 
-    def _compare_selected(self, versions):
+    def _compare_selected(self, versions, action=None):
         """
         Builds a new RV view that compares the given Versions.
 
