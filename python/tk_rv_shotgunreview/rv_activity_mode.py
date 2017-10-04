@@ -500,6 +500,13 @@ class RvActivityMode(rvt.MinorMode):
 
         return state_func
 
+    def preferred_compare_mode_toggle(self, event):
+        mode_name = ("Wipe" if self._prefs.preferred_compare_mode == "Grid"
+                     else "Grid")
+        self._prefs.preferred_compare_mode = mode_name
+        self._prefs.save()
+        rve.displayFeedback2("Compare Mode: %s" % mode_name, 2.0)
+
     def set_default_media_type_streaming(self, event):
         self._prefs.preferred_media_type = "Streaming"
         self._prefs.save()
@@ -1007,6 +1014,7 @@ class RvActivityMode(rvt.MinorMode):
                 ('key-down--alt--t', self.toggle_view_tray, ''),
                 ('key-down--alt--c', self.cuts_button_pushed_event, ''),
                 ('key-down--alt--m', self.mini_cut_mode_toggle, ''),
+                ('key-down--meta--g', self.preferred_compare_mode_toggle, ''),:
                 ],
                 [("SG Review", [
                     ("Get Help ...", self.getHelp, None, lambda: rvc.UncheckedMenuState),
@@ -1041,9 +1049,9 @@ class RvActivityMode(rvt.MinorMode):
                         ("    Streaming", self.set_default_media_type_streaming, None, self.default_media_type_state_streaming),
 
                         ("Default Compare Mode", None, None, lambda: rvc.DisabledMenuState),
-                        ("    Grid",             self.set_preferred_compare_mode_factory("Grid"),  None, self.preferred_compare_mode_state_factory("Grid")),
+                        ("    Grid",             self.set_preferred_compare_mode_factory("Grid"),  "meta+g", self.preferred_compare_mode_state_factory("Grid")),
                         ("    Stack",            self.set_preferred_compare_mode_factory("Stack"), None, self.preferred_compare_mode_state_factory("Stack")),
-                        ("    Stack with Wipes", self.set_preferred_compare_mode_factory("Wipe"),  None, self.preferred_compare_mode_state_factory("Wipe")),
+                        ("    Stack with Wipes", self.set_preferred_compare_mode_factory("Wipe"),  "meta+g", self.preferred_compare_mode_state_factory("Wipe")),
 
                         ("Show On Startup", None, None, lambda: rvc.DisabledMenuState),
                         ("    Details Pane",       self.toggle_startup_view_details, None, self.startup_view_details_state),
