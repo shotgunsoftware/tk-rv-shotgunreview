@@ -3062,6 +3062,127 @@ class RvActivityMode(rvt.MinorMode):
             })
         )
 
+    ##########################################################################
+    # helper methods
+    def _get_asset_versions_dict(self, version, latest=False):
+        """
+        Get a dict of Asset Versions:
+            Asset Type -> Asset Name -> Latest Version
+
+        :param version: `dict` describing a Version entity
+        :return: `dict`, Describing a collection of Assets and Versions
+        """
+        # Set the filters
+        if version["entity"]["type"] == "Shot":
+            filters = [["entity.Asset.shots", "is", version["entity"]]]
+        elif version["entity"]["type"] == "Asset":
+            filters = [["entity.Asset.assets", "is", version["entity"]]]
+        else:
+            return {}
+
+        # Call Shotgun
+        versions = self._bundle.shotgun.find(
+            "Version",
+            filters,
+            ["entity", "entity.Asset.sg_asset_type", "entity.Asset.code", "code"],
+            [{'field_name': 'id', 'direction': 'desc'}]
+        )
+
+        step_list = []
+        task_list = []
+        versions_dict = {}
+        for vsn in versions:
+            step = vsn["entity.Asset.sg_asset_type"]
+            task = vsn["entity.Asset.code"]
+            if step not in step_list:
+                step_list.append(step)
+                versions_dict[step] = {}
+
+            if task not in task_list:
+                task_list.append(task)
+                versions_dict[step][task] = [vsn]
+            elif not latest:
+                versions_dict[step][task].append(vsn)
+
+        # Translate dict into an ordered list of tuples
+        versions_task_list = []
+        for step in step_list:
+            versions_step_list = []
+            for task in task_list:
+                if task in versions_dict[step]:
+                    versions_step_list.append((task, versions_dict[step][task]))
+            if versions_step_list:
+                versions_task_list.append((step, versions_step_list))
+        return versions_task_list
 
 
+    def __get_versions_task_dict(self, version, subfilters=None, latest=False):
+        """
+        Get a dict of the latest Versions, sorted by Version.sg_department
 
+        This is very messy and should be cleaned up.    -- @jburnell
+
+        :param versions:
+        :return:
+        """
+        filters = [["entity", "is", version["entity"]],
+                   ["sg_task", "is_not", None]]
+        if subfilters:
+            filters.extend(subfilters)
+        if version["id"]:
+            versions = self._bundle.shotgun.find(
+                "Version",
+                filters,
+                ["sg_task.Task.step.Step.code", "sg_task.Task.content", "code"],
+                [{'field_name': 'created_at', 'direction': 'desc'}]
+            )
+
+            step_list = []
+            task_list = []
+            versions_dict = {}
+            for vsn in versions:
+                step = vsn["sg_task.Task.step.Step.code"]
+                task = vsn["sg_task.Task.content"]
+                if step not in step_list:
+                    step_list.append(step)
+                    versions_dict[step] = {}
+
+                if task not in task_list:
+                    task_list.append(task)
+                    versions_dict[step][task] = [vsn]
+                elif not latest:
+                    versions_dict[step][task].append(vsn)
+
+            # Translate dict into an ordered list of tuples
+            versions_task_list = []
+            for step in step_list:
+                versions_step_list = []
+                for task in task_list:
+                    if task in versions_dict[step]:
+                        versions_step_list.append((task, versions_dict[step][task]))
+                if versions_step_list:
+                    versions_task_list.append((step, versions_step_list))
+
+            return versions_task_list
+
+        return []
+
+    def _get_approved_versions_dict(self, version):
+        """
+        Get a dict of the latest Versions, sorted by Version.sg_department
+
+        :param versions:
+        :return:
+        """
+        return self.__get_versions_task_dict(version,
+                                             [["sg_status_list", "is", "apr"]],
+                                             latest=True)
+
+    def _get_latest_versions_dict(self, version):
+        """
+        Get a dict of the latest Versions, sorted by Version.sg_department
+
+        :param versions:
+        :return:
+        """
+        return self.__get_versions_task_dict(version, latest=True)
