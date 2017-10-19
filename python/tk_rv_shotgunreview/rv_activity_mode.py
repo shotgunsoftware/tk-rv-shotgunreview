@@ -365,7 +365,6 @@ class RvActivityMode(rvt.MinorMode):
             if sel_index not in sels:
                 sm = self.tray_list.selectionModel()           
                 sm.select(sel_index, sm.ClearAndSelect)
-                self.tray_list.scrollTo(sel_index, QtGui.QAbstractItemView.PositionAtCenter)            
                 
         except Exception as e:
             print "ERROR: RV frameChanged EXCEPTION %r" % e
@@ -414,6 +413,8 @@ class RvActivityMode(rvt.MinorMode):
                     self.update_cuts_with()
 
                 self._popup_utils.request_related_cuts_from_models()
+
+            self.scroll_tray_list_to_selected()
 
     def update_cuts_with(self):
         cuts = self.get_cuts_with()
@@ -2800,26 +2801,17 @@ class RvActivityMode(rvt.MinorMode):
             seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
             if seq_node:
                 frame_index = index.row()
-                sg_item = shotgun_model.get_sg_data(index)
-                if 'sg_first_frame' in sg_item:
-                    # Get the frame info from the sg_item
-                    # It's possible we should get this from the Sequence
-                    #     itself. --@JoshBurnell
-                    frame = rvc.getIntProperty(seq_node + ".edl.frame")
-                    start_frame = frame[frame_index]
-                    end_frame = (frame[frame_index]
-                                    + sg_item['sg_last_frame'] - 1)
+                mini_data = MiniCutData.load_from_session()
+                if mini_data.active:
+                    frame_index = frame_index - mini_data.first_clip
 
-                    rvc.setInPoint(start_frame)
-                    rvc.setOutPoint(end_frame)
-                    rvc.setFrame(start_frame)
-                    rvc.play()
+                frame = rvc.getIntProperty(seq_node + ".edl.frame")
+                start_frame = frame[frame_index]
+                end_frame = frame[frame_index + 1] - 1
 
-                elif 'cut_item_out' in sg_item:
-                    return
-
-                else:
-                    print "WARNING: Unable to play item %s" % sg_item['id']
+                rvc.setInPoint(start_frame)
+                rvc.setOutPoint(end_frame)
+                rvc.setFrame(start_frame)
 
     def get_mini_values(self):
         self._prefs.mini_left_count  = self.tray_left_spinner.value() 
@@ -2950,7 +2942,8 @@ class RvActivityMode(rvt.MinorMode):
         modifiers = QtGui.QApplication.keyboardModifiers()
         if modifiers not in [QtCore.Qt.ControlModifier,
                              QtCore.Qt.ShiftModifier,
-                             QtCore.Qt.ControlModifier | QtCore.Qt.ShiftModifier]:
+                             QtCore.Qt.ControlModifier |
+                                     QtCore.Qt.ShiftModifier]:
             if rvc.nodeType(rvc.viewNode()) == "RVSequenceGroup":
                 seq_node = groupMemberOfType(rvc.viewNode(), "RVSequence")
                 if seq_node:
@@ -2960,15 +2953,11 @@ class RvActivityMode(rvt.MinorMode):
                     if mini_data.active:
                         if (frame_index < mini_data.first_clip or
                                 frame_index > mini_data.last_clip):
-                            # frame_index = min(max(mini_data.first_clip,
-                            #                       frame_index),
-                            #                   mini_data.last_clip)
-                            # index = self.tray_model.index(frame_index, 0)
-
                             # When you click outside the mini-cut, move the
                             # mini-cut. --JOSH
                             self.load_mini_cut(frame_index, move_minicut=True)
                             return
+
                         frame_index = frame_index - mini_data.first_clip
 
                     frame = rvc.getIntProperty(seq_node + ".edl.frame")
@@ -2978,11 +2967,6 @@ class RvActivityMode(rvt.MinorMode):
 
                     sm = self.tray_list.selectionModel()
                     sm.select(index, sm.ClearAndSelect)
-
-                    # self.tray_list.scrollTo(index, QtGui.QAbstractItemView.PositionAtCenter)
-
-                    # XXX below should work according to docs
-                    # self.tray_list.scrollTo(index, QtGui.QAbstractItemView.EnsureVisible)
 
             self.tray_list.repaint()
 
@@ -3004,8 +2988,18 @@ class RvActivityMode(rvt.MinorMode):
         except Exception as e:
             print "ERROR: create_sequence_from_versions %r" % e
 
+    def scroll_tray_list_to_selected(self):
+        if not self.tray_dock.isVisible():
+            return
 
+        idx = self.clip_index_from_frame()
+        mini_data = MiniCutData.load_from_session()
 
+        if mini_data and mini_data.active:
+            idx = idx + mini_data.first_clip
+
+        sel_index = self.tray_model.index(idx, 0)
+        self.tray_list.scrollTo(sel_index, QtGui.QAbstractItemView.PositionAtCenter)
 
     ##########################################################################
     # version list actions
