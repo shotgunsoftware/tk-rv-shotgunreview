@@ -181,7 +181,7 @@ def setProp(prop, value):
             
 def getIntProp(prop, default):
     '''
-    Convenience function to get the value of an Int proprty, returning the
+    Convenience function to get the value of an Int property, returning the
     given default value if the property does not exist or has no contents.  If
     the given default value is scalar only the first value of the properties
     content array is returned.
@@ -198,7 +198,7 @@ def getIntProp(prop, default):
     
 def getStringProp(prop, default):
     '''
-    Convenience function to get the value of an String proprty, returning the
+    Convenience function to get the value of an String property, returning the
     given default value if the property does not exist or has no contents.  If
     the given default value is scalar only the first value of the properties
     content array is returned.
@@ -976,6 +976,8 @@ class RvActivityMode(rvt.MinorMode):
         self.incoming_pinned = {}
         self.incoming_mini_cut_focus = None
 
+        self.init_target_entity = None
+
         # Dict of "sources" that we haven't created yet (to speed up start-up
         # when starting with mini-cut).  Contents are "version_data" from SG,
         # indexed by version ID.
@@ -1071,7 +1073,26 @@ class RvActivityMode(rvt.MinorMode):
         rvt.MinorMode.deactivate(self)
               
 
-    ################################################################################### qt stuff down here. 
+    ##################################################### qt stuff down here.
+
+    def show_home_action(self):
+        """
+        Add a Home button to the far left of the RV toolbar.
+        """
+        btb = rv.qtutils.sessionBottomToolBar()
+        actions = btb.actions()
+        text = "No home state"
+
+        # Path hack to display our own images
+        rpath = os.environ.get("RV_TK_SHOTGUNREVIEW")
+        hicon = QtGui.QIcon(os.path.join(rpath, "resources/icon_player_home_action_small_dark.png"))
+
+        self.home_action = QtGui.QAction(hicon, text, btb)
+        self.home_action.triggered.connect(self.home_button_pushed)
+        btb.insertAction(actions[0], self.home_action)
+
+    def home_button_pushed(self):
+        self.load_tray_with_something_new(self.init_target_entity)
 
     def show_cuts_action(self, show=True):
         '''
@@ -1082,13 +1103,13 @@ class RvActivityMode(rvt.MinorMode):
         
         actions = btb.actions()
  
-        text = 'No cut for this version'
+        text = "No Cut for this Version"
  
         if show:
             cicon = QtGui.QIcon(":/tk-rv-shotgunreview/icon_player_cut_action_small_dark.png")
             self.cuts_action = QtGui.QAction(cicon, text, btb)
             self.cuts_action.triggered.connect(self.cuts_button_pushed)
-            btb.insertAction(actions[0],self.cuts_action)
+            btb.insertAction(actions[0], self.cuts_action)
             self.cuts_action.setEnabled(False)
         else:
             if (actions[0].text() == text):
@@ -1107,7 +1128,6 @@ class RvActivityMode(rvt.MinorMode):
             self.cuts_action.setIcon(cicon)
         self.cuts_action.setEnabled(enable)
         self.cuts_action.setToolTip(tooltip)
-
 
     def cuts_button_pushed_event(self, event):
         if not self.cuts_action.isEnabled():
@@ -1143,8 +1163,8 @@ class RvActivityMode(rvt.MinorMode):
             pinned = { shot_id:version_data } if shot_id else {}          
 
             self.load_tray_with_something_new(cut,
-                    incoming_pinned=pinned, 
-                    incoming_mini_focus=version_data)
+                                              incoming_pinned=pinned,
+                                              incoming_mini_focus=version_data)
 
             self.tray_list.repaint()
 
@@ -1170,6 +1190,9 @@ class RvActivityMode(rvt.MinorMode):
         
         # Add a cuts button to the bottom toolbar
         self.show_cuts_action(True)
+
+        # Add a home button to the bottom toolbar
+        self.show_home_action()
 
         # Setup the details panel.
         self.details_panel = version_details.VersionDetailsWidget(
@@ -1374,6 +1397,10 @@ class RvActivityMode(rvt.MinorMode):
         self.compare_active = False
         target_entity = json.loads(event.contents())
 
+        # Save the initial target entity for the Home Button
+        if not self.init_target_entity:
+            self.init_target_entity = target_entity
+
         # XXX should check here that incoming server matches server to
         # which we are currently authenticated
         target_entity["server"] = self._app.tank.shotgun_url
@@ -1522,7 +1549,7 @@ class RvActivityMode(rvt.MinorMode):
 
         return group
         
-    def compare_sources (self, sources):
+    def compare_sources(self, sources):
 
         compNode = self.find_or_create_compare_node(len(sources))
 
