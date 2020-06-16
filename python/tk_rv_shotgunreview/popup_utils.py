@@ -101,6 +101,19 @@ class PopupUtils(QtCore.QObject):
 
         self._filtered_versions_model.data_refreshed.connect(self.filter_tray)
 
+    def destroy(self):
+        if self._filtered_versions_model:
+            self._filtered_versions_model.destroy()
+            self._filtered_versions_model=None
+        if self._rel_shots_model:
+            self._rel_shots_model.destroy()
+            self._rel_shots_model=None
+        if self._rel_cuts_model:
+            self._rel_cuts_model.destroy()
+            self._rel_cuts_model=None
+        if self._steps_model:
+            self._steps_model.destroy()
+            self._steps_model=None
     # related cuts menu menthods
 
     # def mark_pipeline_selections(self):

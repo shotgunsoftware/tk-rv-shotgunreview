@@ -163,10 +163,12 @@ def setProp(prop, value):
     first if necessary.  In coming value can be scalar or list of the
     appropriate type.
     '''
-    if   type(value) == int or (type(value) == list and len(value) and type(value[0]) == int):
+    if   type(value) in (int, long) or (type(value) == list and len(value) and type(value[0]) in (int, long)):
         if not rvc.propertyExists(prop):
             rvc.newProperty(prop, rvc.IntType, 1)
-        rvc.setIntProperty(prop, value if (type(value) == list) else [value], True)
+        if type(value) == list:
+            value = [int(v) for v in value]
+        rvc.setIntProperty(prop, value if (type(value) == list) else [int(value)], True)
 
     elif type(value) == float or (type(value) == list and len(value) and type(value[0]) == float):
         if not rvc.propertyExists(prop):
@@ -178,6 +180,10 @@ def setProp(prop, value):
         if not rvc.propertyExists(prop):
             rvc.newProperty(prop, rvc.StringType, 1)
         rvc.setStringProperty(prop, value if (type(value) == list) else [value], True)
+
+    else:
+        raise ValueError("Unable to set Property %s. Expecting int, long, "
+            "str, unicode or lists of any of those." % prop)
             
 def getIntProp(prop, default):
     '''
@@ -874,7 +880,7 @@ class RvActivityMode(rvt.MinorMode):
             self.createText(overlay_node + '.text:sg_review_error', ' ', -0.5, 0.0)
 
     def get_url_from_version(self, v_id):
-        return "%s/file_serve/version/%r/mp4" % (self._app.engine.sgtk.shotgun_url, v_id)
+        return "%s/file_serve/version/%d/mp4" % (self._app.engine.sgtk.shotgun_url, v_id)
 
 
     def swap_media_of_source(self, source_node, media_type_name, report=False):
@@ -1070,7 +1076,24 @@ class RvActivityMode(rvt.MinorMode):
         self.details_panel.save_preferences()
         rvt.MinorMode.deactivate(self)
               
-
+    def destroy(self):
+        self.deactivate()
+        if self._popup_utils:
+            self._popup_utils.destroy()
+            self._popup_utils=None
+        if self.tray_main_frame:
+            self.tray_main_frame.destroy()
+            self.tray_main_frame=None
+        if self.details_panel:
+            self.details_panel.destroy()
+            self.details_panel=None
+        if self._cuts_model:      
+            self._cuts_model.destroy()
+            self._cuts_model=None
+        if self._shot_model:      
+            self._shot_model.destroy()
+            self._shot_model=None
+            
     ################################################################################### qt stuff down here. 
 
     def show_cuts_action(self, show=True):
@@ -2188,6 +2211,9 @@ class RvActivityMode(rvt.MinorMode):
             self._app.engine.log_error("No Version data for CutItem id=%d." % sg.get("id"))
             version_data["id"]   = 100000 + sg.get("cut.Cut.id", 0)
             version_data["code"] = "Missing Version"
+
+        # sanitize version data from long to int, to avoid problems
+        version_data["id"] = int(version_data["id"])
 
         return (version_data, edit_data)
 

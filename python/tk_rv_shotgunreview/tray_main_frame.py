@@ -38,6 +38,10 @@ class TrayMainFrame(QtGui.QFrame):
         # set up the UI
         self.init_ui()
 
+    def destroy(self):
+        if self.tray_model:
+            self.tray_model.destroy()
+            self.tray_model=None
     def show_steps_and_statuses(self, visible):
         self.pipeline_filter_button.setVisible( visible )
         self.status_filter_button.setVisible( visible )
