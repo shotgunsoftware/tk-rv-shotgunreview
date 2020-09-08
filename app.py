@@ -80,6 +80,8 @@ class RVShotgunReviewApp(Application):
         Deactivates the RV mode before proceeding with tear-down of the
         app.
         """
+        if six.PY3:
+            return
         self._rv_activity_stream.deactivate()
 
     #####################################################################################
