@@ -29,7 +29,7 @@ class RVShotgunReviewApp(Application):
         Called as the application is being initialized.
         """
 
-        # Disable the app for python 3 as it will no longer be user
+        # Disable the app for python 3 as it will no longer be used
         if six.PY3:
             return
 
