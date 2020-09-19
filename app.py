@@ -82,7 +82,7 @@ class RVShotgunReviewApp(Application):
         """
         if six.PY3:
             return
-        self._rv_activity_stream.deactivate()
+        self._rv_activity_stream.destroy()
 
     #####################################################################################
     # Properties
