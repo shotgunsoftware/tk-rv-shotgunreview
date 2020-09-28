@@ -13,6 +13,7 @@ import os
 import tank
 from sgtk.platform import Application
 from tank.platform.qt import QtGui, QtCore
+from tank_vendor import six
 
 import rv.qtutils
 import rv.commands
@@ -27,6 +28,11 @@ class RVShotgunReviewApp(Application):
         """
         Called as the application is being initialized.
         """
+
+        # Disable the app for python 3 as it will no longer be used
+        if six.PY3:
+            return
+
         tk_rv_shotgunreview = self.import_module("tk_rv_shotgunreview")
 
         parent_widget = self.engine.get_dialog_parent()
@@ -74,7 +80,9 @@ class RVShotgunReviewApp(Application):
         Deactivates the RV mode before proceeding with tear-down of the
         app.
         """
-        self._rv_activity_stream.deactivate()
+        if six.PY3:
+            return
+        self._rv_activity_stream.destroy()
 
     #####################################################################################
     # Properties
