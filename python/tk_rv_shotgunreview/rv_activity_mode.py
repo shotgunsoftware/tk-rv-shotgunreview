@@ -987,6 +987,7 @@ class RvActivityMode(rvt.MinorMode):
         # indexed by version ID.
         self.proxy_sources = {}
 
+        rvc.logMetrics("SG Review Loaded")
 
         self.init("RvActivityMode", None,
                 [

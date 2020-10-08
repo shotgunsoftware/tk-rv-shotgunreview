@@ -29,6 +29,9 @@ class RVShotgunReviewApp(Application):
         Called as the application is being initialized.
         """
 
+        if "RV_LOAD_SG_REVIEW" not in os.environ:
+            return
+
         # Disable the app for python 3 as it will no longer be used
         if six.PY3:
             return
@@ -77,10 +80,10 @@ class RVShotgunReviewApp(Application):
 
     def destroy_app(self):
         """
-        Deactivates the RV mode before proceeding with tear-down of the
+        Destroy the RV activity stream before proceeding with tear-down of the
         app.
         """
-        if six.PY3:
+        if six.PY3 or "RV_LOAD_SG_REVIEW" not in os.environ:
             return
         self._rv_activity_stream.destroy()
 
@@ -102,5 +105,3 @@ class RVShotgunReviewApp(Application):
         self.engine.log_info('QtGui: %r' % QtGui)
         self.engine.log_info('QtCore: %r' % QtCore)
         self._rv_activity_stream.load_data( { "type": "Version", "id": 41})
-
-        
