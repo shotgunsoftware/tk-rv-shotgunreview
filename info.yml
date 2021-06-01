@@ -21,7 +21,7 @@ supported_engines:
 requires_shotgun_fields:
         
 # More verbose description of this item 
-display_name: "Shotgun Review for RV"
+display_name: "ShotGrid Review for RV"
 description: "Provides access to Cuts, Versions, and Notes in RV."
 
 # Required minimum versions for this item to run

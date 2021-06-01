@@ -1972,7 +1972,7 @@ class RvActivityMode(rvt.MinorMode):
         
         if not path:
             if report:
-                rve.displayFeedback2("No Shotgun entry found for '%s'" % media_type, 2.0)
+                rve.displayFeedback2("No ShotGrid entry found for '%s'" % media_type, 2.0)
         else:
             if self.check_media_contents(path):
                 rve.displayFeedback2(path, 2.0)
@@ -1986,7 +1986,7 @@ class RvActivityMode(rvt.MinorMode):
         path = version_data.get(standard_media_types[other].path_field)
         if not path:
             if self._prefs.auto_streaming:
-                rve.displayFeedback2("Shotgun path field empty for '%s', trying streaming" % media_type, 2.0)
+                rve.displayFeedback2("ShotGrid path field empty for '%s', trying streaming" % media_type, 2.0)
                 return "Streaming"
             else:
                 return None
