@@ -918,7 +918,7 @@ class RvActivityMode(rvt.MinorMode):
         rvc.openUrl(self._app.tank.shotgun_url + "/page/media_center")
 
     def getHelp(self, event):
-        rvc.openUrl("https://shotgunsoftware.zendesk.com/hc/en-us/articles/222840748")
+        rvc.openUrl("https://shotgridsoftware.com/rv")
 
     def __init__(self, app):
         rvt.MinorMode.__init__(self)
