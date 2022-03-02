@@ -14,7 +14,7 @@
 UI_PYTHON_PATH=../python/tk_rv_shotgunreview/ui
 PYTHON_BASE="/Applications/Shotgun.app/Contents/Resources/Python"
 # Clear up potential png profile problems.
-for f in *png;do convert -strip $f $f; done
+for f in *png;do mogrify $f; done
 
 # Helper functions to build UI files
 function build_qt {
